@@ -1,0 +1,165 @@
+{
+  "name": "justapi",
+  "displayName": "JustAPI",
+  "description": "A local-first API client for VS Code",
+  "version": "0.0.1",
+  "publisher": "DevBySergio",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other",
+    "Testing",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "api",
+    "rest",
+    "http",
+    "postman",
+    "client"
+  ],
+  "activationEvents": [
+    "onView:justapi.sidebar",
+    "onCommand:justapi.createRequest",
+    "onCommand:justapi.importCurl",
+    "onStartupFinished"
+  ],
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "justapi-activity",
+          "title": "JustAPI",
+          "icon": "$(zap)"
+        }
+      ]
+    },
+    "views": {
+      "justapi-activity": [
+        {
+          "type": "webview",
+          "id": "justapi.sidebar",
+          "name": "JustAPI"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "justapi.createRequest",
+        "title": "JustAPI: New Request"
+      },
+      {
+        "command": "justapi.importCurl",
+        "title": "JustAPI: Import from cURL"
+      },
+      {
+        "command": "justapi.exportCollection",
+        "title": "JustAPI: Export Collection"
+      },
+      {
+        "command": "justapi.importCollection",
+        "title": "JustAPI: Import Collection"
+      },
+      {
+        "command": "justapi.openHistory",
+        "title": "JustAPI: Open History"
+      },
+      {
+        "command": "justapi.createVariable",
+        "title": "JustAPI: Create Variable"
+      },
+      {
+        "command": "justapi.generateCode",
+        "title": "JustAPI: Generate Code Snippet"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "justapi.createRequest",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n"
+      },
+      {
+        "command": "justapi.importCurl",
+        "key": "ctrl+alt+v",
+        "mac": "cmd+alt+v"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "justapi.createRequest",
+          "when": "true"
+        },
+        {
+          "command": "justapi.importCurl",
+          "when": "true"
+        },
+        {
+          "command": "justapi.exportCollection",
+          "when": "true"
+        },
+        {
+          "command": "justapi.importCollection",
+          "when": "true"
+        },
+        {
+          "command": "justapi.openHistory",
+          "when": "true"
+        },
+        {
+          "command": "justapi.createVariable",
+          "when": "true"
+        },
+        {
+          "command": "justapi.generateCode",
+          "when": "true"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "vsix": "vsce package --no-dependencies --allow-missing-repository",
+    "publish": "vsce publish --allow-missing-repository",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/vscode": "1.80.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.9.1",
+    "css-loader": "^7.1.2",
+    "eslint": "^9.39.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.34.5",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1",
+    "webpack": "^5.105.3",
+    "webpack-cli": "^6.0.1",
+    "zustand": "^5.0.0"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0"
+  }
+}

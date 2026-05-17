@@ -90,30 +90,22 @@ Search across collections, folders, requests, and history from a single bar.
 
 Open the **JustAPI** activity bar icon (⚡) in the sidebar, or use the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
-| Command | Description |
-|---------|-------------|
-| `JustAPI: New Request` | Create a blank request |
-| `JustAPI: Import from cURL` | Parse a cURL command from clipboard |
-| `JustAPI: Export Collection` | Export collection as JSON |
-| `JustAPI: Import Collection` | Import collection from JSON |
-| `JustAPI: Open History` | Open request history |
-| `JustAPI: Create Variable` | Open variable editor |
-| `JustAPI: Generate Code Snippet` | Generate code from current request |
+| Command                          | Description                         |
+| -------------------------------- | ----------------------------------- |
+| `JustAPI: New Request`           | Create a blank request              |
+| `JustAPI: Import from cURL`      | Parse a cURL command from clipboard |
+| `JustAPI: Export Collection`     | Export collection as JSON           |
+| `JustAPI: Import Collection`     | Import collection from JSON         |
+| `JustAPI: Open History`          | Open request history                |
+| `JustAPI: Create Variable`       | Open variable editor                |
+| `JustAPI: Generate Code Snippet` | Generate code from current request  |
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+Alt+N` / `Cmd+Alt+N` | New Request |
+| Shortcut                   | Action           |
+| -------------------------- | ---------------- |
+| `Ctrl+Alt+N` / `Cmd+Alt+N` | New Request      |
 | `Ctrl+Alt+V` / `Cmd+Alt+V` | Import from cURL |
-
----
-
-## 📸 Screenshots
-
-*(Add your screenshots here)*
-
-![Screenshot](media/screenshot-main.png)
 
 ---
 
@@ -129,9 +121,8 @@ Your data is yours.
 
 ## 📝 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License.
 
 ---
 
 **Happy coding!** ⚡
-# JustAPI_by_Sergio
