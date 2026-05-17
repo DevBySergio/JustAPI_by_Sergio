@@ -2,8 +2,23 @@
   "name": "justapi",
   "displayName": "JustAPI",
   "description": "A local-first API client for VS Code",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "publisher": "DevBySergio",
+  "author": {
+    "name": "DevBySergio",
+    "url": "https://devbysergio.com/"
+  },
+  "license": "MIT",
+  "homepage": "https://devbysergio.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevBySergio/JustAPI_by_Sergio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DevBySergio/JustAPI_by_Sergio/issues"
+  },
+  "icon": "media/icon.png",
+  "main": "./dist/extension.js",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -19,22 +34,13 @@
     "postman",
     "client"
   ],
-  "activationEvents": [
-    "onView:justapi.sidebar",
-    "onCommand:justapi.createRequest",
-    "onCommand:justapi.importCurl",
-    "onStartupFinished"
-  ],
-  "license": "MIT",
-  "icon": "media/icon.png",
-  "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
           "id": "justapi-activity",
           "title": "JustAPI",
-          "icon": "$(zap)"
+          "icon": "media/activity-icon.svg"
         }
       ]
     },
@@ -43,7 +49,8 @@
         {
           "type": "webview",
           "id": "justapi.sidebar",
-          "name": "JustAPI"
+          "name": "JustAPI",
+          "icon": "media/activity-icon.svg"
         }
       ]
     },
@@ -92,32 +99,25 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "justapi.createRequest",
-          "when": "true"
+          "command": "justapi.createRequest"
         },
         {
-          "command": "justapi.importCurl",
-          "when": "true"
+          "command": "justapi.importCurl"
         },
         {
-          "command": "justapi.exportCollection",
-          "when": "true"
+          "command": "justapi.exportCollection"
         },
         {
-          "command": "justapi.importCollection",
-          "when": "true"
+          "command": "justapi.importCollection"
         },
         {
-          "command": "justapi.openHistory",
-          "when": "true"
+          "command": "justapi.openHistory"
         },
         {
-          "command": "justapi.createVariable",
-          "when": "true"
+          "command": "justapi.createVariable"
         },
         {
-          "command": "justapi.generateCode",
-          "when": "true"
+          "command": "justapi.generateCode"
         }
       ]
     }
@@ -135,6 +135,11 @@
     "lint": "eslint src",
     "test": "vscode-test"
   },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0"
+  },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
@@ -146,20 +151,12 @@
     "@vscode/vsce": "^3.9.1",
     "css-loader": "^7.1.2",
     "eslint": "^9.39.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "sharp": "^0.34.5",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
     "webpack": "^5.105.3",
-    "webpack-cli": "^6.0.1",
-    "zustand": "^5.0.0"
-  },
-  "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "zustand": "^5.0.0"
+    "webpack-cli": "^6.0.1"
   }
 }
