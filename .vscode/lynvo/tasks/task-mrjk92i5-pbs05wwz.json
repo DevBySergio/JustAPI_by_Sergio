@@ -1,0 +1,112 @@
+{
+  "id": "task-mrjk92i5-pbs05wwz",
+  "title": "Run final validation, smoke tests, and closure report",
+  "description": "Execute the complete stabilization gate from a clean dependency install and record the exact command, result, environment, and relevant artifact for every check. Run install, lint, type-check, production build, unit/integration/extension tests, dependency audit, and VSIX packaging using repository scripts established by the validation task. Inspect the final diff for generated artifacts, credentials, tracked dependencies, accidental feature expansion, and documentation drift.\n\nPerform the documented end-to-end smoke matrix against the deterministic local server: activation; all commands; create/save/reopen; variables; auth; raw/form bodies; cancellation; timeout; redirects; compression/charset/binary; response limits; history; collection operations and round trip; cURL import; code generation; search; reload/unsaved state; and keyboard accessibility. Mark unsupported scenarios explicitly deferred or not applicable—never as passed.\n\nPublish a closure report containing the resolved/open finding registry, migration and compatibility notes, residual risks, command evidence, smoke evidence, packaged artifact details, and a clear readiness decision for beginning the separate capability phase. Any unresolved Blocker/Critical/High finding prevents a ready decision unless externally blocked and accepted.",
+  "status": "todo",
+  "createdBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "lastModifiedBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1783967605998,
+  "updatedAt": 1783967605998,
+  "position": 1783967605998,
+  "labelIds": [
+    "label-mrjk92hr-iyd9w6j3",
+    "label-mrjk92hq-toilq00l",
+    "label-mrjk92ht-ad3w96a8"
+  ],
+  "priority": "high",
+  "codeReference": {
+    "filePath": "package.json",
+    "lineStart": 67,
+    "lineEnd": 79
+  },
+  "checklist": [
+    {
+      "id": "check-mrjk92i5-final001",
+      "text": "Run the clean-install, lint, type-check, production-build, full-test, audit, and package gates and record exact evidence",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    },
+    {
+      "id": "check-mrjk92i5-final002",
+      "text": "Execute the full local-server smoke matrix for transport, variables, auth, bodies, cancellation, redirects, decoding, and limits",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    },
+    {
+      "id": "check-mrjk92i5-final003",
+      "text": "Smoke-test activation, every command, persistence/reload, history, collections, import/export, cURL, codegen, and search",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    },
+    {
+      "id": "check-mrjk92i5-final004",
+      "text": "Verify unsaved-state handling, race resistance, large/binary response rendering, keyboard navigation, and accessibility announcements",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    },
+    {
+      "id": "check-mrjk92i5-final005",
+      "text": "Inspect the final diff and VSIX for secrets, tracked dependencies, generated noise, stale claims, and unapproved scope",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    },
+    {
+      "id": "check-mrjk92i5-final006",
+      "text": "Reconcile every audit finding as resolved, accepted/deferred, or externally blocked with evidence and residual risk",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    },
+    {
+      "id": "check-mrjk92i5-final007",
+      "text": "Publish migration/compatibility notes, validation evidence, artifact details, residual risks, and the readiness decision",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    },
+    {
+      "id": "check-mrjk92i5-final008",
+      "text": "Close the roadmap only if no unaccepted Blocker, Critical, or High finding remains",
+      "done": false,
+      "createdAt": 1783967605998,
+      "updatedAt": 1783967605998
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel-mrjk92i5-parnt001",
+      "type": "related",
+      "targetTaskId": "task-mrjk92ho-gk4pg6qv",
+      "createdAt": 1783967605998
+    },
+    {
+      "id": "rel-mrjk92i5-block001",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92i4-k3xayiqc",
+      "createdAt": 1783967605998
+    },
+    {
+      "id": "rel-mrjk92i5-block002",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92i3-sr46q2x6",
+      "createdAt": 1783967605998
+    },
+    {
+      "id": "rel-mrjk92i5-block003",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92hs-gvq9eeb7",
+      "createdAt": 1783967605998
+    }
+  ]
+}
