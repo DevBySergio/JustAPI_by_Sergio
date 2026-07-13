@@ -10,6 +10,41 @@
       "id": "feat",
       "name": "Feature",
       "color": "#a371f7"
+    },
+    "label-mrjk92hp-2k8m3bfj": {
+      "id": "label-mrjk92hp-2k8m3bfj",
+      "name": "Security",
+      "color": "#d73a49"
+    },
+    "label-mrjk92hq-toilq00l": {
+      "id": "label-mrjk92hq-toilq00l",
+      "name": "Test",
+      "color": "#2ea043"
+    },
+    "label-mrjk92hr-iyd9w6j3": {
+      "id": "label-mrjk92hr-iyd9w6j3",
+      "name": "Docs",
+      "color": "#1f6feb"
+    },
+    "label-mrjk92hs-kq6kgyvq": {
+      "id": "label-mrjk92hs-kq6kgyvq",
+      "name": "Refactor",
+      "color": "#8b949e"
+    },
+    "label-mrjk92ht-ad3w96a8": {
+      "id": "label-mrjk92ht-ad3w96a8",
+      "name": "CI",
+      "color": "#db6d28"
+    },
+    "label-mrjk92hu-ul8o48dy": {
+      "id": "label-mrjk92hu-ul8o48dy",
+      "name": "Infrastructure",
+      "color": "#6f42c1"
+    },
+    "label-mrjk92hv-03ecoih8": {
+      "id": "label-mrjk92hv-03ecoih8",
+      "name": "UX",
+      "color": "#bf3989"
     }
   }
 }
