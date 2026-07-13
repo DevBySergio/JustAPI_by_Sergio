@@ -1,0 +1,14 @@
+{
+  "id": "activity-mrjkocc1-2cf97e03",
+  "type": "task_updated",
+  "message": "Updated source reference: Generate valid normalized secret-aware code snippets",
+  "createdAt": 1783968300005,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "taskId": "task-mrjk92i0-zidiwkfc",
+  "metadata": {
+    "field": "codeReference"
+  }
+}

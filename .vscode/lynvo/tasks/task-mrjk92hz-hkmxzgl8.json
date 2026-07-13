@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605992,
-  "updatedAt": 1783967605992,
+  "updatedAt": 1783968300004,
   "position": 1783967605992,
   "labelIds": [
     "bug",
@@ -20,7 +20,7 @@
   ],
   "priority": "high",
   "codeReference": {
-    "filePath": "src/import/CurlParser.ts",
+    "filePath": "src/engine/http/CurlParser.ts",
     "lineStart": 4,
     "lineEnd": 153
   },

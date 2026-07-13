@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605993,
-  "updatedAt": 1783967605993,
+  "updatedAt": 1783968300005,
   "position": 1783967605993,
   "labelIds": [
     "bug",
@@ -21,7 +21,7 @@
   ],
   "priority": "high",
   "codeReference": {
-    "filePath": "src/codegen/CodeGenerator.ts",
+    "filePath": "src/commands/CodeGenerator.ts",
     "lineStart": 4,
     "lineEnd": 315
   },

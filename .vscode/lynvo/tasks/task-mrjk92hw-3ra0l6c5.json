@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605989,
-  "updatedAt": 1783967605989,
+  "updatedAt": 1783968300001,
   "position": 1783967605989,
   "labelIds": [
     "bug",
@@ -20,7 +20,7 @@
   ],
   "priority": "high",
   "codeReference": {
-    "filePath": "src/variables/VariableEngine.ts",
+    "filePath": "src/engine/variables/VariableEngine.ts",
     "lineStart": 1,
     "lineEnd": 88
   },

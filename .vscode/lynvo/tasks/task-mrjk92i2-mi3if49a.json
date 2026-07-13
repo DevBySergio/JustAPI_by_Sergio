@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605995,
-  "updatedAt": 1783967605995,
+  "updatedAt": 1783968300006,
   "position": 1783967605995,
   "labelIds": [
     "bug",
@@ -21,9 +21,9 @@
   ],
   "priority": "medium",
   "codeReference": {
-    "filePath": "src/webview/App.tsx",
-    "lineStart": 22,
-    "lineEnd": 257
+    "filePath": "src/webview/JustAPIWebviewProvider.ts",
+    "lineStart": 562,
+    "lineEnd": 653
   },
   "checklist": [
     {

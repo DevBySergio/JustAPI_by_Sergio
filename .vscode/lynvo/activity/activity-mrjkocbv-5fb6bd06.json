@@ -1,0 +1,14 @@
+{
+  "id": "activity-mrjkocbv-5fb6bd06",
+  "type": "task_updated",
+  "message": "Updated source reference: Migrate authentication secrets and redact derivative artifacts",
+  "createdAt": 1783968300000,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "taskId": "task-mrjk92hv-p5v3ykrx",
+  "metadata": {
+    "field": "codeReference"
+  }
+}
