@@ -1,0 +1,150 @@
+{
+  "id": "task-mrjk92ho-gk4pg6qv",
+  "title": "Plan: JustAPI deep audit and stabilization",
+  "description": "Master roadmap for auditing, remediating, validating, and documenting JustAPI before any Postman feature-gap work begins. The child tasks are ordered so evidence and the written remediation plan exist before production changes, high-risk correctness and security defects are handled before UX/refactoring work, and closure is based only on commands and smoke tests that were actually run.\n\nApproved decisions:\n- Migrate recognized Auth Builder credentials to VS Code SecretStorage.\n- Remove tracked dependencies and use the lockfile as the reproducible source.\n- Correct documentation for substantial unsupported capabilities instead of adding major features during stabilization.\n\nDefinition of done: every child task is completed or explicitly deferred with evidence and risk; all Blocker/Critical/High findings are resolved or externally blocked; the three audit artifacts are complete; runnable validation passes; packaging succeeds; no user data is silently lost; and the closure report states whether the repository is ready for the separate product-capability phase.",
+  "status": "in-progress",
+  "createdBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "lastModifiedBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1783967605981,
+  "updatedAt": 1783967605981,
+  "position": 1783967605981,
+  "labelIds": [
+    "bug",
+    "label-mrjk92hr-iyd9w6j3",
+    "label-mrjk92hu-ul8o48dy"
+  ],
+  "priority": "high",
+  "codeReference": {
+    "filePath": "src/webview/JustAPIWebviewProvider.ts",
+    "lineStart": 17,
+    "lineEnd": 83
+  },
+  "checklist": [
+    {
+      "id": "check-mrjk92ho-road0001",
+      "text": "Establish the reproducible baseline and write the current-state architecture audit",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0002",
+      "text": "Create the evidence-backed finding registry and remediation plan before production edits",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0003",
+      "text": "Clean repository dependencies and restore reproducible delivery",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0004",
+      "text": "Build the automated validation harness and continuous integration pipeline",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0005",
+      "text": "Validate and correlate the webview message protocol",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0006",
+      "text": "Introduce versioned atomic persistence, recovery, and migrations",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0007",
+      "text": "Migrate authentication secrets and redact derivative artifacts",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0008",
+      "text": "Make variable resolution deterministic, bounded, and consistent",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0009",
+      "text": "Correct and harden the HTTP transport",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0010",
+      "text": "Protect collection tree integrity and import/export round trips",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0011",
+      "text": "Repair cURL parsing and unsupported-option reporting",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0012",
+      "text": "Generate valid, normalized, secret-aware code snippets",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0013",
+      "text": "Wire every contributed command and webview startup action",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0014",
+      "text": "Stabilize webview state, history, search, response rendering, and accessibility",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0015",
+      "text": "Decompose the provider into testable services without redesigning the product",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0016",
+      "text": "Correct public documentation and record deferred capability gaps",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    },
+    {
+      "id": "check-mrjk92ho-road0017",
+      "text": "Run final validation, execute smoke tests, and publish the closure report",
+      "done": false,
+      "createdAt": 1783967605981,
+      "updatedAt": 1783967605981
+    }
+  ],
+  "relations": []
+}

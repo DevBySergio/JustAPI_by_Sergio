@@ -1,0 +1,92 @@
+{
+  "id": "task-mrjk92hr-1lc2gkgb",
+  "title": "Clean repository dependencies and delivery artifacts",
+  "description": "Restore a conventional, reproducible source repository without changing runtime behavior. The repository currently tracks roughly 20,900 `node_modules` files, has no root `.gitignore`, contains generated VSIX/build artifacts, and has lockfile root metadata for version `0.0.1` while the manifest is `1.0.1`.\n\nAdd a root ignore policy, remove dependencies and generated artifacts from the Git index, retain `package-lock.json` as the dependency source, and regenerate only the metadata needed for `npm ci`. Preserve the user's local untracked `justapi-1.0.1.vsix` and other pre-existing worktree files. Do not hide source changes behind broad ignore rules.\n\nReview the full dependency audit for reachability: packaged production dependencies must have no known findings; development-only advisories should be fixed with compatible direct updates or narrow overrides when safe, otherwise documented with upstream constraints. Verify the final VSIX contents do not include source, tests, caches, secrets, or dependencies already bundled into `dist`.",
+  "status": "todo",
+  "createdBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "lastModifiedBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1783967605984,
+  "updatedAt": 1783967605984,
+  "position": 1783967605984,
+  "labelIds": [
+    "label-mrjk92hu-ul8o48dy",
+    "label-mrjk92ht-ad3w96a8"
+  ],
+  "priority": "medium",
+  "codeReference": {
+    "filePath": "package.json",
+    "lineStart": 67,
+    "lineEnd": 99
+  },
+  "checklist": [
+    {
+      "id": "check-mrjk92hr-repo0001",
+      "text": "Add a focused root .gitignore for dependencies, caches, OS files, generated build output, coverage, and VSIX packages",
+      "done": false,
+      "createdAt": 1783967605984,
+      "updatedAt": 1783967605984
+    },
+    {
+      "id": "check-mrjk92hr-repo0002",
+      "text": "Remove tracked node_modules and obsolete generated artifacts from the Git index without deleting required local user files",
+      "done": false,
+      "createdAt": 1783967605984,
+      "updatedAt": 1783967605984
+    },
+    {
+      "id": "check-mrjk92hr-repo0003",
+      "text": "Regenerate package-lock metadata so the root version and dependency classifications match package.json",
+      "done": false,
+      "createdAt": 1783967605984,
+      "updatedAt": 1783967605984
+    },
+    {
+      "id": "check-mrjk92hr-repo0004",
+      "text": "Apply only compatible vulnerability-related development dependency updates or justified narrow overrides",
+      "done": false,
+      "createdAt": 1783967605984,
+      "updatedAt": 1783967605984
+    },
+    {
+      "id": "check-mrjk92hr-repo0005",
+      "text": "Prove a clean npm ci succeeds from the lockfile on a clean checkout",
+      "done": false,
+      "createdAt": 1783967605984,
+      "updatedAt": 1783967605984
+    },
+    {
+      "id": "check-mrjk92hr-repo0006",
+      "text": "Inspect the VSIX file list and confirm only manifest, documentation, licenses, media, and production bundles are packaged",
+      "done": false,
+      "createdAt": 1783967605984,
+      "updatedAt": 1783967605984
+    },
+    {
+      "id": "check-mrjk92hr-repo0007",
+      "text": "Record repository-size, audit, and git-status before/after evidence in the remediation plan",
+      "done": false,
+      "createdAt": 1783967605984,
+      "updatedAt": 1783967605984
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel-mrjk92hr-parnt001",
+      "type": "related",
+      "targetTaskId": "task-mrjk92ho-gk4pg6qv",
+      "createdAt": 1783967605984
+    },
+    {
+      "id": "rel-mrjk92hr-block001",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92hq-4rbmvikn",
+      "createdAt": 1783967605984
+    }
+  ]
+}
