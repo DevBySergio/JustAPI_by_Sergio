@@ -1,0 +1,99 @@
+{
+  "id": "task-mrjk92i0-zidiwkfc",
+  "title": "Generate valid normalized secret-aware code snippets",
+  "description": "Rebuild code generation around a single normalized effective-request model shared with execution. The model must contain the final method, URL/query, headers, body mode, redirect/TLS intent, and redacted auth representation so language renderers cannot independently reinterpret incomplete editor state.\n\nCorrect syntax and escaping for cURL, JavaScript, Python, Go, Java, and C# starter snippets. Represent raw text/JSON, form-urlencoded, and multipart bodies accurately; avoid inventing file paths or dependencies. Escape string delimiters, backslashes, Unicode, newlines, header values, and shell metacharacters according to each target language. Generated output must be syntactically valid and internally consistent.\n\nCredential values are placeholders by default. Including resolved secrets requires the explicit confirmation flow from the auth task and must never be cached or written to history. Golden fixtures and lightweight compile/parse checks should guard every language and request shape.",
+  "status": "todo",
+  "createdBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "lastModifiedBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1783967605993,
+  "updatedAt": 1783967605993,
+  "position": 1783967605993,
+  "labelIds": [
+    "bug",
+    "label-mrjk92hp-2k8m3bfj",
+    "label-mrjk92hq-toilq00l"
+  ],
+  "priority": "high",
+  "codeReference": {
+    "filePath": "src/codegen/CodeGenerator.ts",
+    "lineStart": 4,
+    "lineEnd": 315
+  },
+  "checklist": [
+    {
+      "id": "check-mrjk92i0-code0001",
+      "text": "Define one normalized effective-request input shared by transport preview and every renderer",
+      "done": false,
+      "createdAt": 1783967605993,
+      "updatedAt": 1783967605993
+    },
+    {
+      "id": "check-mrjk92i0-code0002",
+      "text": "Render final query, headers, auth placeholders, raw, urlencoded, and multipart bodies",
+      "done": false,
+      "createdAt": 1783967605993,
+      "updatedAt": 1783967605993
+    },
+    {
+      "id": "check-mrjk92i0-code0003",
+      "text": "Implement target-specific escaping for shell, JavaScript, Python, Go, Java, and C#",
+      "done": false,
+      "createdAt": 1783967605993,
+      "updatedAt": 1783967605993
+    },
+    {
+      "id": "check-mrjk92i0-code0004",
+      "text": "Produce idiomatic starter snippets without inventing files, packages, or unsupported behavior",
+      "done": false,
+      "createdAt": 1783967605993,
+      "updatedAt": 1783967605993
+    },
+    {
+      "id": "check-mrjk92i0-code0005",
+      "text": "Redact credentials by default and route secret inclusion through explicit confirmation without persistence",
+      "done": false,
+      "createdAt": 1783967605993,
+      "updatedAt": 1783967605993
+    },
+    {
+      "id": "check-mrjk92i0-code0006",
+      "text": "Add golden fixtures for methods, special characters, Unicode, all body modes, variables, and auth",
+      "done": false,
+      "createdAt": 1783967605993,
+      "updatedAt": 1783967605993
+    },
+    {
+      "id": "check-mrjk92i0-code0007",
+      "text": "Run available formatter/parser/compiler checks against generated fixtures for every supported target",
+      "done": false,
+      "createdAt": 1783967605993,
+      "updatedAt": 1783967605993
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel-mrjk92i0-parnt001",
+      "type": "related",
+      "targetTaskId": "task-mrjk92ho-gk4pg6qv",
+      "createdAt": 1783967605993
+    },
+    {
+      "id": "rel-mrjk92i0-block001",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92hs-gvq9eeb7",
+      "createdAt": 1783967605993
+    },
+    {
+      "id": "rel-mrjk92i0-block002",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92hv-p5v3ykrx",
+      "createdAt": 1783967605993
+    }
+  ]
+}

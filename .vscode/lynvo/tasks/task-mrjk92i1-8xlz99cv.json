@@ -1,0 +1,99 @@
+{
+  "id": "task-mrjk92i1-8xlz99cv",
+  "title": "Wire every contributed command and webview startup action",
+  "description": "Reconcile `package.json` contributions, activation events, command registration, host handlers, and webview navigation so every advertised action has one working implementation. Register the exact contributed command set; remove unsupported contributions or implement them. Commands invoked before the webview is ready must open it, wait for a ready handshake, then deliver the intended action rather than dropping a message.\n\nImplement host-owned file dialogs and validation for imports/exports. Wire navigation for new request, import cURL, collections, history, variables, and code generation to real panels and operations. Every command must receive an acknowledgement or structured error correlated to its operation ID. Avoid duplicate listeners and dispose all registrations.\n\nExtension-host tests should invoke commands both before and after webview readiness, verify that exactly one action occurs, cover cancellation/error paths, and assert that contributed command IDs equal registered IDs.",
+  "status": "todo",
+  "createdBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "lastModifiedBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1783967605994,
+  "updatedAt": 1783967605994,
+  "position": 1783967605994,
+  "labelIds": [
+    "bug",
+    "label-mrjk92hv-03ecoih8",
+    "label-mrjk92hq-toilq00l"
+  ],
+  "priority": "high",
+  "codeReference": {
+    "filePath": "src/commands/registerCommands.ts",
+    "lineStart": 7,
+    "lineEnd": 40
+  },
+  "checklist": [
+    {
+      "id": "check-mrjk92i1-cmds0001",
+      "text": "Inventory contributed, activated, registered, and handled command IDs and resolve every mismatch",
+      "done": false,
+      "createdAt": 1783967605994,
+      "updatedAt": 1783967605994
+    },
+    {
+      "id": "check-mrjk92i1-cmds0002",
+      "text": "Add a webview-ready handshake and queue startup actions until their target can receive them",
+      "done": false,
+      "createdAt": 1783967605994,
+      "updatedAt": 1783967605994
+    },
+    {
+      "id": "check-mrjk92i1-cmds0003",
+      "text": "Wire new request, cURL import, collections, history, variables, and code generation to real UI state",
+      "done": false,
+      "createdAt": 1783967605994,
+      "updatedAt": 1783967605994
+    },
+    {
+      "id": "check-mrjk92i1-cmds0004",
+      "text": "Use host-owned open/save dialogs and validate import/export data before filesystem changes",
+      "done": false,
+      "createdAt": 1783967605994,
+      "updatedAt": 1783967605994
+    },
+    {
+      "id": "check-mrjk92i1-cmds0005",
+      "text": "Return correlated acknowledgements and actionable errors for success, cancellation, invalid data, and I/O failure",
+      "done": false,
+      "createdAt": 1783967605994,
+      "updatedAt": 1783967605994
+    },
+    {
+      "id": "check-mrjk92i1-cmds0006",
+      "text": "Dispose command/message listeners and prevent duplicate execution across repeated webview opens",
+      "done": false,
+      "createdAt": 1783967605994,
+      "updatedAt": 1783967605994
+    },
+    {
+      "id": "check-mrjk92i1-cmds0007",
+      "text": "Add extension-host tests for manifest parity, cold/warm invocation, one-shot delivery, cancellation, errors, and disposal",
+      "done": false,
+      "createdAt": 1783967605994,
+      "updatedAt": 1783967605994
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel-mrjk92i1-parnt001",
+      "type": "related",
+      "targetTaskId": "task-mrjk92ho-gk4pg6qv",
+      "createdAt": 1783967605994
+    },
+    {
+      "id": "rel-mrjk92i1-block001",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92ht-1v9vmvhg",
+      "createdAt": 1783967605994
+    },
+    {
+      "id": "rel-mrjk92i1-block002",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92hu-l37yy8ky",
+      "createdAt": 1783967605994
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "id": "task-mrjk92hw-3ra0l6c5",
+  "title": "Make variable resolution deterministic, bounded, and consistent",
+  "description": "Replace ad-hoc placeholder replacement with one resolver used by preview, validation, execution, auth, imports, and code generation. Establish and document the precedence `global < active sets < collection < request`; within one scope, reject or deterministically handle duplicate enabled names instead of depending on array order.\n\nResolve nested references with cycle detection and a configurable maximum depth so self-references cannot loop forever. Define escaped-brace behavior and resolve every supported location consistently: URL, query, headers, raw/form bodies, and authentication fields. Return structured diagnostics identifying missing, cyclic, disabled, or invalid variables without exposing secret values.\n\nExecution must run the same resolver as the preview, perform one preflight pass, and block before network activity when required values are unresolved. Tests should cover precedence, duplicates, falsey values, encoding boundaries, cycles, escaping, and preview/execution parity.",
+  "status": "todo",
+  "createdBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "lastModifiedBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1783967605989,
+  "updatedAt": 1783967605989,
+  "position": 1783967605989,
+  "labelIds": [
+    "bug",
+    "label-mrjk92hq-toilq00l"
+  ],
+  "priority": "high",
+  "codeReference": {
+    "filePath": "src/variables/VariableEngine.ts",
+    "lineStart": 1,
+    "lineEnd": 88
+  },
+  "checklist": [
+    {
+      "id": "check-mrjk92hw-vars0001",
+      "text": "Specify scope precedence, enabled/disabled rules, duplicate-name behavior, and falsey-value semantics",
+      "done": false,
+      "createdAt": 1783967605989,
+      "updatedAt": 1783967605989
+    },
+    {
+      "id": "check-mrjk92hw-vars0002",
+      "text": "Implement nested resolution with cycle paths, maximum depth, and bounded input/output sizes",
+      "done": false,
+      "createdAt": 1783967605989,
+      "updatedAt": 1783967605989
+    },
+    {
+      "id": "check-mrjk92hw-vars0003",
+      "text": "Define escaped braces and preserve literal placeholders intentionally entered by users",
+      "done": false,
+      "createdAt": 1783967605989,
+      "updatedAt": 1783967605989
+    },
+    {
+      "id": "check-mrjk92hw-vars0004",
+      "text": "Resolve URL, query, headers, raw/form bodies, and auth fields through the same engine",
+      "done": false,
+      "createdAt": 1783967605989,
+      "updatedAt": 1783967605989
+    },
+    {
+      "id": "check-mrjk92hw-vars0005",
+      "text": "Return structured missing, cyclic, disabled, and invalid diagnostics with secret-safe values",
+      "done": false,
+      "createdAt": 1783967605989,
+      "updatedAt": 1783967605989
+    },
+    {
+      "id": "check-mrjk92hw-vars0006",
+      "text": "Block execution before transport on required unresolved values and keep preview/execution identical",
+      "done": false,
+      "createdAt": 1783967605989,
+      "updatedAt": 1783967605989
+    },
+    {
+      "id": "check-mrjk92hw-vars0007",
+      "text": "Test precedence, duplicates, empty/zero values, cycles, depth, escaping, encoding, and all field types",
+      "done": false,
+      "createdAt": 1783967605989,
+      "updatedAt": 1783967605989
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel-mrjk92hw-parnt001",
+      "type": "related",
+      "targetTaskId": "task-mrjk92ho-gk4pg6qv",
+      "createdAt": 1783967605989
+    },
+    {
+      "id": "rel-mrjk92hw-block001",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92hs-gvq9eeb7",
+      "createdAt": 1783967605989
+    },
+    {
+      "id": "rel-mrjk92hw-block002",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92ht-1v9vmvhg",
+      "createdAt": 1783967605989
+    }
+  ]
+}

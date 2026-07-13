@@ -1,0 +1,106 @@
+{
+  "id": "task-mrjk92hx-m3m57qoh",
+  "title": "Correct and harden the HTTP transport",
+  "description": "Make the transport standards-aware and predictable using a deterministic local HTTP harness. Correct URL/query construction, header normalization, raw and form bodies, cancellation ownership, redirect handling, decompression, charset decoding, binary preservation, timing, and error reporting.\n\nRedirects must apply method/body rules deliberately, enforce a hop limit, resolve relative locations, and strip authorization, cookies, and other sensitive headers on cross-origin hops. Each execution owns its own AbortController; cancellation must not affect another request. Decode supported content encodings before text conversion, honor declared charsets when feasible, and return binary content as exact base64 with the response MIME type.\n\nEnforce a configurable response limit with a 10 MiB default and allowed range of 1 KiB to 100 MiB. Fail with typed, user-actionable errors for timeout, cancellation, DNS/TLS/socket failures, malformed redirects, decompression, and size overflow. Cover all methods and body modes in automated tests.",
+  "status": "todo",
+  "createdBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "lastModifiedBy": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1783967605990,
+  "updatedAt": 1783967605990,
+  "position": 1783967605990,
+  "labelIds": [
+    "bug",
+    "label-mrjk92hp-2k8m3bfj",
+    "label-mrjk92hq-toilq00l"
+  ],
+  "priority": "high",
+  "codeReference": {
+    "filePath": "src/http/HttpClient.ts",
+    "lineStart": 20,
+    "lineEnd": 275
+  },
+  "checklist": [
+    {
+      "id": "check-mrjk92hx-http0001",
+      "text": "Build a deterministic local server harness for methods, bodies, redirects, compression, encodings, delays, and oversized responses",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    },
+    {
+      "id": "check-mrjk92hx-http0002",
+      "text": "Normalize URL/query/header construction and encode raw, urlencoded, multipart, and empty bodies correctly",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    },
+    {
+      "id": "check-mrjk92hx-http0003",
+      "text": "Give each execution an isolated AbortController and distinguish user cancellation from timeout",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    },
+    {
+      "id": "check-mrjk92hx-http0004",
+      "text": "Implement bounded redirects with correct method/body transitions and cross-origin credential stripping",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    },
+    {
+      "id": "check-mrjk92hx-http0005",
+      "text": "Decompress supported encodings, decode text by charset, and preserve exact binary bytes and MIME type",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    },
+    {
+      "id": "check-mrjk92hx-http0006",
+      "text": "Enforce the configurable 10 MiB default response limit within the approved 1 KiB to 100 MiB range",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    },
+    {
+      "id": "check-mrjk92hx-http0007",
+      "text": "Return typed secret-safe errors and accurate DNS/connect/TLS/first-byte/download/total timing where observable",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    },
+    {
+      "id": "check-mrjk92hx-http0008",
+      "text": "Test methods, query edge cases, all bodies, redirects, auth stripping, cancellation, timeout, compression, charset, binary, and limits",
+      "done": false,
+      "createdAt": 1783967605990,
+      "updatedAt": 1783967605990
+    }
+  ],
+  "relations": [
+    {
+      "id": "rel-mrjk92hx-parnt001",
+      "type": "related",
+      "targetTaskId": "task-mrjk92ho-gk4pg6qv",
+      "createdAt": 1783967605990
+    },
+    {
+      "id": "rel-mrjk92hx-block001",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92hs-gvq9eeb7",
+      "createdAt": 1783967605990
+    },
+    {
+      "id": "rel-mrjk92hx-block002",
+      "type": "blocked-by",
+      "targetTaskId": "task-mrjk92ht-1v9vmvhg",
+      "createdAt": 1783967605990
+    }
+  ]
+}
