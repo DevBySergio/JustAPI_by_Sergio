@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrjk92i8-0ib037pz",
+  "type": "label_created",
+  "message": "Created label: Test",
+  "createdAt": 1783967606019,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "metadata": {
+    "labelId": "label-mrjk92hq-toilq00l",
+    "labelName": "Test",
+    "color": "#2ea043"
+  }
+}

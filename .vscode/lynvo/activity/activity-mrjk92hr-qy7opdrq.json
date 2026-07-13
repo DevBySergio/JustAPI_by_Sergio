@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrjk92hr-qy7opdrq",
+  "type": "task_created",
+  "message": "Created task: Write the evidence-backed remediation plan",
+  "createdAt": 1783967606002,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "taskId": "task-mrjk92hq-4rbmvikn"
+}

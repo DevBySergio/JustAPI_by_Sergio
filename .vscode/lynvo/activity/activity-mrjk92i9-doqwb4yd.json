@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrjk92i9-doqwb4yd",
+  "type": "label_created",
+  "message": "Created label: Docs",
+  "createdAt": 1783967606020,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "metadata": {
+    "labelId": "label-mrjk92hr-iyd9w6j3",
+    "labelName": "Docs",
+    "color": "#1f6feb"
+  }
+}

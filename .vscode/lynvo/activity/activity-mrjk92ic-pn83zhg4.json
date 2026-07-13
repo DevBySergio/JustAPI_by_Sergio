@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrjk92ic-pn83zhg4",
+  "type": "label_created",
+  "message": "Created label: Infrastructure",
+  "createdAt": 1783967606023,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "metadata": {
+    "labelId": "label-mrjk92hu-ul8o48dy",
+    "labelName": "Infrastructure",
+    "color": "#6f42c1"
+  }
+}

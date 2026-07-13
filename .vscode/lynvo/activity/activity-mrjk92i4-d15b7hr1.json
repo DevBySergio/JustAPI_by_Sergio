@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrjk92i4-d15b7hr1",
+  "type": "task_created",
+  "message": "Created task: Decompose the webview provider into testable services",
+  "createdAt": 1783967606015,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "taskId": "task-mrjk92i3-sr46q2x6"
+}
