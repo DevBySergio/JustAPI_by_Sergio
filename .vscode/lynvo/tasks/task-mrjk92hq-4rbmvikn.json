@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605983,
-  "updatedAt": 1784020890332,
+  "updatedAt": 1784021316737,
   "position": 1783967605983,
   "labelIds": [
     "label-mrjk92hr-iyd9w6j3",
@@ -28,44 +28,44 @@
     {
       "id": "check-mrjk92hq-plan0001",
       "text": "Build the prioritized finding table from the completed audit with stable IDs and justified severities",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605983,
-      "updatedAt": 1783967605983
+      "updatedAt": 1784021316737
     },
     {
       "id": "check-mrjk92hq-plan0002",
       "text": "Map prerequisite and related-finding dependencies so batches can be executed safely",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605983,
-      "updatedAt": 1783967605983
+      "updatedAt": 1784021316737
     },
     {
       "id": "check-mrjk92hq-plan0003",
       "text": "Assign every finding to Batch 0-5 with expected files, effort, and regression tests",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605983,
-      "updatedAt": 1783967605983
+      "updatedAt": 1784021316737
     },
     {
       "id": "check-mrjk92hq-plan0004",
       "text": "Specify persistence migrations, SecretStorage behavior, backups, rollback, and compatibility guarantees",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605983,
-      "updatedAt": 1783967605983
+      "updatedAt": 1784021316737
     },
     {
       "id": "check-mrjk92hq-plan0005",
       "text": "Document security considerations, non-goals, deferred capability gaps, and stopping conditions",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605983,
-      "updatedAt": 1783967605983
+      "updatedAt": 1784021316737
     },
     {
       "id": "check-mrjk92hq-plan0006",
       "text": "Define targeted and full-suite validation required for every batch",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605983,
-      "updatedAt": 1783967605983
+      "updatedAt": 1784021316737
     },
     {
       "id": "check-mrjk92hq-plan0007",
