@@ -36,7 +36,7 @@ export function ActiveVariablesPanel() {
 
   // Collect linked sets for this collection
   const linkedSets = useMemo(() => {
-    if (!activeCollectionId) return [];
+    if (!activeCollectionId) { return []; }
     return variableSets.filter(s => s.linkedCollectionIds.includes(activeCollectionId));
   }, [variableSets, activeCollectionId]);
 
@@ -78,13 +78,13 @@ export function ActiveVariablesPanel() {
   const conflicts = useMemo(() => {
     const nameMap = new Map<string, string[]>();
     for (const v of allVars) {
-      if (!v.name) continue;
-      if (!nameMap.has(v.name)) nameMap.set(v.name, []);
+      if (!v.name) { continue; }
+      if (!nameMap.has(v.name)) { nameMap.set(v.name, []); }
       nameMap.get(v.name)!.push(v.scope);
     }
     const result = new Set<string>();
     for (const [name, scopes] of nameMap) {
-      if (scopes.length > 1) result.add(name);
+      if (scopes.length > 1) { result.add(name); }
     }
     return result;
   }, [allVars]);
@@ -232,7 +232,7 @@ function VarGroup({
   const [collapsed, setCollapsed] = useState(false);
   const active = vars.filter(v => v.enabled && v.key);
 
-  if (active.length === 0) return null;
+  if (active.length === 0) { return null; }
 
   return (
     <div style={{ marginBottom: '6px', border: '1px solid var(--vscode-panel-border)', borderRadius: '3px', overflow: 'hidden' }}>

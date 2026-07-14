@@ -67,7 +67,7 @@ export function VariableAutocomplete({ value, onChange, children, onKeyDown: ext
     const textBefore = value.slice(0, cursorPos);
     const textAfter = value.slice(cursorPos);
 
-    if (!measureRef.current) return;
+    if (!measureRef.current) { return; }
 
     const style = getComputedStyle(input);
     measureRef.current.style.fontFamily = style.fontFamily;
@@ -81,7 +81,7 @@ export function VariableAutocomplete({ value, onChange, children, onKeyDown: ext
 
     const inputRect = input.getBoundingClientRect();
     const wrapperRect = wrapperRef.current?.getBoundingClientRect();
-    if (!wrapperRect) return;
+    if (!wrapperRect) { return; }
 
     const measureRect = measureRef.current.getBoundingClientRect();
     const lineHeight = parseInt(style.lineHeight) || parseInt(style.fontSize) * 1.4;
@@ -114,7 +114,7 @@ export function VariableAutocomplete({ value, onChange, children, onKeyDown: ext
       setInsertPos(lastOpen);
       setSelectedIdx(0);
 
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      if (debounceTimer.current) { clearTimeout(debounceTimer.current); }
       debounceTimer.current = setTimeout(() => {
         setShowDropdown(true);
         // Measure cursor position

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Generated build and test output
+dist/
+out/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Local test runtimes and caches
+.vscode-test/
+.vscode-test.*
+.cache/
+.eslintcache
+
+# Logs and packaged extensions
+*.log
+npm-debug.log*
+*.vsix
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db

@@ -19,8 +19,8 @@ export function BodyEditor() {
   const { body } = currentRequest;
 
   const getPlaceholder = () => {
-    if (body.type === 'json') return '{\n  "key": "value"\n}';
-    if (body.type === 'xml') return '<root>\n  <item>value</item>\n</root>';
+    if (body.type === 'json') { return '{\n  "key": "value"\n}'; }
+    if (body.type === 'xml') { return '<root>\n  <item>value</item>\n</root>'; }
     return 'Enter request body...';
   };
 

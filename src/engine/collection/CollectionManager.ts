@@ -76,7 +76,7 @@ export class CollectionManager {
 
   async duplicateCollection(id: string): Promise<Collection | undefined> {
     const original = this.collections.find(c => c.id === id);
-    if (!original) return undefined;
+    if (!original) { return undefined; }
     const dup = JSON.parse(JSON.stringify(original)) as Collection;
     dup.id = crypto.randomUUID();
     dup.name = `${original.name} (Copy)`;
@@ -160,10 +160,10 @@ export class CollectionManager {
   ): Promise<void> {
     const sourceCol = this.collections.find(c => c.id === sourceCollectionId);
     const targetCol = this.collections.find(c => c.id === targetCollectionId);
-    if (!sourceCol || !targetCol) return;
+    if (!sourceCol || !targetCol) { return; }
 
     const item = this.extractItem(sourceCol.items, itemId);
-    if (!item) return;
+    if (!item) { return; }
 
     if (targetParentId) {
       this.addToFolder(targetCol.items, targetParentId, item);
@@ -179,7 +179,7 @@ export class CollectionManager {
 
   async addFolder(collectionId: string, name: string, parentId?: string): Promise<CollectionItemRef | undefined> {
     const collection = this.collections.find(c => c.id === collectionId);
-    if (!collection) return undefined;
+    if (!collection) { return undefined; }
 
     const folder: CollectionItemRef = {
       type: 'folder',
@@ -218,7 +218,7 @@ export class CollectionManager {
         return true;
       }
       if (item.type === 'folder' && item.items) {
-        if (this.addRequestToFolder(item.items, folderId, requestId, name)) return true;
+        if (this.addRequestToFolder(item.items, folderId, requestId, name)) { return true; }
       }
     }
     return false;
@@ -231,7 +231,7 @@ export class CollectionManager {
         return true;
       }
       if (item.type === 'folder' && item.items) {
-        if (this.addToFolder(item.items, folderId, newItem)) return true;
+        if (this.addToFolder(item.items, folderId, newItem)) { return true; }
       }
     }
     return false;
@@ -244,7 +244,7 @@ export class CollectionManager {
       }
       if (items[i].type === 'folder' && items[i].items) {
         const found = this.extractItem(items[i].items!, itemId);
-        if (found) return found;
+        if (found) { return found; }
       }
     }
     return null;
@@ -258,7 +258,7 @@ export class CollectionManager {
     }
     for (const item of items) {
       if (item.type === 'folder' && item.items) {
-        if (this.removeItem(item.items, itemId)) return true;
+        if (this.removeItem(item.items, itemId)) { return true; }
       }
     }
     return false;

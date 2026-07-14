@@ -141,22 +141,22 @@ export function VariableEditor() {
 
   // Auto-save global variables
   useEffect(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (saveTimer.current) { clearTimeout(saveTimer.current); }
     saveTimer.current = setTimeout(() => {
       postMessage({ type: 'setGlobalVariables', variables: globalVariables });
     }, 500);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+    return () => { if (saveTimer.current) { clearTimeout(saveTimer.current); } };
   }, [globalVariables]);
 
   // Auto-save collection variables
   const collSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!selectedCollection) return;
-    if (collSaveTimer.current) clearTimeout(collSaveTimer.current);
+    if (!selectedCollection) { return; }
+    if (collSaveTimer.current) { clearTimeout(collSaveTimer.current); }
     collSaveTimer.current = setTimeout(() => {
       postMessage({ type: 'updateCollection', collection: selectedCollection });
     }, 500);
-    return () => { if (collSaveTimer.current) clearTimeout(collSaveTimer.current); };
+    return () => { if (collSaveTimer.current) { clearTimeout(collSaveTimer.current); } };
   }, [collectionVars]);
 
   const handleGlobalAdd = () => {
@@ -179,7 +179,7 @@ export function VariableEditor() {
   };
 
   const handleCollAdd = () => {
-    if (!selectedCollection) return;
+    if (!selectedCollection) { return; }
     const newVars = [
       ...collectionVars,
       { id: crypto.randomUUID(), key: '', value: '', enabled: true, scope: 'collection' as const, collectionId: selectedCollection.id },
@@ -188,19 +188,19 @@ export function VariableEditor() {
   };
 
   const handleCollUpdate = (id: string, field: 'key' | 'value', val: string) => {
-    if (!selectedCollection) return;
+    if (!selectedCollection) { return; }
     const updated = collectionVars.map(v => v.id === id ? { ...v, [field]: val } : v);
     useCollectionStore.getState().updateCollectionVariables(selectedCollection.id, updated);
   };
 
   const handleCollToggle = (id: string) => {
-    if (!selectedCollection) return;
+    if (!selectedCollection) { return; }
     const updated = collectionVars.map(v => v.id === id ? { ...v, enabled: !v.enabled } : v);
     useCollectionStore.getState().updateCollectionVariables(selectedCollection.id, updated);
   };
 
   const handleCollRemove = (id: string) => {
-    if (!selectedCollection) return;
+    if (!selectedCollection) { return; }
     useCollectionStore.getState().updateCollectionVariables(
       selectedCollection.id,
       collectionVars.filter(v => v.id !== id)

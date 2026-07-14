@@ -124,21 +124,38 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "compile": "webpack",
+    "clean": "node -e \"for (const path of ['out', 'dist', 'coverage']) require('node:fs').rmSync(path, { recursive: true, force: true })\"",
+    "compile": "npm run build",
+    "build": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
     "vsix": "vsce package --no-dependencies --allow-missing-repository",
     "publish": "vsce publish --allow-missing-repository",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
+    "typecheck:extension": "tsc -p . --noEmit",
+    "typecheck:webview": "tsc -p webview-ui/tsconfig.json --noEmit",
+    "lint": "eslint src webview-ui/src --max-warnings 0",
+    "test:policy": "node scripts/check-test-policy.mjs",
+    "test:unit": "npm run compile-tests && node --test out/test/unit/*.test.js",
+    "test:integration": "npm run compile-tests && node --test out/test/integration/*.test.js",
+    "pretest:extension": "npm run compile-tests && npm run build",
+    "test:extension": "vscode-test",
+    "test": "npm run test:policy && npm run test:unit && npm run test:integration && npm run test:extension",
+    "audit:runtime": "npm audit --omit=dev --audit-level=low",
+    "audit:full": "npm audit --audit-level=low",
+    "package:list": "node scripts/check-package.mjs",
+    "validate:static": "npm run test:policy && npm run lint && npm run typecheck:extension && npm run typecheck:webview && npm run test:unit && npm run test:integration && npm run build && npm run audit:runtime && npm run audit:full",
+    "validate": "npm run validate:static && npm run test:extension && npm run vsix && npm run package:list"
   },
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"
+  },
+  "overrides": {
+    "diff": "8.0.3",
+    "serialize-javascript": "7.0.5"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

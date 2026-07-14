@@ -29,11 +29,19 @@ export function registerCommands(
       vscode.commands.executeCommand(OPEN_JUSTAPI_VIEW_COMMAND);
     }),
 
+    vscode.commands.registerCommand(COMMANDS.IMPORT_COLLECTION, () => {
+      vscode.commands.executeCommand(OPEN_JUSTAPI_VIEW_COMMAND);
+    }),
+
     vscode.commands.registerCommand(COMMANDS.OPEN_HISTORY, () => {
       vscode.commands.executeCommand(OPEN_JUSTAPI_VIEW_COMMAND);
     }),
 
     vscode.commands.registerCommand(COMMANDS.CREATE_VARIABLE, () => {
+      vscode.commands.executeCommand(OPEN_JUSTAPI_VIEW_COMMAND);
+    }),
+
+    vscode.commands.registerCommand(COMMANDS.GENERATE_CODE, () => {
       vscode.commands.executeCommand(OPEN_JUSTAPI_VIEW_COMMAND);
     })
   );

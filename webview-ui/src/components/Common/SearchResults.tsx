@@ -7,7 +7,7 @@ interface SearchResultsProps {
 }
 
 export function SearchResults({ results, onClose, onSelect }: SearchResultsProps) {
-  if (results.length === 0) return null;
+  if (results.length === 0) { return null; }
 
   return (
     <div style={{

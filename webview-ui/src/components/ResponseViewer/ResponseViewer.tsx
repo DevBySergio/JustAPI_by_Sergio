@@ -7,13 +7,13 @@ type ResponseTab = 'body' | 'headers' | 'cookies';
 type JsonViewMode = 'tree' | 'pretty' | 'raw';
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024) { return `${bytes} B`; }
+  if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)} KB`; }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms.toFixed(0)} ms`;
+  if (ms < 1000) { return `${ms.toFixed(0)} ms`; }
   return `${(ms / 1000).toFixed(2)} s`;
 }
 
@@ -42,7 +42,7 @@ function highlightTextInString(text: string, query: string): React.ReactNode {
   let key = 0;
 
   while (idx !== -1) {
-    if (idx > lastIdx) parts.push(text.slice(lastIdx, idx));
+    if (idx > lastIdx) { parts.push(text.slice(lastIdx, idx)); }
     parts.push(
       <span key={key++} style={{
         background: 'var(--vscode-editor-findMatchHighlightBackground)',
@@ -54,7 +54,7 @@ function highlightTextInString(text: string, query: string): React.ReactNode {
     lastIdx = idx + query.length;
     idx = lowerText.indexOf(lowerQuery, lastIdx);
   }
-  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
+  if (lastIdx < text.length) { parts.push(text.slice(lastIdx)); }
 
   return parts.length > 0 ? parts : text;
 }
@@ -198,7 +198,7 @@ export function ResponseViewer() {
   const isJson = response?.bodyType === 'json';
 
   const handleCopy = useCallback(() => {
-    if (!response?.body) return;
+    if (!response?.body) { return; }
     navigator.clipboard.writeText(response.body).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -387,7 +387,7 @@ export function ResponseViewer() {
             <button
               onClick={() => {
                 setShowSearch(!showSearch);
-                if (showSearch) setSearchInput('');
+                if (showSearch) { setSearchInput(''); }
               }}
               style={{
                 padding: '2px 6px',
@@ -545,8 +545,8 @@ function ResponseBody({ body, bodyType, isPretty, jsonViewMode, searchQuery, tre
   }
 
   const displayContent = (() => {
-    if (!isPretty) return body;
-    if (bodyType === 'xml') return formatXml(body);
+    if (!isPretty) { return body; }
+    if (bodyType === 'xml') { return formatXml(body); }
     return body;
   })();
 
@@ -579,8 +579,8 @@ function ResponseCookies({ cookies }: { cookies: ResponseCookie[] }) {
       {cookies.map((c, i) => (
         <div key={i} style={{ padding: '4px 0', borderBottom: '1px solid var(--vscode-panel-border)' }}>
           <div><strong>{c.name}</strong> = {c.value}</div>
-          {c.domain != null && <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '10px' }}>Domain: {c.domain}</div>}
-          {c.path != null && <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '10px' }}>Path: {c.path}</div>}
+          {c.domain !== null && c.domain !== undefined && <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '10px' }}>Domain: {c.domain}</div>}
+          {c.path !== null && c.path !== undefined && <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '10px' }}>Path: {c.path}</div>}
         </div>
       ))}
     </div>

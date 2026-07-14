@@ -126,7 +126,7 @@ export function VariableSetPanel() {
 
   const handleAddVar = (setId: string) => {
     const set = sets.find(s => s.id === setId);
-    if (!set) return;
+    if (!set) { return; }
     postMessage({
       type: 'updateVariableSet',
       set: {
@@ -138,7 +138,7 @@ export function VariableSetPanel() {
 
   const handleUpdateVar = (setId: string, varId: string, field: 'key' | 'value', val: string) => {
     const set = sets.find(s => s.id === setId);
-    if (!set) return;
+    if (!set) { return; }
     postMessage({
       type: 'updateVariableSet',
       set: { ...set, variables: set.variables.map(v => v.id === varId ? { ...v, [field]: val } : v) },
@@ -147,7 +147,7 @@ export function VariableSetPanel() {
 
   const handleToggleVar = (setId: string, varId: string) => {
     const set = sets.find(s => s.id === setId);
-    if (!set) return;
+    if (!set) { return; }
     postMessage({
       type: 'updateVariableSet',
       set: { ...set, variables: set.variables.map(v => v.id === varId ? { ...v, enabled: !v.enabled } : v) },
@@ -156,7 +156,7 @@ export function VariableSetPanel() {
 
   const handleRemoveVar = (setId: string, varId: string) => {
     const set = sets.find(s => s.id === setId);
-    if (!set) return;
+    if (!set) { return; }
     postMessage({
       type: 'updateVariableSet',
       set: { ...set, variables: set.variables.filter(v => v.id !== varId) },

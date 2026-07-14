@@ -31,7 +31,7 @@ export function App() {
 
   const showNotification = useCallback((text: string, type: 'info' | 'error' | 'success' = 'info') => {
     setNotification({ text, type });
-    if (notifTimer.current) clearTimeout(notifTimer.current);
+    if (notifTimer.current) { clearTimeout(notifTimer.current); }
     notifTimer.current = setTimeout(() => setNotification(null), 3000);
   }, []);
 

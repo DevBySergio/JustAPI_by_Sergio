@@ -33,30 +33,30 @@ interface JTProps {
 const hasDescCache = new Map<object, boolean>();
 
 function cachedHasDesc(value: unknown, query: string): boolean {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== 'object' || value === null) { return false; }
 
   const cached = hasDescCache.get(value);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) { return cached; }
 
   const q = query.toLowerCase();
   let result = false;
 
   if (Array.isArray(value)) {
     result = value.some((item, index) => {
-      if (String(index).toLowerCase().includes(q)) return true;
-      if (typeof item === 'string' && item.toLowerCase().includes(q)) return true;
-      if (typeof item === 'number' && String(item).includes(q)) return true;
-      if (typeof item === 'boolean' && String(item).includes(q)) return true;
-      if (item === null && 'null'.includes(q)) return true;
+      if (String(index).toLowerCase().includes(q)) { return true; }
+      if (typeof item === 'string' && item.toLowerCase().includes(q)) { return true; }
+      if (typeof item === 'number' && String(item).includes(q)) { return true; }
+      if (typeof item === 'boolean' && String(item).includes(q)) { return true; }
+      if (item === null && 'null'.includes(q)) { return true; }
       return cachedHasDesc(item, query);
     });
   } else {
     result = Object.entries(value as Record<string, unknown>).some(([key, val]) => {
-      if (key.toLowerCase().includes(q)) return true;
-      if (typeof val === 'string' && val.toLowerCase().includes(q)) return true;
-      if (typeof val === 'number' && String(val).includes(q)) return true;
-      if (typeof val === 'boolean' && String(val).includes(q)) return true;
-      if (val === null && 'null'.includes(q)) return true;
+      if (key.toLowerCase().includes(q)) { return true; }
+      if (typeof val === 'string' && val.toLowerCase().includes(q)) { return true; }
+      if (typeof val === 'number' && String(val).includes(q)) { return true; }
+      if (typeof val === 'boolean' && String(val).includes(q)) { return true; }
+      if (val === null && 'null'.includes(q)) { return true; }
       return cachedHasDesc(val, query);
     });
   }
@@ -91,13 +91,13 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
   const isCol = isObj || isArr;
 
   const entries = useMemo(() => {
-    if (isObj) return Object.entries(value as Record<string, unknown>);
-    if (isArr) return (value as unknown[]).map((v, i) => [String(i), v] as [string, unknown]);
+    if (isObj) { return Object.entries(value as Record<string, unknown>); }
+    if (isArr) { return (value as unknown[]).map((v, i) => [String(i), v] as [string, unknown]); }
     return [];
   }, [value, isObj, isArr]);
 
   const match = useMemo(() => {
-    if (!searchQuery) return { self: false, desc: false };
+    if (!searchQuery) { return { self: false, desc: false }; }
     const q = searchQuery.toLowerCase();
     const k = keyName ? keyName.toLowerCase().includes(q) : false;
     const valMatch = !isCol && String(value).toLowerCase().includes(q);
@@ -119,7 +119,7 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
   const hlRow = searchQuery && match.self;
 
   function hr(text: string): React.ReactNode {
-    if (!searchQuery) return text;
+    if (!searchQuery) { return text; }
     const lt = text.toLowerCase();
     const lq = searchQuery.toLowerCase();
     const parts: React.ReactNode[] = [];
@@ -127,12 +127,12 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
     let idx = lt.indexOf(lq);
     let k = 0;
     while (idx !== -1) {
-      if (idx > li) parts.push(text.slice(li, idx));
+      if (idx > li) { parts.push(text.slice(li, idx)); }
       parts.push(<span key={k++} style={v.hl}>{text.slice(idx, idx + searchQuery.length)}</span>);
       li = idx + searchQuery.length;
       idx = lt.indexOf(lq, li);
     }
-    if (li < text.length) parts.push(text.slice(li));
+    if (li < text.length) { parts.push(text.slice(li)); }
     return parts.length > 0 ? parts : text;
   }
 
@@ -155,7 +155,7 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
 
     return (
       <div style={{ paddingLeft: depth * indentSize, background: hlRow ? 'var(--vscode-editor-findMatchHighlightBackground)' : undefined }}>
-        {keyName != null && (
+        {keyName !== null && keyName !== undefined && (
           <>
             <span style={v.key}>{hr(keyName)}</span>
             <span style={v.bracket}>: </span>
@@ -173,7 +173,7 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
     return (
       <div style={{ paddingLeft: depth * indentSize, background: hlRow ? 'var(--vscode-editor-findMatchHighlightBackground)' : undefined }}>
         <span onClick={() => setExpanded(true)} style={v.toggle}>▶ </span>
-        {keyName != null && (
+        {keyName !== null && keyName !== undefined && (
           <>
             <span style={v.key}>{hr(keyName)}</span>
             <span style={v.bracket}>: </span>
@@ -189,7 +189,7 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
     <div>
       <div style={{ paddingLeft: depth * indentSize }}>
         <span onClick={() => setExpanded(false)} style={v.toggle}>▾ </span>
-        {keyName != null && (
+        {keyName !== null && keyName !== undefined && (
           <>
             <span style={v.key}>{hr(keyName)}</span>
             <span style={v.bracket}>: </span>
@@ -213,5 +213,4 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
     </div>
   );
 });
-
 

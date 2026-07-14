@@ -9,7 +9,7 @@ export interface ResolutionContext {
 
 export class VariableEngine {
   resolve(input: string, context: ResolutionContext, extraVars?: Record<string, string>): string {
-    if (!input || !input.includes('{{')) return input;
+    if (!input || !input.includes('{{')) { return input; }
 
     let result = input;
 
@@ -42,13 +42,13 @@ export class VariableEngine {
   }
 
   findUnresolved(input: string, context?: ResolutionContext): string[] {
-    if (!input || !input.includes('{{')) return [];
+    if (!input || !input.includes('{{')) { return []; }
     const regex = /\{\{([^}]+)\}\}/g;
     const unresolved: string[] = [];
     let match: RegExpExecArray | null;
     while ((match = regex.exec(input)) !== null) {
       const varName = match[1].trim();
-      if (varName.startsWith('$')) continue;
+      if (varName.startsWith('$')) { continue; }
       if (context) {
         const available = [
           ...context.requestVars.filter(v => v.enabled),
@@ -57,7 +57,7 @@ export class VariableEngine {
           ...context.globalVars.filter(v => v.enabled),
         ];
         const found = available.some(v => v.key === varName);
-        if (!found) unresolved.push(varName);
+        if (!found) { unresolved.push(varName); }
       } else {
         unresolved.push(varName);
       }
@@ -66,7 +66,7 @@ export class VariableEngine {
   }
 
   extractVariables(input: string): string[] {
-    if (!input || !input.includes('{{')) return [];
+    if (!input || !input.includes('{{')) { return []; }
     const regex = /\{\{([^}]+)\}\}/g;
     const vars: string[] = [];
     let match: RegExpExecArray | null;

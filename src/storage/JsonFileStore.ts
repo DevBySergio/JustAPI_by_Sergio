@@ -1,6 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as vscode from 'vscode';
+
+export interface ExtensionStorageContext {
+  globalStorageUri: { fsPath: string };
+}
 
 export class JsonFileStore {
   private basePath: string;
@@ -15,7 +18,7 @@ export class JsonFileStore {
     }
   }
 
-  static fromContext(context: vscode.ExtensionContext): JsonFileStore {
+  static fromContext(context: ExtensionStorageContext): JsonFileStore {
     return new JsonFileStore(context.globalStorageUri.fsPath);
   }
 
@@ -46,7 +49,7 @@ export class JsonFileStore {
   }
 
   private scheduleSave(): void {
-    if (this.saveTimer) return;
+    if (this.saveTimer) { return; }
     this.saveTimer = setTimeout(async () => {
       this.saveTimer = null;
       await this.flush();

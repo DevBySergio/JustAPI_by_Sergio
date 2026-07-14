@@ -23,7 +23,7 @@ export function CodeGenPanel({ code }: CodeGenPanelProps) {
   const [language, setLanguage] = useState<TargetLanguage>('javascript');
 
   const handleGenerate = () => {
-    if (!currentRequest.url) return;
+    if (!currentRequest.url) { return; }
     postMessage({
       type: 'generateCode',
       request: currentRequest,

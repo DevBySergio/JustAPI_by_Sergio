@@ -194,7 +194,7 @@ export class CodeGenerator {
       lines.push(`        var response = await client.DeleteAsync(url);`);
     } else {
       lines.push(`        var request = new HttpRequestMessage(HttpMethod.${req.method}, url);`);
-      if (contentVar) lines.push(`        request.Content = content;`);
+      if (contentVar) { lines.push(`        request.Content = content;`); }
       lines.push(`        var response = await client.SendAsync(request);`);
     }
 

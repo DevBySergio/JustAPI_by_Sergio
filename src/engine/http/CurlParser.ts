@@ -46,17 +46,17 @@ export class CurlParser {
           if (i < tokens.length) {
             req.body.content = this.stripQuotes(tokens[i]);
             req.body.type = 'text';
-            if (req.method === 'GET') req.method = 'POST';
+            if (req.method === 'GET') { req.method = 'POST'; }
           }
           break;
         case '--data-urlencode':
           i++;
           if (i < tokens.length) {
-            if (req.body.content) req.body.content += '&';
-            else req.body.content = '';
+            if (req.body.content) { req.body.content += '&'; }
+            else { req.body.content = ''; }
             req.body.content += this.stripQuotes(tokens[i]);
             req.body.type = 'x-www-form-urlencoded';
-            if (req.method === 'GET') req.method = 'POST';
+            if (req.method === 'GET') { req.method = 'POST'; }
           }
           break;
         case '-F':
@@ -68,11 +68,11 @@ export class CurlParser {
             if (eqIdx > 0) {
               const key = formStr.slice(0, eqIdx).trim();
               const value = formStr.slice(eqIdx + 1).trim();
-              if (!req.body.formData) req.body.formData = [];
+              if (!req.body.formData) { req.body.formData = []; }
               req.body.formData.push({ id: crypto.randomUUID(), key, value, enabled: true });
               req.body.type = 'form-data';
             }
-            if (req.method === 'GET') req.method = 'POST';
+            if (req.method === 'GET') { req.method = 'POST'; }
           }
           break;
         case '--connect-timeout':
@@ -140,7 +140,7 @@ export class CurlParser {
         current += c;
       }
     }
-    if (current) tokens.push(current);
+    if (current) { tokens.push(current); }
     return tokens;
   }
 

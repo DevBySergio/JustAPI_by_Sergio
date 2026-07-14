@@ -405,7 +405,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
   private async loadHistory(filter?: string, limit?: number): Promise<HistoryEntry[]> {
     const allEntries = await this.historyStore.read<HistoryEntry[]>('history');
-    if (!allEntries) return [];
+    if (!allEntries) { return []; }
 
     let entries = allEntries;
     if (filter) {

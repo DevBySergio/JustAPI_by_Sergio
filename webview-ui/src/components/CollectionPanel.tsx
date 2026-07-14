@@ -119,8 +119,8 @@ export function CollectionPanel() {
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename(col.id);
-                  if (e.key === 'Escape') setRenamingId(null);
+                  if (e.key === 'Enter') { commitRename(col.id); }
+                  if (e.key === 'Escape') { setRenamingId(null); }
                 }}
                 onBlur={() => commitRename(col.id)}
                 autoFocus

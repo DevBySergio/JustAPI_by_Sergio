@@ -90,11 +90,11 @@ export class HttpClient {
                   const [k, ...v] = parts[i].split('=');
                   const lk = k.toLowerCase();
                   const vv = v.join('=');
-                  if (lk === 'domain') cookie.domain = vv;
-                  else if (lk === 'path') cookie.path = vv;
-                  else if (lk === 'expires') cookie.expires = vv;
-                  else if (lk === 'httponly') cookie.httpOnly = true;
-                  else if (lk === 'secure') cookie.secure = true;
+                  if (lk === 'domain') { cookie.domain = vv; }
+                  else if (lk === 'path') { cookie.path = vv; }
+                  else if (lk === 'expires') { cookie.expires = vv; }
+                  else if (lk === 'httponly') { cookie.httpOnly = true; }
+                  else if (lk === 'secure') { cookie.secure = true; }
                 }
                 cookies.push(cookie);
               }
@@ -200,9 +200,9 @@ export class HttpClient {
   }
 
   private buildUrl(baseUrl: string, queryParams: KeyValuePair[]): string {
-    if (!queryParams || queryParams.length === 0) return baseUrl;
+    if (!queryParams || queryParams.length === 0) { return baseUrl; }
     const enabled = queryParams.filter(p => p.enabled && p.key);
-    if (enabled.length === 0) return baseUrl;
+    if (enabled.length === 0) { return baseUrl; }
     const separator = baseUrl.includes('?') ? '&' : '?';
     const params = enabled.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
     return `${baseUrl}${separator}${params}`;
@@ -235,7 +235,7 @@ export class HttpClient {
   }
 
   private buildBody(requestBody: { type: BodyType; content: string; formData?: KeyValuePair[] }): string | undefined {
-    if (requestBody.type === 'none' || !requestBody.content) return undefined;
+    if (requestBody.type === 'none' || !requestBody.content) { return undefined; }
     if (requestBody.type === 'form-data' && requestBody.formData) {
       const boundary = `----FormBoundary${Date.now()}`;
       const parts: string[] = [];
@@ -259,11 +259,11 @@ export class HttpClient {
 
   private detectBodyType(headers: Record<string, string>, body: Buffer): ResponseBodyType {
     const ct = (headers['content-type'] || '').toLowerCase();
-    if (ct.includes('application/json')) return 'json';
-    if (ct.includes('text/html')) return 'html';
-    if (ct.includes('application/xml') || ct.includes('text/xml')) return 'xml';
-    if (ct.includes('image/')) return 'image';
-    if (ct.includes('text/')) return 'text';
+    if (ct.includes('application/json')) { return 'json'; }
+    if (ct.includes('text/html')) { return 'html'; }
+    if (ct.includes('application/xml') || ct.includes('text/xml')) { return 'xml'; }
+    if (ct.includes('image/')) { return 'image'; }
+    if (ct.includes('text/')) { return 'text'; }
     if (body.length > 0) {
       const str = body.toString('utf-8').trim();
       if (str.startsWith('{') || str.startsWith('[')) {
