@@ -2,7 +2,7 @@
   "id": "task-mrjk92ht-1v9vmvhg",
   "title": "Validate and correlate the webview message protocol",
   "description": "Treat every message crossing the webview boundary as untrusted. The host currently accepts `any`, performs unchecked field access and persistence, silently ignores unknown types, and has no request correlation; declared protocol variants also lack handlers.\n\nDefine discriminated inbound/outbound message types with runtime type guards and bounded payload validation. Every operation receives an `operationId`; executions also receive an `executionId`. Responses, progress, acknowledgements, and errors must echo the relevant ID. Maintain an execution registry so cancellation targets one request, duplicate submission is controlled, and an older response cannot overwrite a newer request.\n\nValidate messages in both directions, reject unknown enums and oversized/deep structures, and return stable error codes without leaking credentials or request bodies. Remove dead workspace protocol variants as part of the approved capability-gap deferral. No handler may persist, import, execute, or generate code before validation succeeds.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605986,
-  "updatedAt": 1783967605986,
+  "updatedAt": 1784024284303,
   "position": 1783967605986,
   "labelIds": [
     "bug",
