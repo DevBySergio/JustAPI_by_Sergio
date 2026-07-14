@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784020720987,
+  "updatedAt": 1784021476228,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -36,9 +36,9 @@
     {
       "id": "check-mrjk92ho-road0002",
       "text": "Create the evidence-backed finding registry and remediation plan before production edits",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784021476228
     },
     {
       "id": "check-mrjk92ho-road0003",

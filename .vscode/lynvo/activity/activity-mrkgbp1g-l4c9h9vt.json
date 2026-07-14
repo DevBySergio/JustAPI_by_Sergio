@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrkgbp1g-l4c9h9vt",
+  "type": "task_moved",
+  "message": "Moved \"Create finding registry and remediation plan\" from In Progress to Done",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784021476228,
+  "taskId": "task-mrjk92hq-4rbmvikn",
+  "metadata": {
+    "from": "in-progress",
+    "to": "done"
+  }
+}
