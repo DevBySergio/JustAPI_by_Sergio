@@ -2,7 +2,7 @@
   "id": "task-mrjk92hp-epxse3bs",
   "title": "Establish baseline and current-state architecture audit",
   "description": "Create `docs/audits/current-state-audit.md` before production code changes. This is the factual source of truth for all later work: documentation claims are not evidence, and every defect must be tied to code, a failed test, or a deterministic reproduction.\n\nRecord the initial branch, dirty worktree, recent commits, Node/npm/VS Code engine and dependency versions, package manager, lockfile, TypeScript/ESLint/webpack/test configuration, manifest contributions, activation path, and OS-specific assumptions. Run existing scripts exactly as defined; use a temporary checkout for clean install/build/package checks that would otherwise rewrite tracked dependencies or artifacts.\n\nMap extension-host services, React/Zustand state, persistence domains, HTTP execution, commands, lifecycle/disposal, and all webview messages. Include the required message matrix and Mermaid execution/data-flow diagrams. Verify every README/changelog feature against UI wiring, host handling, runtime behavior, and tests. Findings must use the requested ID/severity/status/confidence/evidence/reproduction format and separate bugs, capability gaps, and architectural debt.",
-  "status": "in-progress",
+  "status": "done",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605982,
-  "updatedAt": 1784020106995,
+  "updatedAt": 1784020720987,
   "position": 1783967605982,
   "labelIds": [
     "bug",
@@ -43,44 +43,44 @@
     {
       "id": "check-mrjk92hp-base0003",
       "text": "Run clean-install, lint, type-check, build, test, audit, and packaging baselines with exact commands and exit codes",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020720987
     },
     {
       "id": "check-mrjk92hp-base0004",
       "text": "Map activation, commands, webview lifecycle, services, storage, network, state stores, and principal UI flows",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020720987
     },
     {
       "id": "check-mrjk92hp-base0005",
       "text": "Create the complete bidirectional message matrix with validation, response, error, and correlation behavior",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020720987
     },
     {
       "id": "check-mrjk92hp-base0006",
       "text": "Verify README and changelog claims against source, UI wiring, runtime reproductions, and tests",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020720987
     },
     {
       "id": "check-mrjk92hp-base0007",
       "text": "Document every finding in the mandated evidence format and distinguish confirmed, probable, hypothesis, and capability gap",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020720987
     },
     {
       "id": "check-mrjk92hp-base0008",
       "text": "Review the audit for reproducible evidence, severity inflation, duplicate root causes, and missing subsystems",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020720987
     }
   ],
   "relations": [

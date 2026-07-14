@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1783967605981,
+  "updatedAt": 1784020720987,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -29,9 +29,9 @@
     {
       "id": "check-mrjk92ho-road0001",
       "text": "Establish the reproducible baseline and write the current-state architecture audit",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784020720987
     },
     {
       "id": "check-mrjk92ho-road0002",
