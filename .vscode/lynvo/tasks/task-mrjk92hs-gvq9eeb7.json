@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605985,
-  "updatedAt": 1784022903417,
+  "updatedAt": 1784023536938,
   "position": 1783967605985,
   "labelIds": [
     "label-mrjk92hq-toilq00l",
@@ -21,66 +21,66 @@
   ],
   "priority": "high",
   "codeReference": {
-    "filePath": "src/test/extension.test.ts",
+    "filePath": "src/test/extension/extension.test.ts",
     "lineStart": 1,
-    "lineEnd": 15
+    "lineEnd": 48
   },
   "checklist": [
     {
       "id": "check-mrjk92hs-test0001",
       "text": "Add explicit scripts for both type-checks, unit tests, HTTP integration tests, extension tests, builds, audits, and packaging",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536929
     },
     {
       "id": "check-mrjk92hs-test0002",
       "text": "Create Node unit-test boundaries for variables, collections, parsing, generation, validation, and persistence",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536930
     },
     {
       "id": "check-mrjk92hs-test0003",
       "text": "Create deterministic localhost HTTP fixtures covering methods, bodies, redirects, compression, limits, timing, timeout, and cancellation",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536931
     },
     {
       "id": "check-mrjk92hs-test0004",
       "text": "Add storage corruption, migration, concurrency, import/export, redaction, and SecretStorage regression fixtures",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536932
     },
     {
       "id": "check-mrjk92hs-test0005",
       "text": "Add extension-host coverage for activation, commands, webview lifecycle, queued startup actions, and protocol errors",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536933
     },
     {
       "id": "check-mrjk92hs-test0006",
       "text": "Lint src and webview TS/TSX with zero warnings and preserve strict TypeScript checks",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536934
     },
     {
       "id": "check-mrjk92hs-test0007",
       "text": "Add CI that performs clean install, complete validation, VS Code tests, audits, and production packaging",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536935
     },
     {
       "id": "check-mrjk92hs-test0008",
       "text": "Document exact local and CI commands plus any minimum-VS-Code platform limitation",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605985,
-      "updatedAt": 1783967605985
+      "updatedAt": 1784023536936
     }
   ],
   "relations": [
