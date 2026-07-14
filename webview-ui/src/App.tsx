@@ -1,5 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { onMessage, postMessage } from './utils/vscodeApi';
+import {
+  createExecutionId,
+  isCurrentOperation,
+  onMessage,
+  postMessage,
+} from './utils/vscodeApi';
 import { emit } from './utils/eventBus';
 import { useRequestStore } from './stores/useRequestStore';
 import { useResponseStore } from './stores/useResponseStore';
@@ -16,6 +21,7 @@ import { SearchBar } from './components/Common/SearchBar';
 import { SearchResults } from './components/Common/SearchResults';
 import { CodeGenPanel } from './components/CodeGenPanel';
 import { SearchResult } from '../../src/models/MessageProtocol';
+import { isActiveExecution } from '../../src/protocol/CorrelationTracker';
 
 type TabView = 'editor' | 'collections' | 'history' | 'variables' | 'codegen';
 
@@ -28,6 +34,7 @@ export function App() {
   const [codeGenCode, setCodeGenCode] = useState('');
   const [varSubTab, setVarSubTab] = useState<'vars' | 'sets'>('vars');
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const acknowledgementNotifications = useRef(new Map<string, string>());
 
   const showNotification = useCallback((text: string, type: 'info' | 'error' | 'success' = 'info') => {
     setNotification({ text, type });
@@ -37,8 +44,10 @@ export function App() {
 
   const setRequest = useRequestStore((s) => s.setRequest);
   const resetRequest = useRequestStore((s) => s.resetRequest);
-  const setExecuting = useRequestStore((s) => s.setExecuting);
+  const beginExecution = useRequestStore((s) => s.beginExecution);
+  const setExecutionState = useRequestStore((s) => s.setExecutionState);
   const setResponse = useResponseStore((s) => s.setResponse);
+  const clearResponse = useResponseStore((s) => s.clearResponse);
   const setCollections = useCollectionStore((s) => s.setCollections);
   const setEntries = useHistoryStore((s) => s.setEntries);
   const addEntry = useHistoryStore((s) => s.addEntry);
@@ -48,6 +57,9 @@ export function App() {
 
   useEffect(() => {
     return onMessage((message) => {
+      if (!isCurrentOperation(message.operationId)) {
+        return;
+      }
       switch (message.type) {
         case 'initialState':
           setCollections(message.state.collections);
@@ -60,19 +72,23 @@ export function App() {
           setCollections(message.collections);
           break;
         case 'response':
-          setResponse(message.response);
+          if (isActiveExecution(useRequestStore.getState().activeExecutionId, message.executionId)) {
+            setResponse(message.response);
+          }
           break;
         case 'history':
           setEntries(message.entries);
           break;
         case 'historyEntry':
-          addEntry(message.entry);
+          if (isActiveExecution(useRequestStore.getState().activeExecutionId, message.executionId)) {
+            addEntry(message.entry);
+          }
           break;
         case 'variables':
           setGlobalVariables(message.variables);
           break;
         case 'requestExecuting':
-          setExecuting(message.executing);
+          setExecutionState(message.executionId, message.executing);
           break;
         case 'curlImportResult':
           setRequest(message.request);
@@ -84,7 +100,10 @@ export function App() {
           setActiveTab('editor');
           break;
         case 'error':
-          showNotification(message.message || 'An error occurred', 'error');
+          if (!message.executionId
+            || isActiveExecution(useRequestStore.getState().activeExecutionId, message.executionId)) {
+            showNotification(message.message || 'An error occurred', 'error');
+          }
           break;
         case 'searchResults':
           setSearchResults(message.results);
@@ -104,6 +123,14 @@ export function App() {
           setActiveTab('editor');
           showNotification('New request created', 'success');
           break;
+        case 'acknowledgement': {
+          const notification = acknowledgementNotifications.current.get(message.operationId);
+          if (notification) {
+            acknowledgementNotifications.current.delete(message.operationId);
+            showNotification(notification, 'success');
+          }
+          break;
+        }
       }
     });
   }, []);
@@ -122,15 +149,28 @@ export function App() {
       showNotification('Please enter a URL', 'error');
       return;
     }
-    postMessage({ type: 'executeRequest', request, collectionId: collectionId ?? undefined });
+    const executionId = createExecutionId();
+    clearResponse();
+    beginExecution(executionId);
+    try {
+      postMessage({
+        type: 'executeRequest',
+        executionId,
+        request,
+        collectionId: collectionId ?? undefined,
+      });
+    } catch {
+      setExecutionState(executionId, false);
+      showNotification('The request could not be submitted.', 'error');
+    }
   }, []);
 
   const handleSave = useCallback(() => {
     const request = useRequestStore.getState().currentRequest;
     const selCol = useCollectionStore.getState().activeCollectionId;
     if (selCol) {
-      postMessage({ type: 'saveRequest', request, collectionId: selCol });
-      showNotification('Request saved', 'success');
+      const operation = postMessage({ type: 'saveRequest', request, collectionId: selCol });
+      acknowledgementNotifications.current.set(operation.operationId, 'Request saved');
     } else {
       showNotification('Select a collection first', 'info');
     }

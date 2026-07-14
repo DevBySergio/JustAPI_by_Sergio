@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "../src/models"]
+  "include": ["src", "../src/models", "../src/protocol"]
 }

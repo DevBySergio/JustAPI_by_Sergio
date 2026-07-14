@@ -182,7 +182,7 @@ export function VariableEditor() {
     if (!selectedCollection) { return; }
     const newVars = [
       ...collectionVars,
-      { id: crypto.randomUUID(), key: '', value: '', enabled: true, scope: 'collection' as const, collectionId: selectedCollection.id },
+      { id: crypto.randomUUID(), key: '', value: '', enabled: true, scope: 'collection' as const },
     ];
     useCollectionStore.getState().updateCollectionVariables(selectedCollection.id, newVars);
   };

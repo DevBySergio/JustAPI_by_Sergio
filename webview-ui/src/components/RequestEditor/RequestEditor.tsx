@@ -6,6 +6,7 @@ import { UrlBar } from './UrlBar';
 import { KeyValueEditor } from '../Common/KeyValueEditor';
 import { BodyEditor } from './BodyEditor';
 import { ActiveVariablesPanel } from './ActiveVariablesPanel';
+import { postMessage } from '../../utils/vscodeApi';
 
 interface RequestEditorProps {
   onSend: () => void;
@@ -20,6 +21,7 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
   const {
     currentRequest,
     isExecuting,
+    activeExecutionId,
     setUrl,
     setMethod,
     setName,
@@ -43,8 +45,8 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
   const totalActiveVars = activeGlobal + activeColl + activeSetVars;
 
   const handleSendClick = () => {
-    if (isExecuting) {
-      postMessage({ type: 'cancelRequest' } as any);
+    if (isExecuting && activeExecutionId) {
+      postMessage({ type: 'cancelRequest', executionId: activeExecutionId });
       return;
     }
     onSend();

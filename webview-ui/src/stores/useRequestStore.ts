@@ -5,6 +5,7 @@ import { KeyValuePair } from '../../../src/models/KeyValuePair';
 interface RequestState {
   currentRequest: JustRequest;
   isExecuting: boolean;
+  activeExecutionId: string | null;
   setMethod: (method: HttpMethod) => void;
   setUrl: (url: string) => void;
   setName: (name: string) => void;
@@ -15,12 +16,14 @@ interface RequestState {
   setFormData: (formData: KeyValuePair[]) => void;
   setRequest: (request: JustRequest) => void;
   resetRequest: () => void;
-  setExecuting: (executing: boolean) => void;
+  beginExecution: (executionId: string) => void;
+  setExecutionState: (executionId: string, executing: boolean) => void;
 }
 
 export const useRequestStore = create<RequestState>((set) => ({
   currentRequest: createDefaultRequest(),
   isExecuting: false,
+  activeExecutionId: null,
 
   setMethod: (method) =>
     set((state) => ({
@@ -80,6 +83,18 @@ export const useRequestStore = create<RequestState>((set) => ({
   resetRequest: () =>
     set({ currentRequest: createDefaultRequest() }),
 
-  setExecuting: (executing) =>
-    set({ isExecuting: executing }),
+  beginExecution: (executionId) =>
+    set({ activeExecutionId: executionId, isExecuting: true }),
+
+  setExecutionState: (executionId, executing) =>
+    set((state) => {
+      if (state.activeExecutionId !== executionId) {
+        return state;
+      }
+      return {
+        ...state,
+        isExecuting: executing,
+        activeExecutionId: executing ? executionId : null,
+      };
+    }),
 }));

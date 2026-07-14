@@ -1,10 +1,17 @@
 import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
 import { JustRequest } from '../models/Request';
 import { JustResponse } from '../models/Response';
 import { Collection } from '../models/Collection';
 import { Variable } from '../models/Variable';
 import { HistoryEntry } from '../models/HistoryEntry';
-import { ExtensionMessage, InitialState } from '../models/MessageProtocol';
+import {
+  ExtensionMessage,
+  InitialState,
+  ProtocolErrorCode,
+  SearchResult,
+  WebviewMessage,
+} from '../models/MessageProtocol';
 import { ViewId } from '../constants';
 import { HttpClient } from '../engine/http/HttpClient';
 import { CurlParser } from '../engine/http/CurlParser';
@@ -13,12 +20,19 @@ import { CollectionManager } from '../engine/collection/CollectionManager';
 import { JsonFileStore } from '../storage/JsonFileStore';
 import { CodeGenerator } from '../commands/CodeGenerator';
 import { VariableSetManager } from '../engine/variables/VariableSetManager';
+import {
+  isProtocolIdentifier,
+  protocolFailure,
+  validateCollectionImportDocument,
+  validateExtensionMessage,
+  validateWebviewMessage,
+} from '../protocol/MessageValidator';
+import { ExecutionRegistry, OperationRegistry } from '../protocol/OperationRegistry';
 
 export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = ViewId.SIDEBAR;
 
   private view?: vscode.WebviewView;
-  private httpClient = new HttpClient();
   private curlParser = new CurlParser();
   private variableEngine = new VariableEngine();
   private collectionManager: CollectionManager;
@@ -27,6 +41,8 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   private globalVarsStore: JsonFileStore;
   private settingsStore: JsonFileStore;
   private variableSetManager: VariableSetManager;
+  private readonly operations = new OperationRegistry();
+  private readonly executions = new ExecutionRegistry();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -58,7 +74,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this.getHtmlContent(webviewView.webview);
 
-    webviewView.webview.onDidReceiveMessage(async (message) => {
+    webviewView.webview.onDidReceiveMessage(async (message: unknown) => {
       await this.handleMessage(message);
     });
 
@@ -68,83 +84,138 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
     await this.loadCollections();
     await this.variableSetManager.load();
-    this.collectionManager.setOnDidChange(() => {
-      this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
-    });
-    this.variableSetManager.setOnDidChange(() => {
-      this.postMessage({ type: 'variableSets', sets: this.variableSetManager.getAll() });
-    });
   }
 
   private async loadCollections(): Promise<void> {
     await this.collectionManager.load();
   }
 
-  private async handleMessage(message: any): Promise<void> {
+  private async handleMessage(rawMessage: unknown): Promise<void> {
+    const validation = validateWebviewMessage(rawMessage);
+    if (!validation.ok) {
+      const operationId = this.extractOperationId(rawMessage);
+      this.postError(operationId, validation.code);
+      return;
+    }
+
+    const message = validation.value;
+    if (!this.operations.claim(message.operationId)) {
+      this.postError(message.operationId, 'DUPLICATE_OPERATION', this.executionIdOf(message));
+      return;
+    }
+
     try {
       switch (message.type) {
         case 'webviewReady':
-          await this.sendInitialState();
+          await this.sendInitialState(message.operationId);
           break;
 
         case 'executeRequest':
-          await this.executeRequest(message.request, message.collectionId);
+          if (!await this.executeRequest(message)) {
+            return;
+          }
           break;
 
-        case 'cancelRequest':
-          this.httpClient.cancel();
-          this.postMessage({ type: 'requestExecuting', executing: false });
+        case 'cancelRequest': {
+          const entry = this.executions.cancel(message.executionId);
+          if (!entry) {
+            this.postError(message.operationId, 'EXECUTION_NOT_FOUND', message.executionId);
+            return;
+          }
+          this.postMessage({
+            type: 'requestExecuting',
+            operationId: entry.operationId,
+            executionId: entry.executionId,
+            executing: false,
+          });
           break;
+        }
 
         case 'saveRequest':
           await this.collectionManager.saveRequest(message.request, message.collectionId, message.parentId);
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'deleteRequest':
           await this.collectionManager.deleteRequest(message.requestId, message.collectionId);
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'getCollections':
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'getRequest': {
-          const req = this.collectionManager.getRequest(message.requestId);
-          if (req) {
-            this.postMessage({ type: 'requestLoaded', request: req });
+          const request = this.collectionManager.getRequest(message.requestId);
+          if (!request) {
+            this.postError(message.operationId, 'OPERATION_FAILED');
+            return;
           }
+          this.postMessage({ type: 'requestLoaded', operationId: message.operationId, request });
           break;
         }
 
         case 'createCollection':
           await this.collectionManager.createCollection(message.name);
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'updateCollection':
           await this.collectionManager.updateCollection(message.collection);
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'deleteCollection':
           await this.collectionManager.deleteCollection(message.collectionId);
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'duplicateCollection':
           await this.collectionManager.duplicateCollection(message.collectionId);
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'renameCollection': {
-          const col = this.collectionManager.getCollection(message.collectionId);
-          if (col) {
-            col.name = message.name;
-            await this.collectionManager.updateCollection(col);
-            this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          const collection = this.collectionManager.getCollection(message.collectionId);
+          if (!collection) {
+            this.postError(message.operationId, 'OPERATION_FAILED');
+            return;
           }
+          collection.name = message.name;
+          await this.collectionManager.updateCollection(collection);
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
         }
 
@@ -155,17 +226,21 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
             message.targetCollectionId,
             message.targetParentId
           );
-          this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
 
         case 'getHistory': {
           const entries = await this.loadHistory(message.filter, message.limit);
-          this.postMessage({ type: 'history', entries });
+          this.postMessage({ type: 'history', operationId: message.operationId, entries });
           break;
         }
 
         case 'clearHistory':
-          await this.clearHistory();
+          await this.clearHistory(message.operationId);
           break;
 
         case 'deleteHistoryEntry':
@@ -173,8 +248,8 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           break;
 
         case 'getVariables': {
-          const vars = await this.loadGlobalVariables();
-          this.postMessage({ type: 'variables', variables: vars });
+          const variables = await this.loadGlobalVariables();
+          this.postMessage({ type: 'variables', operationId: message.operationId, variables });
           break;
         }
 
@@ -184,7 +259,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
         case 'getSettings': {
           const settings = await this.loadSettings();
-          this.postMessage({ type: 'settings', settings });
+          this.postMessage({ type: 'settings', operationId: message.operationId, settings });
           break;
         }
 
@@ -193,79 +268,98 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           break;
 
         case 'search':
-          await this.handleSearch(message.query);
+          await this.handleSearch(message.query, message.operationId);
           break;
 
         case 'importCurl': {
           const request = this.curlParser.parse(message.curlString);
-          this.postMessage({ type: 'curlImportResult', request });
+          this.postMessage({ type: 'curlImportResult', operationId: message.operationId, request });
           break;
         }
 
         case 'exportCollection': {
           const collection = this.collectionManager.getCollection(message.collectionId);
-          if (collection) {
-            const exportData = {
-              collection,
-              requests: collection.items
-                .map(item => item.type === 'request' && item.requestId ? this.collectionManager.getRequest(item.requestId) : null)
-                .filter(Boolean),
-            };
-            const doc = await vscode.workspace.openTextDocument({
-              content: JSON.stringify(exportData, null, 2),
-              language: 'json',
-            });
-            await vscode.window.showTextDocument(doc);
+          if (!collection) {
+            this.postError(message.operationId, 'OPERATION_FAILED');
+            return;
           }
+          const exportData = {
+            collection,
+            requests: collection.items
+              .map(item => item.type === 'request' && item.requestId
+                ? this.collectionManager.getRequest(item.requestId)
+                : null)
+              .filter((request): request is JustRequest => request !== null && request !== undefined),
+          };
+          const document = await vscode.workspace.openTextDocument({
+            content: JSON.stringify(exportData, null, 2),
+            language: 'json',
+          });
+          await vscode.window.showTextDocument(document);
           break;
         }
 
         case 'importCollection': {
-          try {
-            const data = JSON.parse(message.json);
-            if (data.collection) {
-              await this.collectionManager.importCollection(data.collection, data.requests || []);
-              this.postMessage({ type: 'collections', collections: this.collectionManager.getCollections() });
-            }
-          } catch {
-            this.postMessage({ type: 'error', message: 'Invalid collection JSON', code: 'IMPORT_ERROR' });
+          const importValidation = validateCollectionImportDocument(message.json);
+          if (!importValidation.ok) {
+            this.postError(message.operationId, importValidation.code === 'MESSAGE_TOO_LARGE'
+              ? 'MESSAGE_TOO_LARGE'
+              : 'IMPORT_ERROR');
+            return;
           }
+          await this.collectionManager.importCollection(
+            importValidation.value.collection,
+            importValidation.value.requests
+          );
+          this.postMessage({
+            type: 'collections',
+            operationId: message.operationId,
+            collections: this.collectionManager.getCollections(),
+          });
           break;
         }
 
         case 'generateCode': {
           const generator = new CodeGenerator();
           const code = generator.generate(message.request, message.language);
-          this.postMessage({ type: 'codeGenerationResult', code, language: message.language });
+          this.postMessage({
+            type: 'codeGenerationResult',
+            operationId: message.operationId,
+            code,
+            language: message.language,
+          });
           break;
         }
 
         case 'previewResolution': {
-          const colId = message.collectionId;
-          const req = message.request || {};
-          const collectionVars: Variable[] = colId
-            ? (this.collectionManager.getCollection(colId)?.variables || [])
+          const collectionId = message.collectionId;
+          const request = message.request;
+          const collectionVars: Variable[] = collectionId
+            ? (this.collectionManager.getCollection(collectionId)?.variables || [])
             : [];
-          const linkedSetVars: Variable[] = colId
-            ? this.variableSetManager.getVariablesForCollection(colId)
+          const linkedSetVars: Variable[] = collectionId
+            ? this.variableSetManager.getVariablesForCollection(collectionId)
             : [];
           const allGlobals = await this.loadGlobalVariables();
           const context = {
-            requestVars: req.variables || [],
+            requestVars: request?.variables || [],
             collectionVars,
             setsVars: linkedSetVars,
             globalVars: allGlobals,
           };
-          const resolvedUrl = this.variableEngine.resolve(req.url || '', context);
-          const resolvedBody = req.body?.content ? this.variableEngine.resolve(req.body.content, context) : '';
-          const resolvedHeaders = (req.headers || [])
-            .filter((h: any) => h.enabled)
-            .map((h: any) => ({
-              key: this.variableEngine.resolve(h.key, context),
-              value: this.variableEngine.resolve(h.value, context),
+          const resolvedUrl = this.variableEngine.resolve(request?.url || '', context);
+          const resolvedBody = request?.body.content
+            ? this.variableEngine.resolve(request.body.content, context)
+            : '';
+          const resolvedHeaders = (request?.headers || [])
+            .filter(header => header.enabled)
+            .map(header => ({
+              key: this.variableEngine.resolve(header.key, context),
+              value: this.variableEngine.resolve(header.value, context),
             }));
           this.postMessage({
             type: 'resolutionPreview',
+            operationId: message.operationId,
             resolvedUrl,
             resolvedHeaders: JSON.stringify(resolvedHeaders, null, 2),
             resolvedBody,
@@ -274,52 +368,88 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         }
 
         case 'getVariableSets':
-          this.postMessage({ type: 'variableSets', sets: this.variableSetManager.getAll() });
+          this.postMessage({
+            type: 'variableSets',
+            operationId: message.operationId,
+            sets: this.variableSetManager.getAll(),
+          });
           break;
 
         case 'createVariableSet':
           await this.variableSetManager.create(message.name);
-          this.postMessage({ type: 'variableSets', sets: this.variableSetManager.getAll() });
+          this.postMessage({
+            type: 'variableSets',
+            operationId: message.operationId,
+            sets: this.variableSetManager.getAll(),
+          });
           break;
 
         case 'updateVariableSet':
           await this.variableSetManager.update(message.set);
-          this.postMessage({ type: 'variableSets', sets: this.variableSetManager.getAll() });
+          this.postMessage({
+            type: 'variableSets',
+            operationId: message.operationId,
+            sets: this.variableSetManager.getAll(),
+          });
           break;
 
         case 'deleteVariableSet':
           await this.variableSetManager.delete(message.setId);
-          this.postMessage({ type: 'variableSets', sets: this.variableSetManager.getAll() });
+          this.postMessage({
+            type: 'variableSets',
+            operationId: message.operationId,
+            sets: this.variableSetManager.getAll(),
+          });
           break;
 
         case 'linkVariableSet':
           await this.variableSetManager.linkToCollection(message.setId, message.collectionId);
-          this.postMessage({ type: 'variableSets', sets: this.variableSetManager.getAll() });
+          this.postMessage({
+            type: 'variableSets',
+            operationId: message.operationId,
+            sets: this.variableSetManager.getAll(),
+          });
           break;
 
         case 'unlinkVariableSet':
           await this.variableSetManager.unlinkFromCollection(message.setId, message.collectionId);
-          this.postMessage({ type: 'variableSets', sets: this.variableSetManager.getAll() });
+          this.postMessage({
+            type: 'variableSets',
+            operationId: message.operationId,
+            sets: this.variableSetManager.getAll(),
+          });
           break;
       }
-    } catch (err) {
-      this.postMessage({
-        type: 'error',
-        message: err instanceof Error ? err.message : String(err),
-      });
+      this.acknowledge(message);
+    } catch {
+      this.postError(message.operationId, 'OPERATION_FAILED', this.executionIdOf(message));
     }
   }
 
-  private async executeRequest(request: JustRequest, collectionId?: string): Promise<void> {
-    this.postMessage({ type: 'requestExecuting', executing: true });
+  private async executeRequest(
+    message: Extract<WebviewMessage, { type: 'executeRequest' }>
+  ): Promise<boolean> {
+    const client = new HttpClient();
+    const execution = this.executions.register(message.operationId, message.executionId, client);
+    if (!execution) {
+      this.postError(message.operationId, 'DUPLICATE_EXECUTION', message.executionId);
+      return false;
+    }
+
+    this.postMessage({
+      type: 'requestExecuting',
+      operationId: message.operationId,
+      executionId: message.executionId,
+      executing: true,
+    });
 
     try {
       const globalVars = await this.loadGlobalVariables();
       const collectionVars: Variable[] = [];
       const setsVars: Variable[] = [];
 
-      if (collectionId) {
-        const linkedSets = this.variableSetManager.getByCollectionId(collectionId);
+      if (message.collectionId) {
+        const linkedSets = this.variableSetManager.getByCollectionId(message.collectionId);
         for (const set of linkedSets) {
           for (const v of set.variables) {
             if (v.enabled) {
@@ -327,7 +457,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
             }
           }
         }
-        const collection = this.collectionManager.getCollection(collectionId);
+        const collection = this.collectionManager.getCollection(message.collectionId);
         if (collection?.variables) {
           for (const v of collection.variables) {
             if (v.enabled) {
@@ -338,13 +468,13 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       }
 
       const vars = {
-        requestVars: request.variables || [],
+        requestVars: message.request.variables || [],
         collectionVars,
         setsVars,
         globalVars,
       };
 
-      const resolvedRequest = JSON.parse(JSON.stringify(request)) as JustRequest;
+      const resolvedRequest = JSON.parse(JSON.stringify(message.request)) as JustRequest;
 
       resolvedRequest.url = this.variableEngine.resolve(resolvedRequest.url, vars);
       for (const h of resolvedRequest.headers) {
@@ -359,30 +489,60 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         resolvedRequest.body.content = this.variableEngine.resolve(resolvedRequest.body.content, vars);
       }
 
-      const response = await this.httpClient.execute(resolvedRequest);
+      const response = await client.execute(resolvedRequest);
+      if (execution.cancelled) {
+        return true;
+      }
 
-      this.postMessage({ type: 'response', response });
+      this.postMessage({
+        type: 'response',
+        operationId: message.operationId,
+        executionId: message.executionId,
+        response,
+      });
 
       // Check for unresolved variables and notify
-      const unresolvedUrl = this.variableEngine.findUnresolved(request.url, vars);
-      const unresolvedBody = request.body.content ? this.variableEngine.findUnresolved(request.body.content, vars) : [];
+      const unresolvedUrl = this.variableEngine.findUnresolved(message.request.url, vars);
+      const unresolvedBody = message.request.body.content
+        ? this.variableEngine.findUnresolved(message.request.body.content, vars)
+        : [];
       const unresolved = [...unresolvedUrl, ...unresolvedBody].filter((v, i, a) => a.indexOf(v) === i);
       if (unresolved.length > 0) {
         this.postMessage({
           type: 'error',
-          message: `Unresolved variables: ${unresolved.join(', ')}`,
+          operationId: message.operationId,
+          executionId: message.executionId,
+          message: 'The request contains unresolved variables.',
+          code: 'OPERATION_FAILED',
         });
       }
 
       if (response.statusCode > 0) {
-        await this.saveToHistory(request, response);
+        await this.saveToHistory(
+          message.request,
+          response,
+          message.operationId,
+          message.executionId
+        );
       }
+      return true;
+    } catch {
+      if (!execution.cancelled) {
+        this.postError(message.operationId, 'OPERATION_FAILED', message.executionId);
+      }
+      return false;
     } finally {
-      this.postMessage({ type: 'requestExecuting', executing: false });
+      this.executions.complete(message.executionId);
+      this.postMessage({
+        type: 'requestExecuting',
+        operationId: message.operationId,
+        executionId: message.executionId,
+        executing: false,
+      });
     }
   }
 
-  private async sendInitialState(): Promise<void> {
+  private async sendInitialState(operationId: string): Promise<void> {
     await this.collectionManager.load();
     await this.variableSetManager.load();
     const collections = this.collectionManager.getCollections();
@@ -397,10 +557,9 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       variables,
       variableSets,
       settings,
-      workspaceEnabled: false,
     };
 
-    this.postMessage({ type: 'initialState', state });
+    this.postMessage({ type: 'initialState', operationId, state });
   }
 
   private async loadHistory(filter?: string, limit?: number): Promise<HistoryEntry[]> {
@@ -426,9 +585,14 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     return entries;
   }
 
-  private async saveToHistory(request: JustRequest, response: JustResponse): Promise<void> {
+  private async saveToHistory(
+    request: JustRequest,
+    response: JustResponse,
+    operationId: string,
+    executionId: string
+  ): Promise<void> {
     const entry: HistoryEntry = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       request,
       response,
       timestamp: Date.now(),
@@ -447,12 +611,12 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     await this.historyStore.write('history', entries);
-    this.postMessage({ type: 'historyEntry', entry });
+    this.postMessage({ type: 'historyEntry', operationId, executionId, entry });
   }
 
-  private async clearHistory(): Promise<void> {
+  private async clearHistory(operationId: string): Promise<void> {
     await this.historyStore.write('history', []);
-    this.postMessage({ type: 'history', entries: [] });
+    this.postMessage({ type: 'history', operationId, entries: [] });
   }
 
   private async deleteHistoryEntry(entryId: string): Promise<void> {
@@ -477,9 +641,9 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     await this.settingsStore.write('settings', settings);
   }
 
-  private async handleSearch(query: string): Promise<void> {
+  private async handleSearch(query: string, operationId: string): Promise<void> {
     const lower = query.toLowerCase();
-    const results: any[] = [];
+    const results: SearchResult[] = [];
 
     for (const collection of this.collectionManager.getCollections()) {
       if (collection.name.toLowerCase().includes(lower)) {
@@ -502,10 +666,15 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       }
     }
 
-    this.postMessage({ type: 'searchResults', results });
+    this.postMessage({ type: 'searchResults', operationId, results });
   }
 
-  private searchItems(items: any[], query: string, collectionId: string, results: any[]): void {
+  private searchItems(
+    items: Collection['items'],
+    query: string,
+    collectionId: string,
+    results: SearchResult[]
+  ): void {
     for (const item of items) {
       if (item.name.toLowerCase().includes(query)) {
         results.push({
@@ -536,27 +705,84 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   createNewRequest(): void {
-    this.postMessage({ type: 'createNewRequest' });
+    this.postMessage({ type: 'createNewRequest', operationId: this.createOperationId() });
   }
 
   postCurlImport(curlString: string): void {
+    const operationId = this.createOperationId();
     try {
       const request = this.curlParser.parse(curlString);
-      this.postMessage({ type: 'curlImportResult', request });
-    } catch (err) {
-      this.postMessage({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to parse cURL',
-      });
+      this.postMessage({ type: 'curlImportResult', operationId, request });
+    } catch {
+      this.postError(operationId, 'OPERATION_FAILED');
     }
   }
 
   dispose(): void {
-    this.httpClient.cancel();
+    this.executions.cancelAll();
   }
 
   private postMessage(message: ExtensionMessage): void {
-    this.view?.webview.postMessage(message);
+    const validation = validateExtensionMessage(message);
+    if (validation.ok) {
+      this.view?.webview.postMessage(validation.value);
+      return;
+    }
+
+    const outboundFailure = protocolFailure('OUTBOUND_MESSAGE_INVALID');
+    const operationId = isProtocolIdentifier(message.operationId)
+      ? message.operationId
+      : this.createOperationId();
+    const executionId = 'executionId' in message && isProtocolIdentifier(message.executionId)
+      ? message.executionId
+      : undefined;
+    this.view?.webview.postMessage({
+      type: 'error',
+      operationId,
+      ...(executionId ? { executionId } : {}),
+      code: outboundFailure.code,
+      message: outboundFailure.message,
+    } satisfies ExtensionMessage);
+  }
+
+  private postError(operationId: string, code: ProtocolErrorCode, executionId?: string): void {
+    const error = protocolFailure(code);
+    this.postMessage({
+      type: 'error',
+      operationId,
+      ...(executionId ? { executionId } : {}),
+      code: error.code,
+      message: error.message,
+    });
+  }
+
+  private acknowledge(message: WebviewMessage): void {
+    const executionId = this.executionIdOf(message);
+    this.postMessage({
+      type: 'acknowledgement',
+      operationId: message.operationId,
+      action: message.type,
+      status: 'completed',
+      ...(executionId ? { executionId } : {}),
+    });
+  }
+
+  private executionIdOf(message: WebviewMessage): string | undefined {
+    return 'executionId' in message ? message.executionId : undefined;
+  }
+
+  private extractOperationId(message: unknown): string {
+    if (message !== null && typeof message === 'object' && 'operationId' in message) {
+      const operationId = (message as { operationId?: unknown }).operationId;
+      if (isProtocolIdentifier(operationId)) {
+        return operationId;
+      }
+    }
+    return this.createOperationId();
+  }
+
+  private createOperationId(): string {
+    return `operation-${randomUUID()}`;
   }
 
   private getHtmlContent(webview: vscode.Webview): string {
