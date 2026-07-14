@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrkfg5cs-yt3z4aa8",
+  "type": "task_moved",
+  "message": "Moved \"Establish baseline and current-state architecture audit\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784020004380,
+  "taskId": "task-mrjk92hp-epxse3bs",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}

@@ -1,1 +1,12 @@
-{}
+{
+  "task-task-mrjk92hp-epxse3bs-status": {
+    "id": "task-task-mrjk92hp-epxse3bs-status",
+    "entityType": "task",
+    "entityId": "task-mrjk92hp-epxse3bs",
+    "field": "status",
+    "localValue": "in-progress",
+    "remoteValue": "todo",
+    "createdAt": 1784020096202,
+    "resolved": false
+  }
+}
