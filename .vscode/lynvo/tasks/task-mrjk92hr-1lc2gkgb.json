@@ -2,7 +2,7 @@
   "id": "task-mrjk92hr-1lc2gkgb",
   "title": "Clean repository dependencies and delivery artifacts",
   "description": "Restore a conventional, reproducible source repository without changing runtime behavior. The repository currently tracks roughly 20,900 `node_modules` files, has no root `.gitignore`, contains generated VSIX/build artifacts, and has lockfile root metadata for version `0.0.1` while the manifest is `1.0.1`.\n\nAdd a root ignore policy, remove dependencies and generated artifacts from the Git index, retain `package-lock.json` as the dependency source, and regenerate only the metadata needed for `npm ci`. Preserve the user's local untracked `justapi-1.0.1.vsix` and other pre-existing worktree files. Do not hide source changes behind broad ignore rules.\n\nReview the full dependency audit for reachability: packaged production dependencies must have no known findings; development-only advisories should be fixed with compatible direct updates or narrow overrides when safe, otherwise documented with upstream constraints. Verify the final VSIX contents do not include source, tests, caches, secrets, or dependencies already bundled into `dist`.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605984,
-  "updatedAt": 1783967605984,
+  "updatedAt": 1784021708416,
   "position": 1783967605984,
   "labelIds": [
     "label-mrjk92hu-ul8o48dy",

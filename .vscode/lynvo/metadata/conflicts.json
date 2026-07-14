@@ -18,5 +18,15 @@
     "remoteValue": "in-progress",
     "createdAt": 1784021536560,
     "resolved": true
+  },
+  "task-task-mrjk92hr-1lc2gkgb-status": {
+    "id": "task-task-mrjk92hr-1lc2gkgb-status",
+    "entityType": "task",
+    "entityId": "task-mrjk92hr-1lc2gkgb",
+    "field": "status",
+    "localValue": "in-progress",
+    "remoteValue": "todo",
+    "createdAt": 1784021776462,
+    "resolved": false
   }
 }
