@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrkhpz7r-702vgphi",
+  "type": "task_moved",
+  "message": "Moved \"Build automated validation harness and CI\" from In Progress to Done",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784023822215,
+  "taskId": "task-mrjk92hs-gvq9eeb7",
+  "metadata": {
+    "from": "in-progress",
+    "to": "done"
+  }
+}

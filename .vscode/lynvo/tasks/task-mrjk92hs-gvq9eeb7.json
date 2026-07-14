@@ -2,7 +2,7 @@
   "id": "task-mrjk92hs-gvq9eeb7",
   "title": "Build automated validation harness and CI",
   "description": "Replace the single placeholder extension test with a layered, deterministic safety net that can prove every remediation. Tests must not call live third-party APIs and must never be skipped or weakened to conceal failures.\n\nAdd explicit scripts for extension and webview type-checking, Node unit tests, deterministic localhost HTTP integration tests, compiled extension-host tests, development/production builds, audit checks, and VSIX packaging. Refactor only the boundaries needed to test domain logic without loading VS Code. Extend ESLint to `webview-ui` TypeScript/TSX and make warnings fail the build.\n\nCI should use `npm ci`, cache only npm's download cache, run the complete validation sequence, execute VS Code tests under a supported display environment, and package an artifact. Tests need fixtures for transport, variables, storage corruption/migrations, collection round trips, cURL, code generation, protocol validation, SecretStorage, cancellation, and stale responses.",
-  "status": "in-progress",
+  "status": "done",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605985,
-  "updatedAt": 1784023536938,
+  "updatedAt": 1784023822215,
   "position": 1783967605985,
   "labelIds": [
     "label-mrjk92hq-toilq00l",
