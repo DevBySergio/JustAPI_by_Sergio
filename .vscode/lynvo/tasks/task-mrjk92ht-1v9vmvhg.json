@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605986,
-  "updatedAt": 1784024284303,
+  "updatedAt": 1784025079934,
   "position": 1783967605986,
   "labelIds": [
     "bug",
@@ -29,44 +29,44 @@
     {
       "id": "check-mrjk92ht-prot0001",
       "text": "Inventory actual senders and handlers, then reconcile the TypeScript protocol with implemented supported behavior",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605986,
-      "updatedAt": 1783967605986
+      "updatedAt": 1784025079929
     },
     {
       "id": "check-mrjk92ht-prot0002",
       "text": "Implement runtime validators for every inbound and outbound payload, enum, identifier, size, and nesting boundary",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605986,
-      "updatedAt": 1783967605986
+      "updatedAt": 1784025079930
     },
     {
       "id": "check-mrjk92ht-prot0003",
       "text": "Add operationId and executionId correlation to requests, acknowledgements, progress, responses, cancellation, and errors",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605986,
-      "updatedAt": 1783967605986
+      "updatedAt": 1784025079931
     },
     {
       "id": "check-mrjk92ht-prot0004",
       "text": "Maintain an execution registry and make cancellation target exactly one in-flight request",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605986,
-      "updatedAt": 1783967605986
+      "updatedAt": 1784025079932
     },
     {
       "id": "check-mrjk92ht-prot0005",
       "text": "Prevent stale or out-of-order messages from mutating the active request, response, history, or loading state",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605986,
-      "updatedAt": 1783967605986
+      "updatedAt": 1784025079933
     },
     {
       "id": "check-mrjk92ht-prot0006",
       "text": "Return structured protocol errors for unknown messages without logging secrets or untrusted bodies",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605986,
-      "updatedAt": 1783967605986
+      "updatedAt": 1784025079934
     },
     {
       "id": "check-mrjk92ht-prot0007",
