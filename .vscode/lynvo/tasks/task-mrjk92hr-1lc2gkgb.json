@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605984,
-  "updatedAt": 1784022038563,
+  "updatedAt": 1784022342461,
   "position": 1783967605984,
   "labelIds": [
     "label-mrjk92hu-ul8o48dy",
@@ -49,23 +49,23 @@
     {
       "id": "check-mrjk92hr-repo0004",
       "text": "Apply only compatible vulnerability-related development dependency updates or justified narrow overrides",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605984,
-      "updatedAt": 1783967605984
+      "updatedAt": 1784022342461
     },
     {
       "id": "check-mrjk92hr-repo0005",
       "text": "Prove a clean npm ci succeeds from the lockfile on a clean checkout",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605984,
-      "updatedAt": 1783967605984
+      "updatedAt": 1784022342461
     },
     {
       "id": "check-mrjk92hr-repo0006",
       "text": "Inspect the VSIX file list and confirm only manifest, documentation, licenses, media, and production bundles are packaged",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605984,
-      "updatedAt": 1783967605984
+      "updatedAt": 1784022342461
     },
     {
       "id": "check-mrjk92hr-repo0007",
