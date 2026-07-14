@@ -2,7 +2,7 @@
   "id": "task-mrjk92hq-4rbmvikn",
   "title": "Create finding registry and remediation plan",
   "description": "Create `docs/audits/remediation-plan.md` after the current-state audit and before any production edit. Convert confirmed findings into a decision-complete delivery sequence rather than a generic backlog.\n\nThe plan must contain the baseline and architecture summary, prioritized finding table, dependency graph, expected files, regression tests, persistence and SecretStorage migrations, security constraints, rollback procedures, explicit non-goals, and definition of done. Assign work to Batch 0 through Batch 5 by actual severity and prerequisite order. If the formal audit finds no Blocker/Critical issue, say so rather than promoting lower-risk defects.\n\nEach finding must have one owner task, a smallest coherent fix, a required regression test, and a clear completion signal. The document is also the execution ledger: update batch status and deviations after every implementation batch.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605983,
-  "updatedAt": 1783967605983,
+  "updatedAt": 1784020890332,
   "position": 1783967605983,
   "labelIds": [
     "label-mrjk92hr-iyd9w6j3",
