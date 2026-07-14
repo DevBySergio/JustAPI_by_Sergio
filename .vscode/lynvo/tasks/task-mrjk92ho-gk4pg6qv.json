@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784023822216,
+  "updatedAt": 1784025308529,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -57,9 +57,9 @@
     {
       "id": "check-mrjk92ho-road0005",
       "text": "Validate and correlate the webview message protocol",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784025308529
     },
     {
       "id": "check-mrjk92ho-road0006",

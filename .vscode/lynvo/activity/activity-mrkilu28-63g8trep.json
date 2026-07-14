@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrkilu28-63g8trep",
+  "type": "task_moved",
+  "message": "Moved \"Validate and correlate the webview message protocol\" from In Progress to Done",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784025308528,
+  "taskId": "task-mrjk92ht-1v9vmvhg",
+  "metadata": {
+    "from": "in-progress",
+    "to": "done"
+  }
+}
