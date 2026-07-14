@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605982,
-  "updatedAt": 1784020004380,
+  "updatedAt": 1784020106995,
   "position": 1783967605982,
   "labelIds": [
     "bug",
@@ -29,16 +29,16 @@
     {
       "id": "check-mrjk92hp-base0001",
       "text": "Capture branch, worktree, recent commits, repository structure, and pre-existing changes without altering them",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020106995
     },
     {
       "id": "check-mrjk92hp-base0002",
       "text": "Record Node, npm, VS Code engine, dependency, build, lint, TypeScript, test, and OS assumptions",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605982,
-      "updatedAt": 1783967605982
+      "updatedAt": 1784020106995
     },
     {
       "id": "check-mrjk92hp-base0003",
