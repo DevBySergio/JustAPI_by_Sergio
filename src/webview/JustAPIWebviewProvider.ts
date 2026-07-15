@@ -14,7 +14,7 @@ import {
 } from '../models/MessageProtocol';
 import { ViewId } from '../constants';
 import { HttpClient } from '../engine/http/HttpClient';
-import { CurlParser } from '../engine/http/CurlParser';
+import { CurlParseError, CurlParser } from '../engine/http/CurlParser';
 import { ResolutionContext, VariableEngine } from '../engine/variables/VariableEngine';
 import { CollectionManager } from '../engine/collection/CollectionManager';
 import { JsonFileStore } from '../storage/JsonFileStore';
@@ -337,9 +337,19 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           break;
 
         case 'importCurl': {
-          const parsed = this.curlParser.parse(message.curlString);
-          const { request } = await this.authService.stageRecognizedLegacyAuth(parsed);
-          this.postMessage({ type: 'curlImportResult', operationId: message.operationId, request });
+          const parsed = this.curlParser.parseWithWarnings(message.curlString);
+          const { request } = await this.authService.stageRecognizedLegacyAuth(parsed.request);
+          this.postMessage({
+            type: 'curlImportResult',
+            operationId: message.operationId,
+            request,
+            warnings: parsed.warnings,
+          });
+          break;
+        }
+
+        case 'cancelCurlImport': {
+          await this.authService.rollbackSave(message.requestId);
           break;
         }
 
@@ -527,6 +537,15 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       }
       this.acknowledge(message);
     } catch (error) {
+      if (error instanceof CurlParseError) {
+        this.postError(
+          message.operationId,
+          'CURL_PARSE_ERROR',
+          this.executionIdOf(message),
+          [`${error.code}${error.tokenIndex === undefined ? '' : ` at token ${error.tokenIndex}`}`]
+        );
+        return;
+      }
       if (error instanceof CollectionIntegrityError) {
         this.postError(
           message.operationId,
@@ -795,11 +814,25 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     const operationId = this.createOperationId();
     void (async () => {
       try {
-        const parsed = this.curlParser.parse(curlString);
-        const { request } = await this.authService.stageRecognizedLegacyAuth(parsed);
-        this.postMessage({ type: 'curlImportResult', operationId, request });
-      } catch {
-        this.postError(operationId, 'OPERATION_FAILED');
+        const parsed = this.curlParser.parseWithWarnings(curlString);
+        const { request } = await this.authService.stageRecognizedLegacyAuth(parsed.request);
+        this.postMessage({
+          type: 'curlImportResult',
+          operationId,
+          request,
+          warnings: parsed.warnings,
+        });
+      } catch (error) {
+        if (error instanceof CurlParseError) {
+          this.postError(
+            operationId,
+            'CURL_PARSE_ERROR',
+            undefined,
+            [`${error.code}${error.tokenIndex === undefined ? '' : ` at token ${error.tokenIndex}`}`]
+          );
+        } else {
+          this.postError(operationId, 'OPERATION_FAILED');
+        }
       }
     })();
   }

@@ -247,6 +247,38 @@ describe('webview protocol validation and correlation', () => {
     assert.doesNotMatch(failure.message, /authorization|fixture-secret|token=/i);
   });
 
+  test('validates structured cURL preview warnings and cancellation messages', () => {
+    const request = createRequestFixture({ url: 'https://fixture.test/curl-preview' });
+    assert.equal(validateExtensionMessage({
+      type: 'curlImportResult',
+      operationId,
+      request,
+      warnings: [{
+        code: 'UNSUPPORTED_OPTION',
+        token: '--compressed',
+        tokenIndex: 1,
+        message: '--compressed is not supported and was not applied.',
+      }],
+    }).ok, true);
+    assert.equal(validateExtensionMessage({
+      type: 'curlImportResult',
+      operationId,
+      request,
+      warnings: [{
+        code: 'UNKNOWN_WARNING',
+        token: '--fixture',
+        tokenIndex: 1,
+        message: 'Fixture warning.',
+      }],
+    }).ok, false);
+    assert.equal(validateWebviewMessage({
+      type: 'cancelCurlImport',
+      operationId,
+      requestId: request.id,
+    }).ok, true);
+    assert.equal(protocolFailure('CURL_PARSE_ERROR').message, 'The cURL command could not be parsed.');
+  });
+
   test('validates correlated variable previews and exposes a stable blocking error', () => {
     assert.equal(validateExtensionMessage({
       type: 'resolutionPreview',

@@ -153,18 +153,18 @@ export class CodeGenerator {
 
     const enabledHeaders = req.headers.filter(h => h.enabled && h.key);
     for (const h of enabledHeaders) {
-      parts.push(`-H '${this.escapeString(h.key)}: ${this.escapeString(h.value)}'`);
+      parts.push(`-H '${this.escapeShellSingleQuoted(`${h.key}: ${h.value}`)}'`);
     }
 
     if (req.body.type !== 'none' && req.body.content) {
-      parts.push(`-d '${this.escapeString(req.body.content)}'`);
+      parts.push(`-d '${this.escapeShellSingleQuoted(req.body.content)}'`);
     }
 
     if (!req.settings.verifySSL) {
       parts.push('-k');
     }
 
-    parts.push(`'${this.escapeString(req.url)}'`);
+    parts.push(`'${this.escapeShellSingleQuoted(req.url)}'`);
     return parts.join(' \\\n  ');
   }
 
@@ -325,5 +325,9 @@ export class CodeGenerator {
       .replace(/\n/g, '\\n')
       .replace(/\r/g, '\\r')
       .replace(/\t/g, '\\t');
+  }
+
+  private escapeShellSingleQuoted(value: string): string {
+    return value.replace(/'/g, "'\\''");
   }
 }

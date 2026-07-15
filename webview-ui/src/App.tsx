@@ -20,7 +20,9 @@ import { VariableSetPanel } from './components/VariableSetPanel';
 import { SearchBar } from './components/Common/SearchBar';
 import { SearchResults } from './components/Common/SearchResults';
 import { CodeGenPanel } from './components/CodeGenPanel';
+import { CurlImportPreview } from './components/CurlImportPreview';
 import { SearchResult } from '../../src/models/MessageProtocol';
+import type { CurlImportParseResult } from '../../src/models/CurlImport';
 import { isActiveExecution } from '../../src/protocol/CorrelationTracker';
 
 type TabView = 'editor' | 'collections' | 'history' | 'variables' | 'codegen';
@@ -33,8 +35,10 @@ export function App() {
   const [notification, setNotification] = useState<{ text: string; type: 'info' | 'error' | 'success' } | null>(null);
   const [codeGenCode, setCodeGenCode] = useState('');
   const [varSubTab, setVarSubTab] = useState<'vars' | 'sets'>('vars');
+  const [curlImportPreview, setCurlImportPreview] = useState<CurlImportParseResult | null>(null);
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const acknowledgementNotifications = useRef(new Map<string, string>());
+  const curlImportPreviewRef = useRef<CurlImportParseResult | null>(null);
 
   const showNotification = useCallback((text: string, type: 'info' | 'error' | 'success' = 'info') => {
     setNotification({ text, type });
@@ -92,9 +96,15 @@ export function App() {
           setExecutionState(message.executionId, message.executing);
           break;
         case 'curlImportResult':
-          setRequest(message.request);
-          setActiveTab('editor');
-          showNotification('cURL imported successfully', 'success');
+          if (curlImportPreviewRef.current
+            && curlImportPreviewRef.current.request.id !== message.request.id) {
+            postMessage({
+              type: 'cancelCurlImport',
+              requestId: curlImportPreviewRef.current.request.id,
+            });
+          }
+          curlImportPreviewRef.current = { request: message.request, warnings: message.warnings };
+          setCurlImportPreview(curlImportPreviewRef.current);
           break;
         case 'requestLoaded':
           setRequest(message.request);
@@ -211,6 +221,26 @@ export function App() {
         >
           {notification.text}
         </div>
+      )}
+
+      {curlImportPreview && (
+        <CurlImportPreview
+          request={curlImportPreview.request}
+          warnings={curlImportPreview.warnings}
+          onCancel={() => {
+            postMessage({ type: 'cancelCurlImport', requestId: curlImportPreview.request.id });
+            curlImportPreviewRef.current = null;
+            setCurlImportPreview(null);
+            showNotification('cURL import cancelled', 'info');
+          }}
+          onConfirm={() => {
+            setRequest(curlImportPreview.request);
+            setActiveTab('editor');
+            curlImportPreviewRef.current = null;
+            setCurlImportPreview(null);
+            showNotification('cURL imported successfully', 'success');
+          }}
+        />
       )}
 
       <SearchBar

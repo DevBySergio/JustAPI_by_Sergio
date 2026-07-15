@@ -6,6 +6,7 @@ import { VariableSet } from './VariableSet';
 import { HistoryEntry } from './HistoryEntry';
 import { AuthConfig, AuthInput } from './Auth';
 import { VariableDiagnostic } from './VariableResolution';
+import { CurlImportWarning } from './CurlImport';
 
 export type CodeTargetLanguage =
   | 'javascript'
@@ -25,6 +26,7 @@ export type ProtocolErrorCode =
   | 'DUPLICATE_EXECUTION'
   | 'EXECUTION_NOT_FOUND'
   | 'IMPORT_ERROR'
+  | 'CURL_PARSE_ERROR'
   | 'AUTH_CONFLICT'
   | 'AUTH_SECRET_NOT_FOUND'
   | 'VARIABLE_RESOLUTION_FAILED'
@@ -70,6 +72,7 @@ export type WebviewMessage =
   | ({ type: 'setSettings'; settings: Record<string, unknown> } & OperationMessage)
   | ({ type: 'search'; query: string } & OperationMessage)
   | ({ type: 'importCurl'; curlString: string } & OperationMessage)
+  | ({ type: 'cancelCurlImport'; requestId: string } & OperationMessage)
   | ({ type: 'exportCollection'; collectionId: string; includeCredentials?: boolean } & OperationMessage)
   | ({ type: 'importCollection'; json: string } & OperationMessage)
   | ({
@@ -101,7 +104,11 @@ export type ExtensionMessage =
   | ({ type: 'variables'; variables: Variable[] } & OperationMessage)
   | ({ type: 'settings'; settings: Record<string, unknown> } & OperationMessage)
   | ({ type: 'searchResults'; results: SearchResult[] } & OperationMessage)
-  | ({ type: 'curlImportResult'; request: JustRequest } & OperationMessage)
+  | ({
+      type: 'curlImportResult';
+      request: JustRequest;
+      warnings: CurlImportWarning[];
+    } & OperationMessage)
   | ({ type: 'codeGenerationResult'; code: string; language: CodeTargetLanguage } & OperationMessage)
   | ({
       type: 'error';

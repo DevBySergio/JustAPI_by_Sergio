@@ -16,6 +16,7 @@ import type { JustResponse } from '../models/Response';
 import type { Variable } from '../models/Variable';
 import type { VariableSet } from '../models/VariableSet';
 import type { VariableDiagnostic } from '../models/VariableResolution';
+import type { CurlImportWarning } from '../models/CurlImport';
 import {
   COLLECTION_TRANSFER_SCHEMA_VERSION,
   CollectionTransferDocument,
@@ -77,6 +78,7 @@ const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
   'setSettings',
   'search',
   'importCurl',
+  'cancelCurlImport',
   'exportCollection',
   'importCollection',
   'generateCode',
@@ -127,6 +129,7 @@ const PROTOCOL_ERROR_CODES = new Set<ProtocolErrorCode>([
   'DUPLICATE_EXECUTION',
   'EXECUTION_NOT_FOUND',
   'IMPORT_ERROR',
+  'CURL_PARSE_ERROR',
   'AUTH_CONFLICT',
   'AUTH_SECRET_NOT_FOUND',
   'VARIABLE_RESOLUTION_FAILED',
@@ -144,6 +147,7 @@ function failure<T>(code: ProtocolErrorCode, details?: string[]): ValidationResu
     DUPLICATE_EXECUTION: 'The execution identifier has already been used.',
     EXECUTION_NOT_FOUND: 'The requested execution is not active.',
     IMPORT_ERROR: 'The import document is invalid.',
+    CURL_PARSE_ERROR: 'The cURL command could not be parsed.',
     AUTH_CONFLICT: 'Authentication conflicts with an enabled request field.',
     AUTH_SECRET_NOT_FOUND: 'The configured authentication secret is unavailable.',
     VARIABLE_RESOLUTION_FAILED: 'The request contains invalid or unresolved variables.',
@@ -350,6 +354,28 @@ function isVariableDiagnostic(value: unknown): value is VariableDiagnostic {
       || (Array.isArray(value.path)
         && value.path.length <= PROTOCOL_LIMITS.maximumDepth
         && value.path.every(segment => isString(segment, PROTOCOL_LIMITS.maximumHeaderNameLength, false))));
+}
+
+const CURL_IMPORT_WARNING_CODES = new Set([
+  'UNSUPPORTED_OPTION',
+  'DANGEROUS_OPTION',
+  'MISSING_OPTION_VALUE',
+  'AMBIGUOUS_OPTION',
+  'LOCAL_FILE_REFERENCE',
+  'MALFORMED_VALUE',
+  'MULTIPLE_URLS',
+  'CONFLICTING_BODY_OPTIONS',
+  'SHELL_SYNTAX_LITERAL',
+]);
+
+function isCurlImportWarning(value: unknown): value is CurlImportWarning {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['code', 'token', 'tokenIndex', 'message'])
+    && typeof value.code === 'string'
+    && CURL_IMPORT_WARNING_CODES.has(value.code)
+    && isString(value.token, PROTOCOL_LIMITS.maximumHeaderNameLength, false)
+    && isBoundedInteger(value.tokenIndex, 0, PROTOCOL_LIMITS.maximumNodes)
+    && isString(value.message, PROTOCOL_LIMITS.maximumErrorLength, false);
 }
 
 function isAuthConfig(value: unknown): value is AuthConfig {
@@ -737,6 +763,9 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
     case 'importCurl':
       return hasOnlyKeys(value, ['type', 'operationId', 'curlString'])
         && isString(value.curlString, PROTOCOL_LIMITS.generalMessageBytes, false);
+    case 'cancelCurlImport':
+      return hasOnlyKeys(value, ['type', 'operationId', 'requestId'])
+        && isProtocolIdentifier(value.requestId);
     case 'importCollection':
       return hasOnlyKeys(value, ['type', 'operationId', 'json'])
         && isString(value.json, PROTOCOL_LIMITS.importMessageBytes, false);
@@ -798,8 +827,13 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
         && value.collections.length <= PROTOCOL_LIMITS.maximumCollections
         && value.collections.every(isCollection);
     case 'requestLoaded':
-    case 'curlImportResult':
       return hasOnlyKeys(value, ['type', 'operationId', 'request']) && isJustRequest(value.request);
+    case 'curlImportResult':
+      return hasOnlyKeys(value, ['type', 'operationId', 'request', 'warnings'])
+        && isJustRequest(value.request)
+        && Array.isArray(value.warnings)
+        && value.warnings.length <= PROTOCOL_LIMITS.maximumDiagnostics
+        && value.warnings.every(isCurlImportWarning);
     case 'requestAuthUpdated':
       return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'auth'])
         && isProtocolIdentifier(value.requestId)
