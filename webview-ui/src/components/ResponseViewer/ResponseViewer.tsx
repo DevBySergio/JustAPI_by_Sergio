@@ -17,6 +17,20 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)} s`;
 }
 
+function formatTimingBreakdown(response: NonNullable<ReturnType<typeof useResponseStore.getState>['response']>): string {
+  const phases = [
+    ['DNS', response.timings.dns],
+    ['Connect', response.timings.connect],
+    ['TLS', response.timings.tls],
+    ['First byte', response.timings.firstByte],
+    ['Download', response.timings.download],
+    ['Total', response.timings.total],
+  ] as const;
+  return phases.flatMap(([label, value]) =>
+    value === undefined ? [] : [`${label}: ${formatDuration(value)}`]
+  ).join('\n');
+}
+
 function formatXml(xml: string): string {
   let formatted = '';
   let indent = '';
@@ -228,6 +242,12 @@ export function ResponseViewer() {
              response.error.type === 'timeout' ? 'Timeout' :
              response.error.type === 'ssl' ? 'SSL Error' :
              response.error.type === 'dns' ? 'DNS Error' :
+             response.error.type === 'socket' ? 'Socket Error' :
+             response.error.type === 'invalid-url' ? 'Invalid URL' :
+             response.error.type === 'invalid-response' ? 'Invalid Response' :
+             response.error.type === 'redirect' ? 'Redirect Error' :
+             response.error.type === 'decompression' ? 'Decompression Error' :
+             response.error.type === 'response-too-large' ? 'Response Too Large' :
              response.error.type === 'aborted' ? 'Cancelled' :
              'Error'}
           </strong>
@@ -245,6 +265,11 @@ export function ResponseViewer() {
           {response.error.type === 'ssl' && (
             <p style={{ fontSize: '10px', marginTop: '6px', opacity: 0.75 }}>
               Disable "Verify SSL" in Settings tab if you trust the server.
+            </p>
+          )}
+          {response.error.type === 'response-too-large' && (
+            <p style={{ fontSize: '10px', marginTop: '6px', opacity: 0.75 }}>
+              Increase the response limit in Settings only if you trust the server and need the full body.
             </p>
           )}
         </div>
@@ -269,7 +294,10 @@ export function ResponseViewer() {
         }}>
           {response.statusCode} {response.statusText}
         </span>
-        <span style={{ color: 'var(--vscode-descriptionForeground)' }}>
+        <span
+          style={{ color: 'var(--vscode-descriptionForeground)' }}
+          title={formatTimingBreakdown(response)}
+        >
           {formatDuration(response.duration)}
         </span>
         <span style={{ color: 'var(--vscode-descriptionForeground)' }}>
@@ -465,6 +493,7 @@ export function ResponseViewer() {
           <ResponseBody
             body={response.body}
             bodyType={response.bodyType}
+            mimeType={response.mimeType}
             isPretty={isPretty}
             jsonViewMode={isJson ? jsonViewMode : undefined}
             searchQuery={searchQuery}
@@ -478,9 +507,10 @@ export function ResponseViewer() {
   );
 }
 
-function ResponseBody({ body, bodyType, isPretty, jsonViewMode, searchQuery, treeExpanded }: {
+function ResponseBody({ body, bodyType, mimeType, isPretty, jsonViewMode, searchQuery, treeExpanded }: {
   body: string;
   bodyType: BodyType;
+  mimeType?: string;
   isPretty: boolean;
   jsonViewMode?: JsonViewMode;
   searchQuery: string;
@@ -489,7 +519,7 @@ function ResponseBody({ body, bodyType, isPretty, jsonViewMode, searchQuery, tre
   if (bodyType === 'image') {
     return (
       <div style={{ padding: '8px', textAlign: 'center' }}>
-        <img src={`data:image/*;base64,${btoa(body)}`} alt="Response image" style={{ maxWidth: '100%', maxHeight: '300px' }} />
+        <img src={`data:${mimeType || 'image/*'};base64,${body}`} alt="Response image" style={{ maxWidth: '100%', maxHeight: '300px' }} />
       </div>
     );
   }

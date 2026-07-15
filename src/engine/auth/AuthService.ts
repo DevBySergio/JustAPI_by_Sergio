@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { TextDecoder } from 'node:util';
 import { AuthConfig, AuthInput, PersistedAuthConfig, toPublicAuth } from '../../models/Auth';
-import { JustRequest, PersistedJustRequest } from '../../models/Request';
+import { JustRequest, normalizeRequestSettings, PersistedJustRequest } from '../../models/Request';
 
 export interface SecretStorageLike {
   get(key: string): PromiseLike<string | undefined>;
@@ -96,7 +96,11 @@ export function normalizePersistedRequest(
   request: PersistedJustRequest | JustRequest | (Omit<JustRequest, 'auth'> & { auth?: unknown })
 ): PersistedJustRequest {
   const auth = isPersistedAuth(request.auth) ? request.auth : { type: 'none' } as const;
-  return { ...cloneRequest(request as JustRequest), auth };
+  return {
+    ...cloneRequest(request as JustRequest),
+    settings: normalizeRequestSettings(request.settings),
+    auth,
+  };
 }
 
 export class AuthService {

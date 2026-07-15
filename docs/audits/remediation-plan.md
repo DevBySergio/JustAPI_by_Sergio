@@ -606,7 +606,7 @@ The final `npm run validate` gate passed on 2026-07-15: test policy, zero-warnin
 
 One intentional security deviation is recorded: a legacy history migration backup is normalized and redacted before the backup is written, rather than duplicating plaintext bodies and credential-bearing values byte-for-byte. The backup remains a valid v1 history document and is hash/length verified, but rollback cannot restore deliberately discarded sensitive history payloads. This is required by the Batch 1 rule that migration must not create a new secret-bearing derivative path. Non-history migration backups preserve the complete parsed legacy data.
 
-### AUTH task completion evidence (Batch 2 in progress)
+### AUTH task completion evidence (owner checkpoint)
 
 AUTH is complete at the owner-task level. Public requests now contain only safe `AuthConfig` metadata, persisted requests contain only opaque `justapi.auth.v1.<requestId>.<uuid>` references, and credential payloads live in VS Code `SecretStorage`. The host recognizes and migrates only unambiguous Bearer, valid UTF-8 Basic, or exact case-insensitive `X-API-Key` legacy headers. It removes the recognized ordinary header only after the new secret exists, commits through the versioned storage path, deletes the new entry on failed persistence, and leaves arbitrary or ambiguous auth-like headers unchanged.
 
@@ -614,9 +614,9 @@ Bearer, UTF-8 Basic, and API-key header/query credentials are resolved once imme
 
 Targeted evidence consists of six auth unit tests plus a protocol regression and a localhost integration regression. They cover public/persisted/transport separation, default derivative redaction, one-shot destination confirmation, UTF-8 Basic encoding, API-key query placement and conflicts, conservative legacy migration, failed-persistence rollback, rotation, independent duplication, shared-reference cleanup, and generated query placeholders. The localhost server received the exact Bearer header and query API-key value only after SecretStorage-backed preflight. The complete `npm run validate` gate passed on 2026-07-15 with 40 unit tests, seven integration tests, four VS Code 1.80 extension-host tests, zero lint warnings, both strict type checks, production builds, zero audit findings, VSIX creation, and the nine-file payload allowlist.
 
-At the AUTH checkpoint, Batch 2 remained in progress because VARIABLES and HTTP had not completed their owner tasks. JAPI-001 and JAPI-017 remain `open` until the complete Batch 2 gate is rerun with all three owners green. Legacy pre-auth collection backups remain protected by the storage directory's `0600` permissions and are retained for rollback during stabilization; they are the only intentional location where pre-migration plaintext may remain.
+At the AUTH checkpoint, Batch 2 remained in progress because VARIABLES and HTTP had not completed their owner tasks. JAPI-001 and JAPI-017 were therefore kept `open` until the complete Batch 2 gate could run with all three owners green. Legacy pre-auth collection backups remain protected by the storage directory's `0600` permissions and are retained for rollback during stabilization; they are the only intentional location where pre-migration plaintext may remain.
 
-### VARIABLES task completion evidence (Batch 2 in progress)
+### VARIABLES task completion evidence (owner checkpoint)
 
 VARIABLES is complete at the owner-task level. A single bounded resolver now applies the documented `global < active sets < collection < request` precedence to preview, execution, and code generation. Disabled values do not shadow enabled lower scopes; empty strings and `0` remain valid; same-scope duplicates are chosen deterministically for display but produce a blocking diagnostic. Nested references have direct/indirect cycle paths, a configurable depth limit, bounded input/output, and `\{{name}}` literal escaping.
 
@@ -624,7 +624,19 @@ The shared request preflight covers URL, enabled query/header keys and values, p
 
 Targeted evidence consists of 13 resolver tests plus protocol and authentication boundary regressions. They cover all precedence collisions, disabled and falsey values, stable duplicates, nested/direct/indirect cycles, depth and size limits, escaped and malformed placeholders, URL/query/header/path/raw/form/auth locations, encoding boundaries, secret-safe diagnostics, immutability, and preview/execution parity. The complete `npm run validate` gate passed on 2026-07-15 with 51 unit tests, seven deterministic localhost integration tests, four VS Code 1.80 extension-host tests, zero lint warnings, both strict type checks, production builds, zero audit findings, VSIX creation, and the nine-file payload allowlist.
 
-Batch 2 remains in progress because HTTP has not yet completed its owner task. JAPI-005 therefore retains `open` ledger status until the complete Batch 2 gate runs with AUTH, VARIABLES, and HTTP green.
+At the VARIABLES checkpoint, HTTP had not yet completed its owner task, so JAPI-005 retained `open` ledger status until the complete Batch 2 gate could run with AUTH, VARIABLES, and HTTP green.
+
+### HTTP task and Batch 2 completion evidence
+
+HTTP now normalizes enabled headers and query parameters, sends byte-counted raw, empty, URL-encoded, and multipart bodies, and preserves an explicit raw content type. Multipart encoding uses one validated boundary, includes only enabled named fields, escapes field names safely, and sends the exact matching `Content-Type` and `Content-Length`.
+
+Each execution owns one cancellation controller and total timeout across its redirect chain. Redirects are bounded and resolve relative or query-only locations; 301/302/303/307/308 apply deliberate method/body rules, while cross-origin hops remove URL credentials and authentication, cookie, API-key, proxy-auth, and Host headers. Responses enforce a 10 MiB default limit configurable only from 1 KiB through 100 MiB against declared, streamed, and decompressed sizes. gzip, deflate, and Brotli are decoded within that bound; declared charsets are honored; binary and image bytes cross the protocol exactly as base64 with their validated MIME type.
+
+Stable, value-free errors distinguish invalid URL/response, DNS, TLS, socket, network, timeout, cancellation, redirect, decompression, and response-limit failures. Successful and failed responses report total timing, with DNS, connection, TLS, first-byte, and download components when observable. Final URLs remove embedded credentials and redact the configured query API key. The request editor exposes the bounded response setting and the response viewer uses the exact binary representation and timing breakdown.
+
+Targeted evidence consists of 13 deterministic localhost integration tests plus request-model, protocol, authentication, and response-schema unit regressions. The matrix covers every supported method; duplicate headers and query edge cases; empty/raw/URL-encoded/multipart/binary bodies; every redirect status and cross-origin credential stripping; malformed/looping redirects; gzip/deflate/Brotli and corrupt encodings; Windows-1252 text; exact binary/image bytes; declared, streamed, and decompressed limits; cancellation versus timeout; observable timings; DNS/TLS/socket/URL/header failures; and SecretStorage-backed auth delivery with final-URL redaction.
+
+Batch 2 passed its complete `npm run validate` exit gate on 2026-07-15 with 52 unit tests, 13 integration tests, and four VS Code 1.80 extension-host tests. Test policy, zero-warning lint, both strict type checks, production builds, runtime/full audits with zero findings, VSIX creation, and the nine-file payload allowlist all passed. JAPI-001, JAPI-005, JAPI-006, JAPI-007, and JAPI-017 are closed. The protected legacy pre-auth collection backups remain the intentional rollback exception described above; the existing 293 KiB production webview performance advisory remains deferred to UI/REFACTOR work.
 
 ## Execution ledger
 
@@ -634,7 +646,7 @@ Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `roll
 |---:|---|---|---|---|---|---|---|
 | 0 | passed | 2026-07-14 | 2026-07-14 | Staged REPO + TEST patch | Repository cleanup plus 13 unit, 6 localhost integration, and 4 VS Code 1.80 extension-host tests passed | Exact staged-index snapshot: clean `npm ci`, zero-warning lint, both strict type checks, all tests, builds, zero audits, VSIX, and payload allowlist passed | Webpack retains its pre-existing 269 KB performance advisory; JAPI-009 still owns command semantics beyond registration parity |
 | 1 | passed | 2026-07-15 | 2026-07-15 | Working-tree PROTOCOL + STORAGE patch | 7 protocol tests plus 16 storage/history tests passed, covering validation/correlation, migration, locking/revisions, interruption, corruption/recovery, history redaction/limits, and shutdown | `npm run validate` passed: 33 unit, 6 integration, 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Legacy history backups are intentionally redacted before creation; they cannot restore discarded sensitive bodies/values. Pre-existing 285 KiB webview performance advisory remains |
-| 2 | in-progress | 2026-07-15 | — | AUTH commit plus working-tree VARIABLES patch | AUTH: 6 focused unit tests and SecretStorage-backed transport regressions; VARIABLES: 13 resolver tests plus protocol/auth boundary regressions passed | Latest owner gate: `npm run validate` passed with 51 unit, 7 integration, and 4 extension-host tests, zero audits, builds, VSIX, and payload allowlist | HTTP remains; legacy pre-auth collection backups are retained with `0600` permissions for rollback during stabilization |
+| 2 | passed | 2026-07-15 | 2026-07-15 | AUTH and VARIABLES commits plus working-tree HTTP patch | AUTH: 6 focused unit tests and SecretStorage-backed transport regressions; VARIABLES: 13 resolver tests; HTTP: 13 deterministic integration tests plus protocol/auth/model regressions | `npm run validate` passed with 52 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Protected legacy pre-auth collection backups remain for rollback; pre-existing 293 KiB webview performance advisory remains |
 | 3 | planned | — | — | — | — | — | None yet |
 | 4 | planned | — | — | — | — | — | None yet |
 | 5 | planned | — | — | — | — | — | None yet |
@@ -643,13 +655,13 @@ Finding statuses remain `open` until their owner records the completion signal a
 
 | Finding | Status | Resolution evidence | Residual risk / acceptance |
 |---|---|---|---|
-| JAPI-001 | open | SecretStorage-backed auth metadata/references, conservative migration with rollback, pre-transport resolution, redacted derivatives, explicit disclosure confirmation, cleanup lifecycle, and focused/full validation passed | Awaiting HTTP plus the complete Batch 2 gate; protected pre-auth rollback backups intentionally retain legacy plaintext during stabilization |
+| JAPI-001 | passed | SecretStorage-backed auth metadata/references, conservative migration with rollback, pre-transport resolution, redacted derivatives, explicit disclosure confirmation, cleanup lifecycle, exact localhost delivery, and complete Batch 2 validation passed | Protected pre-auth rollback backups intentionally retain legacy plaintext during stabilization |
 | JAPI-002 | passed | V2 envelopes, serialized fsynced atomic commits, PID-aware lock and revision conflict path, verified backups/quarantine/read-only recovery, shutdown flush, and 13 focused durability tests passed | Runtime backup retention is five per domain; migration backups are retained throughout stabilization |
 | JAPI-003 | passed | Runtime validation/correlation, operation and execution registries, targeted cancellation, stable errors, and seven protocol tests passed with the complete Batch 1 gate | Later service extraction remains owned by REFACTOR and does not reopen the trusted boundary |
 | JAPI-004 | open | — | — |
-| JAPI-005 | open | One bounded deterministic resolver, typed secret-safe diagnostics, shared preview/execution/codegen preflight, all-field coverage, and 13 focused resolver tests passed with the complete VARIABLES owner gate | Awaiting HTTP and the complete Batch 2 gate |
-| JAPI-006 | open | — | — |
-| JAPI-007 | open | — | — |
+| JAPI-005 | passed | One bounded deterministic resolver, typed secret-safe diagnostics, shared preview/execution/codegen preflight, all-field coverage, 13 focused resolver tests, and the complete Batch 2 gate passed | None beyond the documented resolver bounds |
+| JAPI-006 | passed | Byte-exact empty/raw/URL-encoded/multipart encoding with one matching boundary, exact length/type headers, disabled-field filtering, hostile-name escaping, and localhost regressions passed | File-valued multipart remains outside the current request model and is not claimed |
+| JAPI-007 | passed | Execution-scoped cancellation/timeout, bounded method-aware redirects, cross-origin credential stripping, bounded decompression/decoding, exact binary bytes, response limits, typed errors, final URL, and observable timings passed the localhost matrix and complete gate | DNS/connect/TLS timing fields appear only when the Node socket exposes those events |
 | JAPI-008 | open | — | — |
 | JAPI-009 | open | — | — |
 | JAPI-010 | passed | Layered deterministic harness, test policy, CI, 23-fixture catalogue, and clean complete validation gate passed | Contract fixtures remain intentionally red until their owning product remediations land; no unfinished behavior is reported as active |
@@ -659,7 +671,7 @@ Finding statuses remain `open` until their owner records the completion signal a
 | JAPI-014 | open | — | — |
 | JAPI-015 | open | — | — |
 | JAPI-016 | open | — | — |
-| JAPI-017 | open | API-key header/query placement, case-insensitive conflict blocking, redacted query placeholders, and exact localhost query delivery passed | Awaiting HTTP and the complete Batch 2 gate |
+| JAPI-017 | passed | API-key header/query placement, case-insensitive conflict blocking, redacted query placeholders/final URLs, exact localhost query delivery, and complete Batch 2 validation passed | None |
 | JAPI-018 | open | TEST completed zero-warning lint across host and webview TS/TSX | UI still owns state persistence, keyboard behavior, focus restoration, and accessibility coverage |
 
 ## Definition of done

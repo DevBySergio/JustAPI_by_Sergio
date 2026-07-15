@@ -10,6 +10,7 @@ import type {
   WebviewMessageType,
 } from '../models/MessageProtocol';
 import type { JustRequest } from '../models/Request';
+import { RESPONSE_SIZE_LIMITS } from '../models/Request';
 import type { AuthConfig, AuthInput } from '../models/Auth';
 import type { JustResponse } from '../models/Response';
 import type { Variable } from '../models/Variable';
@@ -32,6 +33,8 @@ export const PROTOCOL_LIMITS = {
   maximumHeaderNameLength: 1024,
   maximumValueLength: 64 * 1024,
   maximumBodyLength: 10 * 1024 * 1024,
+  maximumResponseBodyLength: 4 * Math.ceil(RESPONSE_SIZE_LIMITS.maximum / 3),
+  responseMessageBytes: 4 * Math.ceil(RESPONSE_SIZE_LIMITS.maximum / 3) + 1024 * 1024,
   maximumNameLength: 1024,
   maximumErrorLength: 4096,
   maximumDiagnostics: 200,
@@ -86,7 +89,20 @@ const WEBVIEW_MESSAGE_TYPE_SET = new Set<string>(WEBVIEW_MESSAGE_TYPES);
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']);
 const REQUEST_BODY_TYPES = new Set(['none', 'json', 'form-data', 'x-www-form-urlencoded', 'text', 'xml', 'binary']);
 const RESPONSE_BODY_TYPES = new Set(['json', 'html', 'xml', 'text', 'image', 'binary', 'unknown']);
-const REQUEST_ERROR_TYPES = new Set(['network', 'timeout', 'dns', 'ssl', 'invalid-response', 'aborted', 'unknown']);
+const REQUEST_ERROR_TYPES = new Set([
+  'network',
+  'timeout',
+  'dns',
+  'ssl',
+  'socket',
+  'invalid-url',
+  'invalid-response',
+  'redirect',
+  'decompression',
+  'response-too-large',
+  'aborted',
+  'unknown',
+]);
 const VARIABLE_SCOPES = new Set(['request', 'collection', 'global']);
 const CODE_TARGET_LANGUAGES = new Set<CodeTargetLanguage>([
   'javascript',
@@ -424,10 +440,16 @@ export function isJustRequest(value: unknown): value is JustRequest {
 
   const settings = value.settings;
   return isRecord(settings)
-    && hasOnlyKeys(settings, ['timeout', 'followRedirects', 'verifySSL'])
+    && hasOnlyKeys(settings, ['timeout', 'followRedirects', 'verifySSL'], ['maxResponseBytes'])
     && isBoundedInteger(settings.timeout, 1, 600_000)
     && typeof settings.followRedirects === 'boolean'
-    && typeof settings.verifySSL === 'boolean';
+    && typeof settings.verifySSL === 'boolean'
+    && (settings.maxResponseBytes === undefined
+      || isBoundedInteger(
+        settings.maxResponseBytes,
+        RESPONSE_SIZE_LIMITS.minimum,
+        RESPONSE_SIZE_LIMITS.maximum
+      ));
 }
 
 function isCollectionItem(value: unknown, depth: number, counter: { count: number }): value is CollectionItemRef {
@@ -492,9 +514,10 @@ function isJustResponse(value: unknown): value is JustResponse {
       'bodyType',
       'size',
       'duration',
+      'timings',
       'cookies',
       'redirected',
-    ], ['error', 'finalUrl'])
+    ], ['error', 'finalUrl', 'mimeType'])
     || !isBoundedInteger(value.statusCode, 0, 999)
     || !isString(value.statusText, PROTOCOL_LIMITS.maximumNameLength)
     || !isString(value.httpVersion, 64)
@@ -503,17 +526,22 @@ function isJustResponse(value: unknown): value is JustResponse {
     || !Object.entries(value.headers).every(([key, headerValue]) =>
       isString(key, PROTOCOL_LIMITS.maximumHeaderNameLength)
       && isString(headerValue, PROTOCOL_LIMITS.maximumValueLength))
-    || !isString(value.body, PROTOCOL_LIMITS.maximumBodyLength)
+    || !isString(value.body, PROTOCOL_LIMITS.maximumResponseBodyLength)
     || typeof value.bodyType !== 'string'
     || !RESPONSE_BODY_TYPES.has(value.bodyType)
-    || !isBoundedInteger(value.size, 0, 100 * 1024 * 1024)
+    || !isBoundedInteger(value.size, 0, RESPONSE_SIZE_LIMITS.maximum)
     || typeof value.duration !== 'number'
     || !Number.isFinite(value.duration)
     || value.duration < 0
+    || !isRecord(value.timings)
+    || !hasOnlyKeys(value.timings, ['total'], ['dns', 'connect', 'tls', 'firstByte', 'download'])
+    || !Object.values(value.timings).every(timing =>
+      typeof timing === 'number' && Number.isFinite(timing) && timing >= 0)
     || !Array.isArray(value.cookies)
     || value.cookies.length > PROTOCOL_LIMITS.maximumCookies
     || typeof value.redirected !== 'boolean'
-    || (value.finalUrl !== undefined && !isString(value.finalUrl, PROTOCOL_LIMITS.maximumUrlLength))) {
+    || (value.finalUrl !== undefined && !isString(value.finalUrl, PROTOCOL_LIMITS.maximumUrlLength))
+    || (value.mimeType !== undefined && !isString(value.mimeType, 256, false))) {
     return false;
   }
 
@@ -840,7 +868,10 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
 }
 
 export function validateExtensionMessage(value: unknown): ValidationResult<ExtensionMessage> {
-  const structure = inspectStructure(value, PROTOCOL_LIMITS.generalMessageBytes);
+  const maximumBytes = isRecord(value) && value.type === 'response'
+    ? PROTOCOL_LIMITS.responseMessageBytes
+    : PROTOCOL_LIMITS.generalMessageBytes;
+  const structure = inspectStructure(value, maximumBytes);
   if (!structure.ok) {
     return structure;
   }

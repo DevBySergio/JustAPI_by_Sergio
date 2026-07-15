@@ -1,6 +1,11 @@
 import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { AuthService, AuthServiceError, SecretStorageLike } from '../../engine/auth/AuthService';
+import {
+  AuthService,
+  AuthServiceError,
+  normalizePersistedRequest,
+  SecretStorageLike,
+} from '../../engine/auth/AuthService';
 import { PersistedJustRequest } from '../../models/Request';
 import { createRequestFixture } from '../fixtures/requestFixtures';
 import { fixtureSecret } from '../fixtures/securityFixtures';
@@ -32,6 +37,17 @@ function isAuthError(error: unknown, code: AuthServiceError['code']): boolean {
 }
 
 describe('AuthService', () => {
+  test('normalizes legacy request settings to the bounded response default', () => {
+    const request = createRequestFixture();
+    const { maxResponseBytes: _legacyLimit, ...legacySettings } = request.settings;
+    const normalized = normalizePersistedRequest({
+      ...request,
+      settings: legacySettings,
+    } as unknown as PersistedJustRequest);
+
+    assert.equal(normalized.settings.maxResponseBytes, 10 * 1024 * 1024);
+  });
+
   test('keeps bearer credentials out of request state and derivative artifacts', async () => {
     const secrets = new MemorySecretStorage();
     const service = new AuthService(secrets);

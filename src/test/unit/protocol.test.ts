@@ -45,6 +45,20 @@ describe('webview protocol validation and correlation', () => {
       executionId,
       request,
     }).ok, false);
+
+    const { maxResponseBytes: _legacyLimit, ...legacySettings } = request.settings;
+    assert.equal(validateWebviewMessage({
+      type: 'executeRequest',
+      operationId,
+      executionId,
+      request: { ...request, settings: legacySettings },
+    }).ok, true);
+    assert.equal(validateWebviewMessage({
+      type: 'executeRequest',
+      operationId,
+      executionId,
+      request: { ...request, settings: { ...request.settings, maxResponseBytes: 1023 } },
+    }).ok, false);
     assert.equal(validateWebviewMessage({
       type: 'executeRequest',
       operationId,
@@ -113,6 +127,11 @@ describe('webview protocol validation and correlation', () => {
   });
 
   test('requires outbound response correlation and exposes only stable error text', () => {
+    assert.equal(
+      PROTOCOL_LIMITS.maximumResponseBodyLength,
+      139_810_136,
+      'the response envelope must fit the exact base64 expansion of 100 MiB'
+    );
     const response: ExtensionMessage = {
       type: 'response',
       operationId,
@@ -126,9 +145,11 @@ describe('webview protocol validation and correlation', () => {
         bodyType: 'json',
         size: 2,
         duration: 1,
+        timings: { dns: 0.1, connect: 0.2, firstByte: 0.7, download: 0.3, total: 1 },
         cookies: [],
         redirected: false,
         finalUrl: undefined,
+        mimeType: 'application/json',
       },
     };
     assert.equal(validateExtensionMessage(response).ok, true);
@@ -137,6 +158,39 @@ describe('webview protocol validation and correlation', () => {
       operationId,
       response: response.response,
     }).ok, false);
+
+    assert.equal(validateExtensionMessage({
+      ...response,
+      response: {
+        ...response.response,
+        body: 'x'.repeat(PROTOCOL_LIMITS.generalMessageBytes + 1),
+        bodyType: 'text',
+        size: PROTOCOL_LIMITS.generalMessageBytes + 1,
+        mimeType: 'text/plain',
+      },
+    }).ok, true, 'bounded responses may exceed the ordinary message envelope');
+    assert.equal(validateExtensionMessage({
+      ...response,
+      response: {
+        ...response.response,
+        timings: { total: -1 },
+      },
+    }).ok, false);
+    assert.equal(validateExtensionMessage({
+      ...response,
+      response: {
+        ...response.response,
+        statusCode: 0,
+        body: '',
+        bodyType: 'unknown',
+        size: 0,
+        mimeType: undefined,
+        error: {
+          type: 'response-too-large',
+          message: 'The response exceeded the configured byte limit.',
+        },
+      },
+    }).ok, true);
 
     const failure = protocolFailure('OPERATION_FAILED');
     assert.equal(failure.message, 'The requested operation could not be completed.');

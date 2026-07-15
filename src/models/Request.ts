@@ -16,6 +16,35 @@ export interface RequestSettings {
   timeout: number;
   followRedirects: boolean;
   verifySSL: boolean;
+  maxResponseBytes: number;
+}
+
+export const RESPONSE_SIZE_LIMITS = {
+  minimum: 1024,
+  default: 10 * 1024 * 1024,
+  maximum: 100 * 1024 * 1024,
+} as const;
+
+export function normalizeRequestSettings(settings?: Partial<RequestSettings>): RequestSettings {
+  const timeout = settings?.timeout;
+  const maxResponseBytes = settings?.maxResponseBytes;
+  return {
+    timeout: Number.isInteger(timeout) && timeout !== undefined && timeout >= 1 && timeout <= 600_000
+      ? timeout
+      : 30_000,
+    followRedirects: typeof settings?.followRedirects === 'boolean'
+      ? settings.followRedirects
+      : true,
+    verifySSL: typeof settings?.verifySSL === 'boolean'
+      ? settings.verifySSL
+      : true,
+    maxResponseBytes: Number.isInteger(maxResponseBytes)
+      && maxResponseBytes !== undefined
+      && maxResponseBytes >= RESPONSE_SIZE_LIMITS.minimum
+      && maxResponseBytes <= RESPONSE_SIZE_LIMITS.maximum
+      ? maxResponseBytes
+      : RESPONSE_SIZE_LIMITS.default,
+  };
 }
 
 export interface JustRequest {
@@ -50,11 +79,7 @@ export function createDefaultRequest(): JustRequest {
     auth: { type: 'none' },
     pathParams: [],
     body: { type: 'none', content: '' },
-    settings: {
-      timeout: 30000,
-      followRedirects: true,
-      verifySSL: true,
-    },
+    settings: normalizeRequestSettings(),
     variables: [],
     created: now,
     updated: now,

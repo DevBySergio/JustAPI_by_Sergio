@@ -11,8 +11,29 @@ export interface ResponseCookie {
 }
 
 export interface RequestError {
-  type: 'network' | 'timeout' | 'dns' | 'ssl' | 'invalid-response' | 'aborted' | 'unknown';
+  type:
+    | 'network'
+    | 'timeout'
+    | 'dns'
+    | 'ssl'
+    | 'socket'
+    | 'invalid-url'
+    | 'invalid-response'
+    | 'redirect'
+    | 'decompression'
+    | 'response-too-large'
+    | 'aborted'
+    | 'unknown';
   message: string;
+}
+
+export interface ResponseTimings {
+  dns?: number;
+  connect?: number;
+  tls?: number;
+  firstByte?: number;
+  download?: number;
+  total: number;
 }
 
 export interface JustResponse {
@@ -24,8 +45,10 @@ export interface JustResponse {
   bodyType: BodyType;
   size: number;
   duration: number;
+  timings: ResponseTimings;
   cookies: ResponseCookie[];
   error?: RequestError;
   redirected: boolean;
   finalUrl?: string;
+  mimeType?: string;
 }

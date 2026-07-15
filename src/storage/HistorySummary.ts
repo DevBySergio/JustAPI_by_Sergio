@@ -25,7 +25,12 @@ const ERROR_TYPES = new Set<RequestError['type']>([
   'timeout',
   'dns',
   'ssl',
+  'socket',
+  'invalid-url',
   'invalid-response',
+  'redirect',
+  'decompression',
+  'response-too-large',
   'aborted',
   'unknown',
 ]);

@@ -12,12 +12,14 @@ Unlike cloud-based tools, **JustAPI works 100% locally**. Your requests, collect
 
 Execute requests with any method (GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD) with full control:
 
-- **Redirect Following** — Automatic 3xx handling (configurable per request)
+- **Redirect Following** — Bounded, method-aware 3xx handling with cross-origin credential stripping (configurable per request)
 - **SSL/TLS Toggle** — Enable/disable certificate verification
 - **Configurable Timeout** — Per-request timeout in milliseconds
+- **Bounded Responses** — 10 MiB default limit, configurable from 1 KiB to 100 MiB
 - **Content-Type Auto-Detection** — Auto-sets headers based on body type
-- **Response Timing** — Duration measurement for every request
-- **Error Classification** — Categorized errors (network, timeout, DNS, SSL) with troubleshooting hints
+- **Response Decoding** — gzip, deflate, Brotli, declared charsets, and exact binary/image bytes
+- **Response Timing** — DNS, connection, TLS, first-byte, download, and total timing when observable
+- **Error Classification** — Stable categories for network, timeout, DNS, TLS, socket, redirect, decompression, size-limit, and cancellation failures
 
 ### 2. 📁 Collection Manager
 

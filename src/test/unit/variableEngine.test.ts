@@ -32,7 +32,12 @@ function request(overrides: Partial<JustRequest> = {}): JustRequest {
     auth: { type: 'none' },
     pathParams: [],
     body: { type: 'none', content: '' },
-    settings: { timeout: 30_000, followRedirects: true, verifySSL: true },
+    settings: {
+      timeout: 30_000,
+      followRedirects: true,
+      verifySSL: true,
+      maxResponseBytes: 10 * 1024 * 1024,
+    },
     variables: [],
     created: 1,
     updated: 1,
