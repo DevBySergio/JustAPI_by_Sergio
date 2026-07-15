@@ -2,7 +2,7 @@
   "id": "task-mrjk92hw-3ra0l6c5",
   "title": "Make variable resolution deterministic, bounded, and consistent",
   "description": "Replace ad-hoc placeholder replacement with one resolver used by preview, validation, execution, auth, imports, and code generation. Establish and document the precedence `global < active sets < collection < request`; within one scope, reject or deterministically handle duplicate enabled names instead of depending on array order.\n\nResolve nested references with cycle detection and a configurable maximum depth so self-references cannot loop forever. Define escaped-brace behavior and resolve every supported location consistently: URL, query, headers, raw/form bodies, and authentication fields. Return structured diagnostics identifying missing, cyclic, disabled, or invalid variables without exposing secret values.\n\nExecution must run the same resolver as the preview, perform one preflight pass, and block before network activity when required values are unresolved. Tests should cover precedence, duplicates, falsey values, encoding boundaries, cycles, escaping, and preview/execution parity.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605989,
-  "updatedAt": 1783968300001,
+  "updatedAt": 1784110163817,
   "position": 1783967605989,
   "labelIds": [
     "bug",
