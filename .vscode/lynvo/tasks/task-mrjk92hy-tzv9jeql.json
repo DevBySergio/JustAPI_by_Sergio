@@ -2,7 +2,7 @@
   "id": "task-mrjk92hy-tzv9jeql",
   "title": "Protect collection tree integrity and import/export round trips",
   "description": "Make every collection mutation transactional and validate the full resulting graph before commit. Reject duplicate identifiers, missing parents, cycles, self-parenting, moves into descendants, and request references to nonexistent collections. A failed move/import/delete must leave the previous tree unchanged; deleting a collection must explicitly cascade or relocate descendants and requests rather than orphaning them.\n\nIntroduce a recursive versioned export that preserves nested collections, ordering, requests, variable scopes, and authentication references while applying the secret-redaction policy. Import into a staging model, validate identifiers and references, surface a useful conflict report, and commit only after the whole document passes. Preserve compatibility with supported legacy exports through an explicit migration path.\n\nRound-trip tests must demonstrate semantic equality for deeply nested trees and prove that malformed or adversarial input cannot delete unrelated data.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605991,
-  "updatedAt": 1783968300003,
+  "updatedAt": 1784132342100,
   "position": 1783967605991,
   "labelIds": [
     "bug",

@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrmabxp0-qjc3rbe0",
+  "type": "task_moved",
+  "message": "Moved \"Protect collection tree integrity and import/export round trips\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784132342100,
+  "taskId": "task-mrjk92hy-tzv9jeql",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}
