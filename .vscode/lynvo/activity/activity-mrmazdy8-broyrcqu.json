@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrmazdy8-broyrcqu",
+  "type": "task_moved",
+  "message": "Moved \"Repair cURL parsing and unsupported-option reporting\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784133436256,
+  "taskId": "task-mrjk92hz-hkmxzgl8",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}

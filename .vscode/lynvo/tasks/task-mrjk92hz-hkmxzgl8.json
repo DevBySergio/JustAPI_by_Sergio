@@ -2,7 +2,7 @@
   "id": "task-mrjk92hz-hkmxzgl8",
   "title": "Repair cURL parsing and unsupported-option reporting",
   "description": "Replace positional token guessing with a small shell-aware tokenizer and an option parser. The leading `curl` executable must never be treated as the URL. Correctly handle single/double quotes, escapes, whitespace, and line continuations without executing shell syntax. Support the approved subset: `-X/--request`, `-H/--header`, `-d/--data` variants, `-F/--form`, `-k/--insecure`, `-L/--location`, `--url`, `-u/--user`, and `-b/--cookie`.\n\nDefine repeated data-option semantics and the precedence between explicit method, data-implied POST, and URL arguments. Never auto-read `@file` values; preserve them as unresolved input and warn that local file loading is unsupported. Unknown, ambiguous, or potentially dangerous options must generate structured warnings tied to the original token instead of being silently discarded.\n\nThe import UI must preview the parsed request and warnings before saving. A comprehensive fixture suite should cover common browser/Postman cURL output, quoting edge cases, repeated flags, malformed commands, unsupported options, and round-trip normalization.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605992,
-  "updatedAt": 1783968300004,
+  "updatedAt": 1784133436256,
   "position": 1783967605992,
   "labelIds": [
     "bug",
