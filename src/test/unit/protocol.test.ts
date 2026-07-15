@@ -143,6 +143,37 @@ describe('webview protocol validation and correlation', () => {
     assert.doesNotMatch(failure.message, /authorization|fixture-secret|token=/i);
   });
 
+  test('validates correlated variable previews and exposes a stable blocking error', () => {
+    assert.equal(validateExtensionMessage({
+      type: 'resolutionPreview',
+      operationId,
+      resolvedUrl: 'https://{{missing}}',
+      resolvedHeaders: '[]',
+      resolvedQueryParams: '[]',
+      resolvedBody: '',
+      diagnostics: [{
+        code: 'MISSING_VARIABLE',
+        variable: 'missing',
+        location: 'url',
+      }],
+      canExecute: false,
+    }).ok, true);
+    assert.equal(validateExtensionMessage({
+      type: 'resolutionPreview',
+      operationId,
+      resolvedUrl: '',
+      resolvedHeaders: '[]',
+      resolvedQueryParams: '[]',
+      resolvedBody: '',
+      diagnostics: [{ code: 'UNKNOWN_DIAGNOSTIC', location: 'url' }],
+      canExecute: false,
+    }).ok, false);
+
+    const failure = protocolFailure('VARIABLE_RESOLUTION_FAILED');
+    assert.equal(failure.message, 'The request contains invalid or unresolved variables.');
+    assert.doesNotMatch(failure.message, /missing|token|secret/i);
+  });
+
   test('accepts secret input only on the configure operation and rejects persisted references', () => {
     const request = createRequestFixture();
     assert.equal(validateWebviewMessage({

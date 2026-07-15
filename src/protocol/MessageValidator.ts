@@ -14,6 +14,7 @@ import type { AuthConfig, AuthInput } from '../models/Auth';
 import type { JustResponse } from '../models/Response';
 import type { Variable } from '../models/Variable';
 import type { VariableSet } from '../models/VariableSet';
+import type { VariableDiagnostic } from '../models/VariableResolution';
 
 export const PROTOCOL_LIMITS = {
   generalMessageBytes: 1024 * 1024,
@@ -33,6 +34,7 @@ export const PROTOCOL_LIMITS = {
   maximumBodyLength: 10 * 1024 * 1024,
   maximumNameLength: 1024,
   maximumErrorLength: 4096,
+  maximumDiagnostics: 200,
 } as const;
 
 export type ValidationResult<T> =
@@ -106,6 +108,7 @@ const PROTOCOL_ERROR_CODES = new Set<ProtocolErrorCode>([
   'IMPORT_ERROR',
   'AUTH_CONFLICT',
   'AUTH_SECRET_NOT_FOUND',
+  'VARIABLE_RESOLUTION_FAILED',
   'OPERATION_FAILED',
   'OUTBOUND_MESSAGE_INVALID',
 ]);
@@ -122,6 +125,7 @@ function failure<T>(code: ProtocolErrorCode): ValidationResult<T> {
     IMPORT_ERROR: 'The import document is invalid.',
     AUTH_CONFLICT: 'Authentication conflicts with an enabled request field.',
     AUTH_SECRET_NOT_FOUND: 'The configured authentication secret is unavailable.',
+    VARIABLE_RESOLUTION_FAILED: 'The request contains invalid or unresolved variables.',
     OPERATION_FAILED: 'The requested operation could not be completed.',
     OUTBOUND_MESSAGE_INVALID: 'The extension produced an invalid protocol response.',
   };
@@ -293,6 +297,32 @@ function isVariableArray(value: unknown): value is Variable[] {
   return Array.isArray(value)
     && value.length <= PROTOCOL_LIMITS.maximumVariables
     && value.every(isVariable);
+}
+
+const VARIABLE_DIAGNOSTIC_CODES = new Set([
+  'MISSING_VARIABLE',
+  'DISABLED_VARIABLE',
+  'DUPLICATE_VARIABLE',
+  'CYCLIC_VARIABLE',
+  'MAX_DEPTH_EXCEEDED',
+  'INVALID_VARIABLE',
+  'INVALID_TEMPLATE',
+  'INPUT_LIMIT_EXCEEDED',
+  'OUTPUT_LIMIT_EXCEEDED',
+]);
+
+function isVariableDiagnostic(value: unknown): value is VariableDiagnostic {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['code', 'location'], ['variable', 'path'])
+    && typeof value.code === 'string'
+    && VARIABLE_DIAGNOSTIC_CODES.has(value.code)
+    && isString(value.location, PROTOCOL_LIMITS.maximumNameLength, false)
+    && (value.variable === undefined
+      || isString(value.variable, PROTOCOL_LIMITS.maximumHeaderNameLength, false))
+    && (value.path === undefined
+      || (Array.isArray(value.path)
+        && value.path.length <= PROTOCOL_LIMITS.maximumDepth
+        && value.path.every(segment => isString(segment, PROTOCOL_LIMITS.maximumHeaderNameLength, false))));
 }
 
 function isAuthConfig(value: unknown): value is AuthConfig {
@@ -670,11 +700,16 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'json'])
         && isString(value.json, PROTOCOL_LIMITS.importMessageBytes, false);
     case 'generateCode':
-      return hasOnlyKeys(value, ['type', 'operationId', 'request', 'language'], ['includeCredentials'])
+      return hasOnlyKeys(
+        value,
+        ['type', 'operationId', 'request', 'language'],
+        ['includeCredentials', 'collectionId']
+      )
         && isJustRequest(value.request)
         && typeof value.language === 'string'
         && CODE_TARGET_LANGUAGES.has(value.language as CodeTargetLanguage)
-        && (value.includeCredentials === undefined || typeof value.includeCredentials === 'boolean');
+        && (value.includeCredentials === undefined || typeof value.includeCredentials === 'boolean')
+        && (value.collectionId === undefined || isProtocolIdentifier(value.collectionId));
     case 'previewResolution':
       return hasOnlyKeys(value, ['type', 'operationId', 'request'], ['collectionId'])
         && (value.request === null || isJustRequest(value.request))
@@ -778,11 +813,19 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
         'operationId',
         'resolvedUrl',
         'resolvedHeaders',
+        'resolvedQueryParams',
         'resolvedBody',
+        'diagnostics',
+        'canExecute',
       ])
         && isString(value.resolvedUrl, PROTOCOL_LIMITS.maximumUrlLength)
         && isString(value.resolvedHeaders, PROTOCOL_LIMITS.generalMessageBytes)
-        && isString(value.resolvedBody, PROTOCOL_LIMITS.maximumBodyLength);
+        && isString(value.resolvedQueryParams, PROTOCOL_LIMITS.generalMessageBytes)
+        && isString(value.resolvedBody, PROTOCOL_LIMITS.maximumBodyLength)
+        && Array.isArray(value.diagnostics)
+        && value.diagnostics.length <= PROTOCOL_LIMITS.maximumDiagnostics
+        && value.diagnostics.every(isVariableDiagnostic)
+        && typeof value.canExecute === 'boolean';
     case 'createNewRequest':
       return hasOnlyKeys(value, ['type', 'operationId']);
     case 'acknowledgement':

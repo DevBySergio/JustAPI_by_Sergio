@@ -4,7 +4,7 @@ import { useCollectionStore } from '../../stores/useCollectionStore';
 import { useRequestStore } from '../../stores/useRequestStore';
 import { postMessage } from '../../utils/vscodeApi';
 import { on } from '../../utils/eventBus';
-import { ToggleSwitch } from '../Common/ToggleSwitch';
+import type { VariableDiagnostic } from '../../../../src/models/VariableResolution';
 
 interface VarEntry {
   id: string;
@@ -15,21 +15,29 @@ interface VarEntry {
   sourceName?: string;
 }
 
+interface PreviewResult {
+  resolvedUrl: string;
+  resolvedHeaders: string;
+  resolvedQueryParams: string;
+  resolvedBody: string;
+  diagnostics: VariableDiagnostic[];
+  canExecute: boolean;
+}
+
 export function ActiveVariablesPanel() {
   const globalVars = useVariableStore((s) => s.globalVariables);
   const variableSets = useVariableStore((s) => s.variableSets);
   const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
   const collections = useCollectionStore((s) => s.collections);
   const selectedCol = collections.find(c => c.id === activeCollectionId);
-  const updateCollVars = useCollectionStore((s) => s.updateCollectionVariables);
+  const currentRequest = useRequestStore((s) => s.currentRequest);
 
-  const [previewResult, setPreviewResult] = useState<{ resolvedUrl: string; resolvedHeaders: string; resolvedBody: string } | null>(null);
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     return on('resolutionPreview', (msg: unknown) => {
-      const m = msg as { resolvedUrl: string; resolvedHeaders: string; resolvedBody: string };
-      setPreviewResult(m);
+      setPreviewResult(msg as PreviewResult);
       setPreviewLoading(false);
     });
   }, []);
@@ -64,7 +72,6 @@ export function ActiveVariablesPanel() {
     }
 
     // 4. Request vars (highest priority)
-    const currentRequest = useRequestStore.getState().currentRequest;
     if (currentRequest?.variables) {
       for (const v of currentRequest.variables) {
         entries.push({ id: v.id, name: v.key, value: v.value, enabled: v.enabled, scope: 'request' });
@@ -72,25 +79,25 @@ export function ActiveVariablesPanel() {
     }
 
     return entries;
-  }, [selectedCol, linkedSets, globalVars]);
+  }, [selectedCol, linkedSets, globalVars, currentRequest]);
 
-  // Detect name conflicts
+  // Cross-scope matches are intentional precedence. Only duplicates within one scope conflict.
   const conflicts = useMemo(() => {
-    const nameMap = new Map<string, string[]>();
+    const nameMap = new Map<string, Map<VarEntry['scope'], number>>();
     for (const v of allVars) {
-      if (!v.name) { continue; }
-      if (!nameMap.has(v.name)) { nameMap.set(v.name, []); }
-      nameMap.get(v.name)!.push(v.scope);
+      if (!v.enabled || !v.name) { continue; }
+      const scopes = nameMap.get(v.name) || new Map<VarEntry['scope'], number>();
+      scopes.set(v.scope, (scopes.get(v.scope) || 0) + 1);
+      nameMap.set(v.name, scopes);
     }
     const result = new Set<string>();
     for (const [name, scopes] of nameMap) {
-      if (scopes.length > 1) { result.add(name); }
+      if (Array.from(scopes.values()).some(count => count > 1)) { result.add(name); }
     }
     return result;
   }, [allVars]);
 
   // Stats
-  const currentRequest = useRequestStore((s) => s.currentRequest);
   const activeCount = allVars.filter(v => v.enabled && v.name).length;
   const globalCount = globalVars.filter(v => v.enabled && v.key).length;
   const collectionCount = selectedCol?.variables.filter(v => v.enabled && v.key).length || 0;
@@ -100,16 +107,13 @@ export function ActiveVariablesPanel() {
   const handlePreview = () => {
     setPreviewLoading(true);
     setPreviewResult(null);
-    postMessage({ type: 'previewResolution', request: null, collectionId: activeCollectionId ?? undefined });
+    postMessage({
+      type: 'previewResolution',
+      request: currentRequest,
+      collectionId: activeCollectionId ?? undefined,
+    });
     // Response handled via event bus
     setTimeout(() => setPreviewLoading(false), 8000);
-  };
-
-  const scopeConfig: Record<string, { badge: string; color: string; label: string }> = {
-    global: { badge: 'G', color: 'var(--vscode-testing-iconPassedForeground)', label: 'Global' },
-    collection: { badge: 'C', color: 'var(--vscode-textLink-foreground)', label: 'Collection' },
-    set: { badge: 'S', color: '#ca9ee6', label: 'Variable Set' },
-    request: { badge: 'R', color: '#e5c890', label: 'Request' },
   };
 
   return (
@@ -208,10 +212,52 @@ export function ActiveVariablesPanel() {
       {/* Preview result */}
       {previewResult && (
         <div style={{ marginTop: '8px', padding: '6px', background: 'var(--vscode-editor-background)', border: '1px solid var(--vscode-panel-border)', borderRadius: '2px', fontSize: '10px' }}>
-          <div style={{ fontWeight: 600, marginBottom: '4px' }}>Resolved URL:</div>
+          <div style={{
+            fontWeight: 600,
+            marginBottom: '6px',
+            color: previewResult.canExecute
+              ? 'var(--vscode-testing-iconPassedForeground)'
+              : 'var(--vscode-errorForeground)',
+          }}>
+            {previewResult.canExecute ? 'Ready to execute' : 'Execution blocked'}
+          </div>
+          <div style={{ fontWeight: 600, marginBottom: '4px' }}>Resolved URL</div>
           <code style={{ wordBreak: 'break-all', color: 'var(--vscode-textLink-foreground)' }}>{previewResult.resolvedUrl || '(empty)'}</code>
+          {previewResult.resolvedQueryParams !== '[]' && (
+            <PreviewField label="Query parameters" value={previewResult.resolvedQueryParams} />
+          )}
+          {previewResult.resolvedHeaders !== '[]' && (
+            <PreviewField label="Headers" value={previewResult.resolvedHeaders} />
+          )}
+          {previewResult.resolvedBody && (
+            <PreviewField label="Body" value={previewResult.resolvedBody} />
+          )}
+          {previewResult.diagnostics.length > 0 && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ fontWeight: 600, color: 'var(--vscode-errorForeground)', marginBottom: '3px' }}>
+                Variable diagnostics
+              </div>
+              {previewResult.diagnostics.map((diagnostic, index) => (
+                <div key={`${diagnostic.code}-${diagnostic.location}-${index}`} style={{ marginTop: '2px' }}>
+                  <code>{diagnostic.code}</code>
+                  {' at '}{diagnostic.location}
+                  {diagnostic.variable ? `: ${diagnostic.variable}` : ''}
+                  {diagnostic.path?.length ? ` (${diagnostic.path.join(' → ')})` : ''}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+function PreviewField({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ marginTop: '8px' }}>
+      <div style={{ fontWeight: 600, marginBottom: '3px' }}>{label}</div>
+      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{value}</pre>
     </div>
   );
 }

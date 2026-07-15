@@ -15,7 +15,7 @@ import {
 import { ViewId } from '../constants';
 import { HttpClient } from '../engine/http/HttpClient';
 import { CurlParser } from '../engine/http/CurlParser';
-import { VariableEngine } from '../engine/variables/VariableEngine';
+import { ResolutionContext, VariableEngine } from '../engine/variables/VariableEngine';
 import { CollectionManager } from '../engine/collection/CollectionManager';
 import { JsonFileStore } from '../storage/JsonFileStore';
 import { CodeGenerator } from '../commands/CodeGenerator';
@@ -403,11 +403,21 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         case 'generateCode': {
           const generator = new CodeGenerator();
           const persisted = this.collectionManager.getRequest(message.request.id);
+          const context = await this.buildResolutionContext(message.request, message.collectionId);
+          const preflight = this.variableEngine.resolveRequest(message.request, context);
+          if (!preflight.ok) {
+            this.postError(message.operationId, 'VARIABLE_RESOLUTION_FAILED');
+            return;
+          }
           const includeCredentials = message.includeCredentials === true
             && await this.confirmCredentialDisclosure(`${message.language} code sample`);
           const request = includeCredentials
-            ? await this.authService.resolveForTransport(message.request, persisted)
-            : this.authService.redactForDerivative(message.request);
+            ? await this.authService.resolveForTransport(
+                preflight.request,
+                persisted,
+                message.request.auth
+              )
+            : this.authService.redactForDerivative(preflight.request);
           const code = generator.generate(request, message.language);
           this.postMessage({
             type: 'codeGenerationResult',
@@ -419,39 +429,41 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         }
 
         case 'previewResolution': {
-          const collectionId = message.collectionId;
-          const request = message.request
-            ? this.authService.redactForDerivative(message.request)
+          const source = message.request;
+          const context = await this.buildResolutionContext(source, message.collectionId);
+          const preflight = source
+            ? this.variableEngine.resolveRequest(
+                this.authService.redactForDerivative(source),
+                context
+              )
             : null;
-          const collectionVars: Variable[] = collectionId
-            ? (this.collectionManager.getCollection(collectionId)?.variables || [])
-            : [];
-          const linkedSetVars: Variable[] = collectionId
-            ? this.variableSetManager.getVariablesForCollection(collectionId)
-            : [];
-          const allGlobals = await this.loadGlobalVariables();
-          const context = {
-            requestVars: request?.variables || [],
-            collectionVars,
-            setsVars: linkedSetVars,
-            globalVars: allGlobals,
-          };
-          const resolvedUrl = this.variableEngine.resolve(request?.url || '', context);
-          const resolvedBody = request?.body.content
-            ? this.variableEngine.resolve(request.body.content, context)
-            : '';
-          const resolvedHeaders = (request?.headers || [])
+          const resolvedRequest = preflight?.request;
+          const resolvedHeaders = (resolvedRequest?.headers || [])
             .filter(header => header.enabled)
-            .map(header => ({
-              key: this.variableEngine.resolve(header.key, context),
-              value: this.variableEngine.resolve(header.value, context),
-            }));
+            .map(({ key, value }) => ({ key, value }));
+          const resolvedQueryParams = (resolvedRequest?.queryParams || [])
+            .filter(param => param.enabled)
+            .map(({ key, value }) => ({ key, value }));
+          const resolvedBody = resolvedRequest?.body.formData
+            && (resolvedRequest.body.type === 'form-data'
+              || resolvedRequest.body.type === 'x-www-form-urlencoded')
+            ? JSON.stringify(
+                resolvedRequest.body.formData
+                  .filter(field => field.enabled)
+                  .map(({ key, value }) => ({ key, value })),
+                null,
+                2
+              )
+            : resolvedRequest?.body.content || '';
           this.postMessage({
             type: 'resolutionPreview',
             operationId: message.operationId,
-            resolvedUrl,
+            resolvedUrl: resolvedRequest?.url || '',
             resolvedHeaders: JSON.stringify(resolvedHeaders, null, 2),
+            resolvedQueryParams: JSON.stringify(resolvedQueryParams, null, 2),
             resolvedBody,
+            diagnostics: preflight?.diagnostics || [],
+            canExecute: preflight?.ok ?? true,
           });
           break;
         }
@@ -536,54 +548,17 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     });
 
     try {
-      const globalVars = await this.loadGlobalVariables();
-      const collectionVars: Variable[] = [];
-      const setsVars: Variable[] = [];
-
-      if (message.collectionId) {
-        const linkedSets = this.variableSetManager.getByCollectionId(message.collectionId);
-        for (const set of linkedSets) {
-          for (const v of set.variables) {
-            if (v.enabled) {
-              setsVars.push(v);
-            }
-          }
-        }
-        const collection = this.collectionManager.getCollection(message.collectionId);
-        if (collection?.variables) {
-          for (const v of collection.variables) {
-            if (v.enabled) {
-              collectionVars.push(v);
-            }
-          }
-        }
-      }
-
-      const vars = {
-        requestVars: message.request.variables || [],
-        collectionVars,
-        setsVars,
-        globalVars,
-      };
-
-      const resolvedRequest = JSON.parse(JSON.stringify(message.request)) as JustRequest;
-
-      resolvedRequest.url = this.variableEngine.resolve(resolvedRequest.url, vars);
-      for (const h of resolvedRequest.headers) {
-        h.key = this.variableEngine.resolve(h.key, vars);
-        h.value = this.variableEngine.resolve(h.value, vars);
-      }
-      for (const p of resolvedRequest.queryParams) {
-        p.key = this.variableEngine.resolve(p.key, vars);
-        p.value = this.variableEngine.resolve(p.value, vars);
-      }
-      if (resolvedRequest.body.content) {
-        resolvedRequest.body.content = this.variableEngine.resolve(resolvedRequest.body.content, vars);
+      const context = await this.buildResolutionContext(message.request, message.collectionId);
+      const preflight = this.variableEngine.resolveRequest(message.request, context);
+      if (!preflight.ok) {
+        this.postError(message.operationId, 'VARIABLE_RESOLUTION_FAILED', message.executionId);
+        return false;
       }
 
       const requestWithAuth = await this.authService.resolveForTransport(
-        resolvedRequest,
-        this.collectionManager.getRequest(message.request.id)
+        preflight.request,
+        this.collectionManager.getRequest(message.request.id),
+        message.request.auth
       );
       const response = await client.execute(requestWithAuth);
       if (execution.cancelled) {
@@ -596,22 +571,6 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         executionId: message.executionId,
         response,
       });
-
-      // Check for unresolved variables and notify
-      const unresolvedUrl = this.variableEngine.findUnresolved(message.request.url, vars);
-      const unresolvedBody = message.request.body.content
-        ? this.variableEngine.findUnresolved(message.request.body.content, vars)
-        : [];
-      const unresolved = [...unresolvedUrl, ...unresolvedBody].filter((v, i, a) => a.indexOf(v) === i);
-      if (unresolved.length > 0) {
-        this.postMessage({
-          type: 'error',
-          operationId: message.operationId,
-          executionId: message.executionId,
-          message: 'The request contains unresolved variables.',
-          code: 'OPERATION_FAILED',
-        });
-      }
 
       if (response.statusCode > 0) {
         await this.saveToHistory(
@@ -660,6 +619,23 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     };
 
     this.postMessage({ type: 'initialState', operationId, state });
+  }
+
+  private async buildResolutionContext(
+    request: JustRequest | null,
+    collectionId?: string
+  ): Promise<ResolutionContext> {
+    const linkedSets = collectionId
+      ? this.variableSetManager.getByCollectionId(collectionId)
+      : [];
+    return {
+      requestVars: request?.variables || [],
+      collectionVars: collectionId
+        ? this.collectionManager.getCollection(collectionId)?.variables || []
+        : [],
+      setsVars: linkedSets.flatMap(set => set.variables),
+      globalVars: await this.loadGlobalVariables(),
+    };
   }
 
   private async loadHistory(filter?: string, limit?: number): Promise<HistoryEntry[]> {

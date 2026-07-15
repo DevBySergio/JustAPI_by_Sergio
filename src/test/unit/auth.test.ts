@@ -103,6 +103,10 @@ describe('AuthService', () => {
       in: 'query',
       value: unicodeSecret,
     });
+    const configuredAuth = request.auth;
+    if (configuredAuth.type !== 'apiKey') {
+      assert.fail('API-key fixture was not configured.');
+    }
 
     const transport = await service.resolveForTransport(request);
     assert.equal(transport.queryParams.at(-1)?.key, 'api_key');
@@ -118,6 +122,14 @@ describe('AuthService', () => {
     const disabledConflict = await service.resolveForTransport(request);
     assert.equal(disabledConflict.queryParams.at(-1)?.value, unicodeSecret);
 
+    request.queryParams = [];
+    const variableResolved = await service.resolveForTransport({
+      ...request,
+      auth: { ...configuredAuth, name: 'resolved_api_key' },
+    }, undefined, configuredAuth);
+    assert.equal(variableResolved.queryParams.at(-1)?.key, 'resolved_api_key');
+    assert.equal(variableResolved.queryParams.at(-1)?.value, unicodeSecret);
+
     const headerRequest = createRequestFixture();
     headerRequest.auth = await service.configure(headerRequest.id, {
       type: 'apiKey',
@@ -128,7 +140,6 @@ describe('AuthService', () => {
     const headerTransport = await service.resolveForTransport(headerRequest);
     assert.equal(headerTransport.headers.at(-1)?.value, unicodeSecret);
 
-    request.queryParams = [];
     const snippet = new CodeGenerator().generate(service.redactForDerivative(request), 'curl');
     assert.match(snippet, /api_key=.*API_KEY/);
     assert.equal(snippet.includes(fixtureSecret), false);

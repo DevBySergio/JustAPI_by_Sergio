@@ -45,14 +45,10 @@ export class VariableSetManager {
   /** Returns combined variables from all variable sets linked to a collection */
   getVariablesForCollection(collectionId: string): Variable[] {
     const sets = this.getByCollectionId(collectionId);
-    const seen = new Set<string>();
     const result: Variable[] = [];
     for (const set of sets) {
       for (const v of set.variables) {
-        if (!seen.has(v.key)) {
-          seen.add(v.key);
-          result.push(v);
-        }
+        result.push(v);
       }
     }
     return result;

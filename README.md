@@ -30,13 +30,18 @@ Organize your requests with a powerful collection system:
 
 ### 3. 🔤 Variable Engine
 
-Dynamic request building with `{{variable}}` interpolation everywhere (URL, headers, query params, body):
+Dynamic request building with deterministic `{{variable}}` interpolation across URLs, headers, query/path parameters, raw/form bodies, and API-key names:
 
 - **Four Scopes with Priority** — Global &lt; Variable Sets &lt; Collection &lt; Request
 - **Variable Sets** — Reusable groups linkable to multiple collections
+- **Predictable Values** — Disabled variables are ignored; empty strings and `0` remain valid values
+- **Safe Nesting** — Nested references support cycle detection, bounded depth/size, and typed diagnostics
+- **Literal Placeholders** — Write `\{{variable}}` to preserve `{{variable}}` as text
 - **Inline Autocomplete** — Type `{{` and get scope-aware suggestions with keyboard navigation
 - **Syntax Highlighting** — Visual highlighting of `{{variable}}` references in all text inputs
-- **Conflict Detection** — Warnings when the same name exists in multiple scopes
+- **Preflight Parity** — Preview, execution, and code generation share one resolver; missing or ambiguous required values block before network activity
+
+Cross-scope names are normal overrides. Duplicate enabled names within one scope are reported as an error rather than relying on array order.
 
 ### 4. 🔐 Authentication Builder
 

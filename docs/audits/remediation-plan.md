@@ -614,7 +614,17 @@ Bearer, UTF-8 Basic, and API-key header/query credentials are resolved once imme
 
 Targeted evidence consists of six auth unit tests plus a protocol regression and a localhost integration regression. They cover public/persisted/transport separation, default derivative redaction, one-shot destination confirmation, UTF-8 Basic encoding, API-key query placement and conflicts, conservative legacy migration, failed-persistence rollback, rotation, independent duplication, shared-reference cleanup, and generated query placeholders. The localhost server received the exact Bearer header and query API-key value only after SecretStorage-backed preflight. The complete `npm run validate` gate passed on 2026-07-15 with 40 unit tests, seven integration tests, four VS Code 1.80 extension-host tests, zero lint warnings, both strict type checks, production builds, zero audit findings, VSIX creation, and the nine-file payload allowlist.
 
-Batch 2 remains in progress because VARIABLES and HTTP have not yet completed their owner tasks. Accordingly, JAPI-001 and JAPI-017 retain `open` ledger status until the complete Batch 2 gate is rerun with all three owners green. Legacy pre-auth collection backups remain protected by the storage directory's `0600` permissions and are retained for rollback during stabilization; they are the only intentional location where pre-migration plaintext may remain.
+At the AUTH checkpoint, Batch 2 remained in progress because VARIABLES and HTTP had not completed their owner tasks. JAPI-001 and JAPI-017 remain `open` until the complete Batch 2 gate is rerun with all three owners green. Legacy pre-auth collection backups remain protected by the storage directory's `0600` permissions and are retained for rollback during stabilization; they are the only intentional location where pre-migration plaintext may remain.
+
+### VARIABLES task completion evidence (Batch 2 in progress)
+
+VARIABLES is complete at the owner-task level. A single bounded resolver now applies the documented `global < active sets < collection < request` precedence to preview, execution, and code generation. Disabled values do not shadow enabled lower scopes; empty strings and `0` remain valid; same-scope duplicates are chosen deterministically for display but produce a blocking diagnostic. Nested references have direct/indirect cycle paths, a configurable depth limit, bounded input/output, and `\{{name}}` literal escaping.
+
+The shared request preflight covers URL, enabled query/header keys and values, path parameters, raw/form bodies, and API-key names without performing transport encoding. It returns typed, value-free diagnostics for missing, disabled, duplicate, cyclic, over-depth, invalid, malformed, and over-limit inputs. Preview shows those diagnostics and the exact preflight request fields; execution and code generation stop before transport or credential disclosure when preflight fails. API-key secrets remain resolved from their original configured metadata while injection uses the safely resolved field name.
+
+Targeted evidence consists of 13 resolver tests plus protocol and authentication boundary regressions. They cover all precedence collisions, disabled and falsey values, stable duplicates, nested/direct/indirect cycles, depth and size limits, escaped and malformed placeholders, URL/query/header/path/raw/form/auth locations, encoding boundaries, secret-safe diagnostics, immutability, and preview/execution parity. The complete `npm run validate` gate passed on 2026-07-15 with 51 unit tests, seven deterministic localhost integration tests, four VS Code 1.80 extension-host tests, zero lint warnings, both strict type checks, production builds, zero audit findings, VSIX creation, and the nine-file payload allowlist.
+
+Batch 2 remains in progress because HTTP has not yet completed its owner task. JAPI-005 therefore retains `open` ledger status until the complete Batch 2 gate runs with AUTH, VARIABLES, and HTTP green.
 
 ## Execution ledger
 
@@ -624,7 +634,7 @@ Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `roll
 |---:|---|---|---|---|---|---|---|
 | 0 | passed | 2026-07-14 | 2026-07-14 | Staged REPO + TEST patch | Repository cleanup plus 13 unit, 6 localhost integration, and 4 VS Code 1.80 extension-host tests passed | Exact staged-index snapshot: clean `npm ci`, zero-warning lint, both strict type checks, all tests, builds, zero audits, VSIX, and payload allowlist passed | Webpack retains its pre-existing 269 KB performance advisory; JAPI-009 still owns command semantics beyond registration parity |
 | 1 | passed | 2026-07-15 | 2026-07-15 | Working-tree PROTOCOL + STORAGE patch | 7 protocol tests plus 16 storage/history tests passed, covering validation/correlation, migration, locking/revisions, interruption, corruption/recovery, history redaction/limits, and shutdown | `npm run validate` passed: 33 unit, 6 integration, 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Legacy history backups are intentionally redacted before creation; they cannot restore discarded sensitive bodies/values. Pre-existing 285 KiB webview performance advisory remains |
-| 2 | in-progress | 2026-07-15 | — | Working-tree AUTH patch | AUTH: 6 focused unit tests, protocol boundary regression, and localhost SecretStorage-backed Bearer/query API-key delivery passed | AUTH owner gate: `npm run validate` passed with 40 unit, 7 integration, and 4 extension-host tests, zero audits, builds, VSIX, and payload allowlist | VARIABLES and HTTP remain; legacy pre-auth collection backups are retained with `0600` permissions for rollback during stabilization |
+| 2 | in-progress | 2026-07-15 | — | AUTH commit plus working-tree VARIABLES patch | AUTH: 6 focused unit tests and SecretStorage-backed transport regressions; VARIABLES: 13 resolver tests plus protocol/auth boundary regressions passed | Latest owner gate: `npm run validate` passed with 51 unit, 7 integration, and 4 extension-host tests, zero audits, builds, VSIX, and payload allowlist | HTTP remains; legacy pre-auth collection backups are retained with `0600` permissions for rollback during stabilization |
 | 3 | planned | — | — | — | — | — | None yet |
 | 4 | planned | — | — | — | — | — | None yet |
 | 5 | planned | — | — | — | — | — | None yet |
@@ -633,11 +643,11 @@ Finding statuses remain `open` until their owner records the completion signal a
 
 | Finding | Status | Resolution evidence | Residual risk / acceptance |
 |---|---|---|---|
-| JAPI-001 | open | SecretStorage-backed auth metadata/references, conservative migration with rollback, pre-transport resolution, redacted derivatives, explicit disclosure confirmation, cleanup lifecycle, and focused/full validation passed | Awaiting VARIABLES and HTTP plus the complete Batch 2 gate; protected pre-auth rollback backups intentionally retain legacy plaintext during stabilization |
+| JAPI-001 | open | SecretStorage-backed auth metadata/references, conservative migration with rollback, pre-transport resolution, redacted derivatives, explicit disclosure confirmation, cleanup lifecycle, and focused/full validation passed | Awaiting HTTP plus the complete Batch 2 gate; protected pre-auth rollback backups intentionally retain legacy plaintext during stabilization |
 | JAPI-002 | passed | V2 envelopes, serialized fsynced atomic commits, PID-aware lock and revision conflict path, verified backups/quarantine/read-only recovery, shutdown flush, and 13 focused durability tests passed | Runtime backup retention is five per domain; migration backups are retained throughout stabilization |
 | JAPI-003 | passed | Runtime validation/correlation, operation and execution registries, targeted cancellation, stable errors, and seven protocol tests passed with the complete Batch 1 gate | Later service extraction remains owned by REFACTOR and does not reopen the trusted boundary |
 | JAPI-004 | open | — | — |
-| JAPI-005 | open | — | — |
+| JAPI-005 | open | One bounded deterministic resolver, typed secret-safe diagnostics, shared preview/execution/codegen preflight, all-field coverage, and 13 focused resolver tests passed with the complete VARIABLES owner gate | Awaiting HTTP and the complete Batch 2 gate |
 | JAPI-006 | open | — | — |
 | JAPI-007 | open | — | — |
 | JAPI-008 | open | — | — |
@@ -649,7 +659,7 @@ Finding statuses remain `open` until their owner records the completion signal a
 | JAPI-014 | open | — | — |
 | JAPI-015 | open | — | — |
 | JAPI-016 | open | — | — |
-| JAPI-017 | open | API-key header/query placement, case-insensitive conflict blocking, redacted query placeholders, and exact localhost query delivery passed | Awaiting the complete Batch 2 gate with VARIABLES and HTTP |
+| JAPI-017 | open | API-key header/query placement, case-insensitive conflict blocking, redacted query placeholders, and exact localhost query delivery passed | Awaiting HTTP and the complete Batch 2 gate |
 | JAPI-018 | open | TEST completed zero-warning lint across host and webview TS/TSX | UI still owns state persistence, keyboard behavior, focus restoration, and accessibility coverage |
 
 ## Definition of done

@@ -201,14 +201,18 @@ export class AuthService {
 
   async resolveForTransport(
     request: JustRequest,
-    existing?: PersistedJustRequest
+    existing?: PersistedJustRequest,
+    configuredAuth: AuthConfig = request.auth
   ): Promise<JustRequest> {
-    const persisted = this.resolveConfig(request, existing);
+    const persisted = this.resolveConfig(request.id, request.auth, configuredAuth, existing);
     if (persisted.type === 'none') {
       return cloneRequest(request);
     }
+    if (request.auth.type === 'none') {
+      throw new AuthServiceError('AUTH_SECRET_NOT_FOUND');
+    }
     const secret = await this.readSecret(persisted);
-    return this.injectCredential(request, persisted, secret);
+    return this.injectCredential(request, request.auth, persisted, secret);
   }
 
   redactForDerivative(request: JustRequest): JustRequest {
@@ -343,18 +347,32 @@ export class AuthService {
     await Promise.all(refs.map(ref => this.secrets.delete(ref)));
   }
 
-  private resolveConfig(request: JustRequest, existing?: PersistedJustRequest): PersistedAuthConfig {
-    const staged = this.staged.get(request.id)?.config;
-    if (request.auth.type === 'none') {
+  private resolveConfig(
+    requestId: string,
+    resolvedAuth: AuthConfig,
+    configuredAuth: AuthConfig,
+    existing?: PersistedJustRequest
+  ): PersistedAuthConfig {
+    if (!this.authShapeMatches(resolvedAuth, configuredAuth)) {
+      throw new AuthServiceError('AUTH_SECRET_NOT_FOUND');
+    }
+    const staged = this.staged.get(requestId)?.config;
+    if (configuredAuth.type === 'none') {
       return { type: 'none' };
     }
-    if (staged && publicAuthMatches(staged, request.auth)) {
+    if (staged && publicAuthMatches(staged, configuredAuth)) {
       return staged;
     }
-    if (existing && publicAuthMatches(existing.auth, request.auth)) {
+    if (existing && publicAuthMatches(existing.auth, configuredAuth)) {
       return existing.auth;
     }
     throw new AuthServiceError('AUTH_SECRET_NOT_FOUND');
+  }
+
+  private authShapeMatches(resolved: AuthConfig, configured: AuthConfig): boolean {
+    return resolved.type === configured.type
+      && (resolved.type !== 'apiKey'
+        || (configured.type === 'apiKey' && resolved.in === configured.in));
   }
 
   private async readSecret(config: Exclude<PersistedAuthConfig, { type: 'none' }>): Promise<StoredSecret> {
@@ -379,19 +397,20 @@ export class AuthService {
 
   private injectCredential(
     request: JustRequest,
-    config: Exclude<PersistedAuthConfig, { type: 'none' }>,
+    resolvedAuth: Exclude<AuthConfig, { type: 'none' }>,
+    persisted: Exclude<PersistedAuthConfig, { type: 'none' }>,
     secret: StoredSecret
   ): JustRequest {
     const copy = cloneRequest(request);
-    if (config.type === 'bearer' && secret.type === 'bearer') {
+    if (persisted.type === 'bearer' && resolvedAuth.type === 'bearer' && secret.type === 'bearer') {
       this.injectTransportValue(copy.headers, 'Authorization', `Bearer ${secret.token}`);
-    } else if (config.type === 'basic' && secret.type === 'basic') {
+    } else if (persisted.type === 'basic' && resolvedAuth.type === 'basic' && secret.type === 'basic') {
       const encoded = Buffer.from(`${secret.username}:${secret.password}`, 'utf8').toString('base64');
       this.injectTransportValue(copy.headers, 'Authorization', `Basic ${encoded}`);
-    } else if (config.type === 'apiKey' && secret.type === 'apiKey') {
+    } else if (persisted.type === 'apiKey' && resolvedAuth.type === 'apiKey' && secret.type === 'apiKey') {
       this.injectTransportValue(
-        config.in === 'header' ? copy.headers : copy.queryParams,
-        config.name,
+        resolvedAuth.in === 'header' ? copy.headers : copy.queryParams,
+        resolvedAuth.name,
         secret.value
       );
     } else {

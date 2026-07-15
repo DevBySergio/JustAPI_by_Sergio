@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRequestStore } from '../stores/useRequestStore';
+import { useCollectionStore } from '../stores/useCollectionStore';
 import { postMessage } from '../utils/vscodeApi';
 
 type TargetLanguage = 'javascript' | 'typescript' | 'python' | 'curl' | 'csharp' | 'java' | 'go';
@@ -20,6 +21,7 @@ interface CodeGenPanelProps {
 
 export function CodeGenPanel({ code }: CodeGenPanelProps) {
   const currentRequest = useRequestStore((s) => s.currentRequest);
+  const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
   const [language, setLanguage] = useState<TargetLanguage>('javascript');
   const [includeCredentials, setIncludeCredentials] = useState(false);
 
@@ -30,6 +32,7 @@ export function CodeGenPanel({ code }: CodeGenPanelProps) {
       request: currentRequest,
       language,
       includeCredentials,
+      collectionId: activeCollectionId ?? undefined,
     });
   };
 

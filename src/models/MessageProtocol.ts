@@ -5,6 +5,7 @@ import { Variable } from './Variable';
 import { VariableSet } from './VariableSet';
 import { HistoryEntry } from './HistoryEntry';
 import { AuthConfig, AuthInput } from './Auth';
+import { VariableDiagnostic } from './VariableResolution';
 
 export type CodeTargetLanguage =
   | 'javascript'
@@ -26,6 +27,7 @@ export type ProtocolErrorCode =
   | 'IMPORT_ERROR'
   | 'AUTH_CONFLICT'
   | 'AUTH_SECRET_NOT_FOUND'
+  | 'VARIABLE_RESOLUTION_FAILED'
   | 'OPERATION_FAILED'
   | 'OUTBOUND_MESSAGE_INVALID';
 
@@ -74,6 +76,7 @@ export type WebviewMessage =
       request: JustRequest;
       language: CodeTargetLanguage;
       includeCredentials?: boolean;
+      collectionId?: string;
     } & OperationMessage)
   | ({ type: 'webviewReady' } & OperationMessage)
   | ({ type: 'previewResolution'; request: JustRequest | null; collectionId?: string } & OperationMessage)
@@ -112,7 +115,10 @@ export type ExtensionMessage =
       type: 'resolutionPreview';
       resolvedUrl: string;
       resolvedHeaders: string;
+      resolvedQueryParams: string;
       resolvedBody: string;
+      diagnostics: VariableDiagnostic[];
+      canExecute: boolean;
     } & OperationMessage)
   | ({ type: 'createNewRequest' } & OperationMessage)
   | ({
