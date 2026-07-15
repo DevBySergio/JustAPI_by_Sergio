@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605993,
-  "updatedAt": 1784135288518,
+  "updatedAt": 1784136204440,
   "position": 1783967605993,
   "labelIds": [
     "bug",
@@ -23,50 +23,50 @@
   "codeReference": {
     "filePath": "src/commands/CodeGenerator.ts",
     "lineStart": 4,
-    "lineEnd": 315
+    "lineEnd": 513
   },
   "checklist": [
     {
       "id": "check-mrjk92i0-code0001",
       "text": "Define one normalized effective-request input shared by transport preview and every renderer",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605993,
-      "updatedAt": 1783967605993
+      "updatedAt": 1784136204440
     },
     {
       "id": "check-mrjk92i0-code0002",
       "text": "Render final query, headers, auth placeholders, raw, urlencoded, and multipart bodies",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605993,
-      "updatedAt": 1783967605993
+      "updatedAt": 1784136204440
     },
     {
       "id": "check-mrjk92i0-code0003",
       "text": "Implement target-specific escaping for shell, JavaScript, Python, Go, Java, and C#",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605993,
-      "updatedAt": 1783967605993
+      "updatedAt": 1784136204440
     },
     {
       "id": "check-mrjk92i0-code0004",
       "text": "Produce idiomatic starter snippets without inventing files, packages, or unsupported behavior",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605993,
-      "updatedAt": 1783967605993
+      "updatedAt": 1784136204440
     },
     {
       "id": "check-mrjk92i0-code0005",
       "text": "Redact credentials by default and route secret inclusion through explicit confirmation without persistence",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605993,
-      "updatedAt": 1783967605993
+      "updatedAt": 1784136204440
     },
     {
       "id": "check-mrjk92i0-code0006",
       "text": "Add golden fixtures for methods, special characters, Unicode, all body modes, variables, and auth",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605993,
-      "updatedAt": 1783967605993
+      "updatedAt": 1784136204440
     },
     {
       "id": "check-mrjk92i0-code0007",
