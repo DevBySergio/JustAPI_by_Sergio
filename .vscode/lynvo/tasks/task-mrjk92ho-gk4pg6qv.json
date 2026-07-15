@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784025308529,
+  "updatedAt": 1784108091793,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -64,9 +64,9 @@
     {
       "id": "check-mrjk92ho-road0006",
       "text": "Introduce versioned atomic persistence, recovery, and migrations",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784108091793
     },
     {
       "id": "check-mrjk92ho-road0007",
