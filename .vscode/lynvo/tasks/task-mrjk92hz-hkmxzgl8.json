@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605992,
-  "updatedAt": 1784133436256,
+  "updatedAt": 1784134115085,
   "position": 1783967605992,
   "labelIds": [
     "bug",
@@ -28,44 +28,44 @@
     {
       "id": "check-mrjk92hz-curl0001",
       "text": "Implement a non-executing tokenizer for quotes, escapes, whitespace, and line continuations",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605992,
-      "updatedAt": 1783967605992
+      "updatedAt": 1784134115078
     },
     {
       "id": "check-mrjk92hz-curl0002",
       "text": "Parse the supported short and long options without treating the curl executable as a URL",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605992,
-      "updatedAt": 1783967605992
+      "updatedAt": 1784134115081
     },
     {
       "id": "check-mrjk92hz-curl0003",
       "text": "Define URL, method, repeated data, header, cookie, auth, redirect, TLS, and multipart precedence",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605992,
-      "updatedAt": 1783967605992
+      "updatedAt": 1784134115082
     },
     {
       "id": "check-mrjk92hz-curl0004",
       "text": "Treat @file input as unresolved text and never access local files implicitly",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605992,
-      "updatedAt": 1783967605992
+      "updatedAt": 1784134115083
     },
     {
       "id": "check-mrjk92hz-curl0005",
       "text": "Return token-specific structured warnings for unsupported, ambiguous, missing-value, and dangerous options",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605992,
-      "updatedAt": 1783967605992
+      "updatedAt": 1784134115084
     },
     {
       "id": "check-mrjk92hz-curl0006",
       "text": "Add an import preview that shows the normalized request and requires acknowledgement of warnings",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605992,
-      "updatedAt": 1783967605992
+      "updatedAt": 1784134115085
     },
     {
       "id": "check-mrjk92hz-curl0007",
