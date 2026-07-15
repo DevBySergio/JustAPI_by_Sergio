@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrlw8ej2-kx7qrdoo",
+  "type": "task_moved",
+  "message": "Moved \"Migrate authentication secrets and redact derivative artifacts\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784108662670,
+  "taskId": "task-mrjk92hv-p5v3ykrx",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}

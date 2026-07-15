@@ -2,7 +2,7 @@
   "id": "task-mrjk92hv-p5v3ykrx",
   "title": "Migrate authentication secrets and redact derivative artifacts",
   "description": "Stop storing Auth Builder credentials as plain text in request JSON, history, exports, logs, generated code, or previews. Model authentication separately from ordinary headers and store credential values in VS Code SecretStorage, leaving only stable secret references in persisted requests.\n\nMigrate Bearer, Basic, and exact `X-API-Key` credentials conservatively from legacy data after creating a backup; never guess that arbitrary headers are secrets. Support Bearer, UTF-8 Basic, and API-key header/query placement with a documented conflict policy when a user also supplies the same header or query key. Resolve secrets only immediately before transport and use redacted templates everywhere else.\n\nExports and code generation remain redacted by default. Revealing or including credentials requires an explicit, contextual confirmation and must not leave secret material in history or diagnostics. Deleting/replacing auth removes obsolete SecretStorage entries. Tests must verify migration, redaction, conflicts, Unicode credentials, and cleanup.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605988,
-  "updatedAt": 1783968300008,
+  "updatedAt": 1784108662670,
   "position": 1783967605988,
   "labelIds": [
     "bug",
