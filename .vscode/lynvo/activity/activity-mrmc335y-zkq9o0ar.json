@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrmc335y-zkq9o0ar",
+  "type": "task_moved",
+  "message": "Moved \"Generate valid normalized secret-aware code snippets\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784135288518,
+  "taskId": "task-mrjk92i0-zidiwkfc",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}

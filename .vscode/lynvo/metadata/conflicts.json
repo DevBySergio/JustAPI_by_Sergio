@@ -108,5 +108,15 @@
     "remoteValue": "in-progress",
     "createdAt": 1784134419381,
     "resolved": true
+  },
+  "task-task-mrjk92i0-zidiwkfc-status": {
+    "id": "task-task-mrjk92i0-zidiwkfc-status",
+    "entityType": "task",
+    "entityId": "task-mrjk92i0-zidiwkfc",
+    "field": "status",
+    "localValue": "in-progress",
+    "remoteValue": "todo",
+    "createdAt": 1784135381079,
+    "resolved": false
   }
 }

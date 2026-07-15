@@ -2,7 +2,7 @@
   "id": "task-mrjk92i0-zidiwkfc",
   "title": "Generate valid normalized secret-aware code snippets",
   "description": "Rebuild code generation around a single normalized effective-request model shared with execution. The model must contain the final method, URL/query, headers, body mode, redirect/TLS intent, and redacted auth representation so language renderers cannot independently reinterpret incomplete editor state.\n\nCorrect syntax and escaping for cURL, JavaScript, Python, Go, Java, and C# starter snippets. Represent raw text/JSON, form-urlencoded, and multipart bodies accurately; avoid inventing file paths or dependencies. Escape string delimiters, backslashes, Unicode, newlines, header values, and shell metacharacters according to each target language. Generated output must be syntactically valid and internally consistent.\n\nCredential values are placeholders by default. Including resolved secrets requires the explicit confirmation flow from the auth task and must never be cached or written to history. Golden fixtures and lightweight compile/parse checks should guard every language and request shape.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605993,
-  "updatedAt": 1783968300005,
+  "updatedAt": 1784135288518,
   "position": 1783967605993,
   "labelIds": [
     "bug",
