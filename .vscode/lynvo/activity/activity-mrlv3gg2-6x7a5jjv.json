@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrlv3gg2-6x7a5jjv",
+  "type": "task_moved",
+  "message": "Moved \"Introduce versioned atomic persistence and recovery\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784106752258,
+  "taskId": "task-mrjk92hu-l37yy8ky",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}

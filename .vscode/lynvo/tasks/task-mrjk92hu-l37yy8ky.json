@@ -2,7 +2,7 @@
   "id": "task-mrjk92hu-l37yy8ky",
   "title": "Introduce versioned atomic persistence and recovery",
   "description": "Replace the current synchronous/delayed JSON writes with a persistence layer that cannot silently lose or corrupt user data. Introduce a versioned v2 envelope such as `{ schemaVersion, revision, data }`, migrate legacy files once, and keep a timestamped backup before changing their format.\n\nSerialize writes through one queue and commit with temp-file plus atomic rename. Coordinate multiple VS Code windows with an exclusive lock or revision check so a stale process cannot overwrite a newer revision. On malformed JSON, partial writes, unsupported schema versions, or failed migrations, quarantine the bad file, attempt verified backup recovery, and otherwise fail visibly in read-only mode. History must store a bounded summary rather than complete secrets or large bodies.\n\nThis task is complete only when lifecycle shutdown flushes safely, all migrations are idempotent, failures are actionable, and tests prove recovery from interruption, corruption, conflict, and legacy data.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605987,
-  "updatedAt": 1783967605987,
+  "updatedAt": 1784106752258,
   "position": 1783967605987,
   "labelIds": [
     "bug",
