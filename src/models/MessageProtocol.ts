@@ -59,6 +59,7 @@ export type WebviewMessage =
       sourceCollectionId: string;
       targetCollectionId: string;
       targetParentId?: string;
+      targetIndex?: number;
     } & OperationMessage)
   | ({ type: 'getHistory'; filter?: string; limit?: number } & OperationMessage)
   | ({ type: 'clearHistory' } & OperationMessage)
@@ -107,6 +108,7 @@ export type ExtensionMessage =
       message: string;
       code: ProtocolErrorCode;
       executionId?: string;
+      details?: string[];
     } & OperationMessage)
   | ({ type: 'requestExecuting'; executing: boolean } & ExecutionMessage)
   | ({ type: 'initialState'; state: InitialState } & OperationMessage)

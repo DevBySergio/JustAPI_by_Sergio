@@ -16,6 +16,14 @@ import type { JustResponse } from '../models/Response';
 import type { Variable } from '../models/Variable';
 import type { VariableSet } from '../models/VariableSet';
 import type { VariableDiagnostic } from '../models/VariableResolution';
+import {
+  COLLECTION_TRANSFER_SCHEMA_VERSION,
+  CollectionTransferDocument,
+} from '../models/CollectionTransfer';
+import {
+  CollectionIntegrityIssue,
+  validateCollectionGraph,
+} from '../engine/collection/CollectionGraph';
 
 export const PROTOCOL_LIMITS = {
   generalMessageBytes: 1024 * 1024,
@@ -42,12 +50,9 @@ export const PROTOCOL_LIMITS = {
 
 export type ValidationResult<T> =
   | { ok: true; value: T }
-  | { ok: false; code: ProtocolErrorCode; message: string };
+  | { ok: false; code: ProtocolErrorCode; message: string; details?: string[] };
 
-export interface CollectionImportDocument {
-  collection: Collection;
-  requests: JustRequest[];
-}
+export type CollectionImportDocument = CollectionTransferDocument;
 
 const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
   'executeRequest',
@@ -129,7 +134,7 @@ const PROTOCOL_ERROR_CODES = new Set<ProtocolErrorCode>([
   'OUTBOUND_MESSAGE_INVALID',
 ]);
 
-function failure<T>(code: ProtocolErrorCode): ValidationResult<T> {
+function failure<T>(code: ProtocolErrorCode, details?: string[]): ValidationResult<T> {
   const messages: Record<ProtocolErrorCode, string> = {
     INVALID_MESSAGE: 'The protocol message envelope is invalid.',
     UNKNOWN_MESSAGE: 'The protocol message type is not supported.',
@@ -145,7 +150,13 @@ function failure<T>(code: ProtocolErrorCode): ValidationResult<T> {
     OPERATION_FAILED: 'The requested operation could not be completed.',
     OUTBOUND_MESSAGE_INVALID: 'The extension produced an invalid protocol response.',
   };
-  return { ok: false, code, message: messages[code] };
+  return { ok: false, code, message: messages[code], ...(details ? { details } : {}) };
+}
+
+function formatCollectionIssues(issues: readonly CollectionIntegrityIssue[]): string[] {
+  return issues.slice(0, PROTOCOL_LIMITS.maximumDiagnostics).map(issue =>
+    issue.entityId ? `${issue.code}: ${issue.entityId}` : issue.code
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -702,11 +713,13 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
         'itemId',
         'sourceCollectionId',
         'targetCollectionId',
-      ], ['targetParentId'])
+      ], ['targetParentId', 'targetIndex'])
         && isProtocolIdentifier(value.itemId)
         && isProtocolIdentifier(value.sourceCollectionId)
         && isProtocolIdentifier(value.targetCollectionId)
-        && (value.targetParentId === undefined || isProtocolIdentifier(value.targetParentId));
+        && (value.targetParentId === undefined || isProtocolIdentifier(value.targetParentId))
+        && (value.targetIndex === undefined
+          || isBoundedInteger(value.targetIndex, 0, PROTOCOL_LIMITS.maximumCollectionItems));
     case 'getHistory':
       return hasOnlyKeys(value, ['type', 'operationId'], ['filter', 'limit'])
         && (value.filter === undefined || isString(value.filter, PROTOCOL_LIMITS.maximumNameLength))
@@ -819,11 +832,15 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
         && typeof value.language === 'string'
         && CODE_TARGET_LANGUAGES.has(value.language as CodeTargetLanguage);
     case 'error':
-      return hasOnlyKeys(value, ['type', 'operationId', 'message', 'code'], ['executionId'])
+      return hasOnlyKeys(value, ['type', 'operationId', 'message', 'code'], ['executionId', 'details'])
         && isString(value.message, PROTOCOL_LIMITS.maximumErrorLength, false)
         && typeof value.code === 'string'
         && PROTOCOL_ERROR_CODES.has(value.code as ProtocolErrorCode)
-        && (value.executionId === undefined || isProtocolIdentifier(value.executionId));
+        && (value.executionId === undefined || isProtocolIdentifier(value.executionId))
+        && (value.details === undefined
+          || (Array.isArray(value.details)
+            && value.details.length <= PROTOCOL_LIMITS.maximumDiagnostics
+            && value.details.every(detail => isString(detail, PROTOCOL_LIMITS.maximumErrorLength, false))));
     case 'requestExecuting':
       return hasOnlyKeys(value, ['type', 'operationId', 'executionId', 'executing'])
         && hasExecutionId(value)
@@ -895,17 +912,28 @@ export function validateCollectionImportDocument(json: string): ValidationResult
   if (!structure.ok) {
     return structure.code === 'MESSAGE_TOO_LARGE' ? structure : failure('IMPORT_ERROR');
   }
-  if (!isRecord(value)
-    || !hasOnlyKeys(value, ['collection', 'requests'])
+  if (!isRecord(value)) {
+    return failure('IMPORT_ERROR');
+  }
+  const isLegacy = value.schemaVersion === undefined
+    && hasOnlyKeys(value, ['collection', 'requests']);
+  const isCurrent = value.schemaVersion === COLLECTION_TRANSFER_SCHEMA_VERSION
+    && hasOnlyKeys(value, ['schemaVersion', 'collection', 'requests']);
+  if ((!isLegacy && !isCurrent)
     || !isCollection(value.collection)
     || !Array.isArray(value.requests)
     || value.requests.length > PROTOCOL_LIMITS.maximumRequests
     || !value.requests.every(isJustRequest)) {
     return failure('IMPORT_ERROR');
   }
+  const issues = validateCollectionGraph([value.collection], value.requests);
+  if (issues.length > 0) {
+    return failure('IMPORT_ERROR', formatCollectionIssues(issues));
+  }
   return {
     ok: true,
     value: {
+      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
       collection: value.collection,
       requests: value.requests,
     },

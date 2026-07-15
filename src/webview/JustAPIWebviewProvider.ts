@@ -31,6 +31,8 @@ import {
 } from '../protocol/MessageValidator';
 import { ExecutionRegistry, OperationRegistry } from '../protocol/OperationRegistry';
 import { AuthService, AuthServiceError } from '../engine/auth/AuthService';
+import { COLLECTION_TRANSFER_SCHEMA_VERSION } from '../models/CollectionTransfer';
+import { CollectionIntegrityError } from '../engine/collection/CollectionGraph';
 
 export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = ViewId.SIDEBAR;
@@ -286,7 +288,8 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
             message.itemId,
             message.sourceCollectionId,
             message.targetCollectionId,
-            message.targetParentId
+            message.targetParentId,
+            message.targetIndex
           );
           this.postMessage({
             type: 'collections',
@@ -346,7 +349,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
             this.postError(message.operationId, 'OPERATION_FAILED');
             return;
           }
-          const persistedRequests = this.getCollectionRequests(collection);
+          const persistedRequests = this.collectionManager.getRequestsForCollection(collection.id);
           const includeCredentials = message.includeCredentials === true
             && await this.confirmCredentialDisclosure(`collection “${collection.name}” export`);
           const requests: JustRequest[] = [];
@@ -357,6 +360,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
               : this.authService.redactForDerivative(request));
           }
           const exportData = {
+            schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
             collection,
             requests,
           };
@@ -373,7 +377,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           if (!importValidation.ok) {
             this.postError(message.operationId, importValidation.code === 'MESSAGE_TOO_LARGE'
               ? 'MESSAGE_TOO_LARGE'
-              : 'IMPORT_ERROR');
+              : 'IMPORT_ERROR', undefined, importValidation.details);
             return;
           }
           const importedRequests = importValidation.value.requests
@@ -523,6 +527,17 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       }
       this.acknowledge(message);
     } catch (error) {
+      if (error instanceof CollectionIntegrityError) {
+        this.postError(
+          message.operationId,
+          message.type === 'importCollection' ? 'IMPORT_ERROR' : 'OPERATION_FAILED',
+          this.executionIdOf(message),
+          error.issues.map(issue => issue.entityId
+            ? `${issue.code}: ${issue.entityId}`
+            : issue.code)
+        );
+        return;
+      }
       const code = error instanceof AuthServiceError && error.code !== 'AUTH_INVALID'
         ? error.code
         : 'OPERATION_FAILED';
@@ -797,24 +812,6 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     ]);
   }
 
-  private getCollectionRequests(collection: Collection): PersistedJustRequest[] {
-    const requests: PersistedJustRequest[] = [];
-    const visit = (items: Collection['items']): void => {
-      for (const item of items) {
-        if (item.type === 'request' && item.requestId) {
-          const request = this.collectionManager.getRequest(item.requestId);
-          if (request) {
-            requests.push(request);
-          }
-        } else if (item.items) {
-          visit(item.items);
-        }
-      }
-    };
-    visit(collection.items);
-    return requests;
-  }
-
   private async confirmCredentialDisclosure(destination: string): Promise<boolean> {
     return this.authService.confirmDisclosure(destination, async disclosure => {
       const choice = await vscode.window.showWarningMessage(
@@ -860,12 +857,18 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     } satisfies ExtensionMessage);
   }
 
-  private postError(operationId: string, code: ProtocolErrorCode, executionId?: string): void {
+  private postError(
+    operationId: string,
+    code: ProtocolErrorCode,
+    executionId?: string,
+    details?: string[]
+  ): void {
     const error = protocolFailure(code);
     this.postMessage({
       type: 'error',
       operationId,
       ...(executionId ? { executionId } : {}),
+      ...(details && details.length > 0 ? { details } : {}),
       code: error.code,
       message: error.message,
     });

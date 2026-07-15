@@ -109,7 +109,11 @@ export function App() {
         case 'error':
           if (!message.executionId
             || isActiveExecution(useRequestStore.getState().activeExecutionId, message.executionId)) {
-            showNotification(message.message || 'An error occurred', 'error');
+            const details = message.details?.join('; ');
+            showNotification(
+              details ? `${message.message} ${details}` : message.message || 'An error occurred',
+              'error'
+            );
           }
           break;
         case 'searchResults':

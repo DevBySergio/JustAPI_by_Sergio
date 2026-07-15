@@ -1,6 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { createDefaultCollection } from '../../models/Collection';
+import { COLLECTION_TRANSFER_SCHEMA_VERSION } from '../../models/CollectionTransfer';
 import type { ExtensionMessage } from '../../models/MessageProtocol';
 import { OperationCorrelationTracker, isActiveExecution } from '../../protocol/CorrelationTracker';
 import {
@@ -113,8 +114,31 @@ describe('webview protocol validation and correlation', () => {
   test('validates the complete import document before returning staged data', () => {
     const collection = createDefaultCollection('Fixture collection');
     const request = createRequestFixture({ url: 'https://fixture.test/import' });
+    collection.items.push({
+      type: 'folder',
+      id: 'folder-import-root',
+      name: 'Root',
+      items: [{
+        type: 'request',
+        id: request.id,
+        name: request.name,
+        requestId: request.id,
+      }],
+    });
     const valid = validateCollectionImportDocument(JSON.stringify({ collection, requests: [request] }));
     assert.equal(valid.ok, true);
+    if (valid.ok) {
+      assert.equal(valid.value.schemaVersion, COLLECTION_TRANSFER_SCHEMA_VERSION);
+      assert.deepEqual(valid.value.collection.items, collection.items);
+      assert.equal(valid.value.requests[0].id, request.id);
+    }
+
+    const current = validateCollectionImportDocument(JSON.stringify({
+      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
+      collection,
+      requests: [request],
+    }));
+    assert.equal(current.ok, true);
 
     const invalid = validateCollectionImportDocument(JSON.stringify({
       collection,
@@ -124,6 +148,32 @@ describe('webview protocol validation and correlation', () => {
     if (!invalid.ok) {
       assert.equal(invalid.code, 'IMPORT_ERROR');
     }
+
+    const missingReference = validateCollectionImportDocument(JSON.stringify({
+      collection,
+      requests: [],
+    }));
+    assert.equal(missingReference.ok, false);
+    if (!missingReference.ok) {
+      assert.deepEqual(missingReference.details, [`MISSING_REQUEST_REFERENCE: ${request.id}`]);
+    }
+
+    const duplicateRequest = { ...request, name: 'Duplicate identifier' };
+    const colliding = validateCollectionImportDocument(JSON.stringify({
+      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
+      collection,
+      requests: [request, duplicateRequest],
+    }));
+    assert.equal(colliding.ok, false);
+    if (!colliding.ok) {
+      assert.ok(colliding.details?.includes(`DUPLICATE_REQUEST_ID: ${request.id}`));
+    }
+
+    assert.equal(validateCollectionImportDocument(JSON.stringify({
+      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION + 1,
+      collection,
+      requests: [request],
+    })).ok, false);
   });
 
   test('requires outbound response correlation and exposes only stable error text', () => {

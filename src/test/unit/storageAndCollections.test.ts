@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { CollectionManager } from '../../engine/collection/CollectionManager';
+import { CollectionIntegrityError } from '../../engine/collection/CollectionGraph';
 import type { HistoryEntry } from '../../models/HistoryEntry';
 import type { StorageEnvelope } from '../../storage/JsonFileStore';
 import {
@@ -21,6 +22,8 @@ import {
 } from '../../storage/JsonFileStore';
 import { HISTORY_LIMITS, normalizeHistoryData } from '../../storage/HistorySummary';
 import { createRequestFixture } from '../fixtures/requestFixtures';
+import { COLLECTION_TRANSFER_SCHEMA_VERSION } from '../../models/CollectionTransfer';
+import { validateCollectionImportDocument } from '../../protocol/MessageValidator';
 import {
   collectionRoundTripFixture,
   concurrentWriteFixture,
@@ -49,6 +52,11 @@ function readAllFiles(directory: string): string {
 
 function isStorageError(error: unknown, code: StorageError['code']): boolean {
   return error instanceof StorageError && error.code === code;
+}
+
+function isCollectionError(error: unknown, code: string): boolean {
+  return error instanceof CollectionIntegrityError
+    && error.issues.some(issue => issue.code === code);
 }
 
 describe('JsonFileStore and CollectionManager', () => {
@@ -366,5 +374,210 @@ describe('JsonFileStore and CollectionManager', () => {
 
     assert.equal(reloaded.getRequest(request.id)?.url, request.url);
     assert.equal(loadedCollection?.items[0].items?.[0].requestId, request.id);
+  });
+
+  test('rejects invalid parents and descendant moves without changing state', async context => {
+    const { directory, store } = createTemporaryStore();
+    context.after(() => rmSync(directory, { recursive: true, force: true }));
+    const manager = new CollectionManager(store);
+    const collection = await manager.createCollection('Transactional tree');
+    const parent = await manager.addFolder(collection.id, 'Parent');
+    assert.ok(parent);
+    const child = await manager.addFolder(collection.id, 'Child', parent.id);
+    assert.ok(child);
+    const request = createRequestFixture({ name: 'Owned request' });
+    await manager.saveRequest(request, collection.id, child.id);
+    const before = {
+      collections: manager.getCollections(),
+      requests: manager.getRequests(),
+    };
+
+    await assert.rejects(
+      manager.moveItem(request.id, collection.id, collection.id, 'missing-parent'),
+      error => isCollectionError(error, 'INVALID_PARENT')
+    );
+    await assert.rejects(
+      manager.moveItem(parent.id, collection.id, collection.id, child.id),
+      error => isCollectionError(error, 'DESTINATION_IS_DESCENDANT')
+    );
+    assert.deepEqual({
+      collections: manager.getCollections(),
+      requests: manager.getRequests(),
+    }, before);
+
+    const invalid = manager.getCollection(collection.id);
+    assert.ok(invalid);
+    invalid.items.push({ ...invalid.items[0] });
+    await assert.rejects(
+      manager.updateCollection(invalid),
+      error => isCollectionError(error, 'DUPLICATE_ITEM_ID')
+    );
+    assert.deepEqual(manager.getCollections(), before.collections);
+  });
+
+  test('reorders staged items and cascades collection deletion without orphaning requests', async context => {
+    const removedRequestIds: string[] = [];
+    const { directory, store } = createTemporaryStore();
+    context.after(() => rmSync(directory, { recursive: true, force: true }));
+    const manager = new CollectionManager(store, {
+      afterRemove: async removed => {
+        removedRequestIds.push(...removed.map(request => request.id));
+      },
+    });
+    const removable = await manager.createCollection('Removable');
+    const first = await manager.addFolder(removable.id, 'First');
+    const second = await manager.addFolder(removable.id, 'Second');
+    assert.ok(first);
+    assert.ok(second);
+    const owned = createRequestFixture({ name: 'Cascade me' });
+    await manager.saveRequest(owned, removable.id, first.id);
+
+    await manager.moveItem(second.id, removable.id, removable.id, undefined, 0);
+    assert.deepEqual(
+      manager.getCollection(removable.id)?.items.map(item => item.name),
+      ['Second', 'First']
+    );
+
+    const retained = await manager.createCollection('Retained');
+    const retainedRequest = createRequestFixture({ name: 'Keep me' });
+    await manager.saveRequest(retainedRequest, retained.id);
+    await manager.deleteCollection(removable.id);
+
+    assert.deepEqual(removedRequestIds, [owned.id]);
+    assert.equal(manager.getRequest(owned.id), undefined);
+    assert.equal(manager.getRequest(retainedRequest.id)?.name, 'Keep me');
+    const reloaded = new CollectionManager(new JsonFileStore(directory));
+    await reloaded.load();
+    assert.deepEqual(reloaded.getCollections().map(collection => collection.name), ['Retained']);
+  });
+
+  test('rejects colliding imports before persistence and preserves canonical bytes', async context => {
+    const { directory, store } = createTemporaryStore();
+    context.after(() => rmSync(directory, { recursive: true, force: true }));
+    const manager = new CollectionManager(store);
+    const collection = await manager.createCollection('Existing export');
+    const request = createRequestFixture({ name: 'Existing request' });
+    await manager.saveRequest(request, collection.id);
+    const importedCollection = manager.getCollection(collection.id);
+    assert.ok(importedCollection);
+    const beforeState = {
+      collections: manager.getCollections(),
+      requests: manager.getRequests(),
+    };
+    const beforeBytes = readFileSync(join(directory, 'collections.json'), 'utf8');
+
+    await assert.rejects(
+      manager.importCollection(importedCollection, [request]),
+      error => isCollectionError(error, 'DUPLICATE_COLLECTION_ID')
+        && isCollectionError(error, 'DUPLICATE_REQUEST_ID')
+    );
+    assert.deepEqual({
+      collections: manager.getCollections(),
+      requests: manager.getRequests(),
+    }, beforeState);
+    assert.equal(readFileSync(join(directory, 'collections.json'), 'utf8'), beforeBytes);
+  });
+
+  test('keeps in-memory and persisted collection state unchanged when commit fails', async context => {
+    let rejectCommit = false;
+    const { directory, store } = createTemporaryStore({
+      beforeRename: key => {
+        if (rejectCommit && key === 'collections') {
+          throw new Error('simulated collection commit failure');
+        }
+      },
+    });
+    context.after(() => rmSync(directory, { recursive: true, force: true }));
+    const manager = new CollectionManager(store);
+    const collection = await manager.createCollection('Stable collection');
+    const beforeState = manager.getCollections();
+    const beforeBytes = readFileSync(join(directory, 'collections.json'), 'utf8');
+
+    rejectCommit = true;
+    await assert.rejects(
+      manager.addFolder(collection.id, 'Must not appear'),
+      error => isStorageError(error, 'COMMIT_FAILED')
+    );
+    assert.deepEqual(manager.getCollections(), beforeState);
+    assert.equal(readFileSync(join(directory, 'collections.json'), 'utf8'), beforeBytes);
+  });
+
+  test('round-trips a versioned deep export with hierarchy, order, variables, and requests intact', async context => {
+    const source = createTemporaryStore();
+    const destination = createTemporaryStore();
+    context.after(() => {
+      rmSync(source.directory, { recursive: true, force: true });
+      rmSync(destination.directory, { recursive: true, force: true });
+    });
+    const sourceManager = new CollectionManager(source.store);
+    const collection = await sourceManager.createCollection('Deep export');
+    const rootA = await sourceManager.addFolder(collection.id, 'Root A');
+    const rootB = await sourceManager.addFolder(collection.id, 'Root B');
+    assert.ok(rootA);
+    assert.ok(rootB);
+    const childA1 = await sourceManager.addFolder(collection.id, 'Child A1', rootA.id);
+    const childA2 = await sourceManager.addFolder(collection.id, 'Child A2', rootA.id);
+    assert.ok(childA1);
+    assert.ok(childA2);
+    const firstRequest = createRequestFixture({ id: 'request-deep-first', name: 'First' });
+    const secondRequest = createRequestFixture({ id: 'request-deep-second', name: 'Second' });
+    await sourceManager.saveRequest(firstRequest, collection.id, childA2.id);
+    await sourceManager.saveRequest(secondRequest, collection.id, rootB.id);
+    const withVariables = sourceManager.getCollection(collection.id);
+    assert.ok(withVariables);
+    withVariables.variables = [{
+      id: 'variable-deep-export',
+      key: 'baseUrl',
+      value: 'https://fixture.test',
+      enabled: true,
+      scope: 'collection',
+    }];
+    await sourceManager.updateCollection(withVariables);
+
+    const exportedCollection = sourceManager.getCollection(collection.id);
+    assert.ok(exportedCollection);
+    const exportedRequests = sourceManager.getRequestsForCollection(collection.id)
+      .map(request => ({ ...request, auth: { type: 'none' } as const }));
+    const validation = validateCollectionImportDocument(JSON.stringify({
+      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
+      collection: exportedCollection,
+      requests: exportedRequests,
+    }));
+    if (!validation.ok) {
+      assert.fail(validation.message);
+    }
+    assert.equal(validation.ok, true);
+
+    const destinationManager = new CollectionManager(destination.store);
+    await destinationManager.importCollection(validation.value.collection, validation.value.requests);
+    assert.deepEqual(destinationManager.getCollection(collection.id), exportedCollection);
+    assert.deepEqual(
+      destinationManager.getRequestsForCollection(collection.id).map(request => request.id),
+      ['request-deep-first', 'request-deep-second']
+    );
+  });
+
+  test('reports cyclic imports without cloning or persisting them', async context => {
+    const { directory, store } = createTemporaryStore();
+    context.after(() => rmSync(directory, { recursive: true, force: true }));
+    const manager = new CollectionManager(store);
+    const collection = await manager.createCollection('Cycle guard');
+    const cyclic = manager.getCollection(collection.id);
+    assert.ok(cyclic);
+    const folder = {
+      type: 'folder' as const,
+      id: 'cyclic-folder',
+      name: 'Cyclic folder',
+      items: [] as typeof cyclic.items,
+    };
+    folder.items.push(folder);
+    cyclic.items.push(folder);
+    const beforeBytes = readFileSync(join(directory, 'collections.json'), 'utf8');
+
+    await assert.rejects(
+      manager.importCollection(cyclic, []),
+      error => isCollectionError(error, 'CYCLIC_ITEM_GRAPH')
+    );
+    assert.equal(readFileSync(join(directory, 'collections.json'), 'utf8'), beforeBytes);
   });
 });

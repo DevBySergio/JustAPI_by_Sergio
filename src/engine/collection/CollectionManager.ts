@@ -1,7 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import { Collection, CollectionItemRef, createDefaultCollection } from '../../models/Collection';
 import { JustRequest, PersistedJustRequest } from '../../models/Request';
 import { JsonFileStore } from '../../storage/JsonFileStore';
 import { normalizePersistedRequest } from '../auth/AuthService';
+import {
+  assertCollectionGraph,
+  CollectionIntegrityError,
+  CollectionIntegrityIssueCode,
+} from './CollectionGraph';
 
 export interface CollectionRequestLifecycle {
   duplicateRequest?: (
@@ -14,15 +20,25 @@ export interface CollectionRequestLifecycle {
   ) => Promise<void>;
 }
 
+interface ItemLocation {
+  item: CollectionItemRef;
+  parent: CollectionItemRef[];
+  index: number;
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export class CollectionManager {
   private collections: Collection[] = [];
   private requests: Map<string, PersistedJustRequest> = new Map();
-  private store: JsonFileStore;
   private onDidChange: (() => void) | null = null;
 
-  constructor(store: JsonFileStore, private readonly requestLifecycle: CollectionRequestLifecycle = {}) {
-    this.store = store;
-  }
+  constructor(
+    private readonly store: JsonFileStore,
+    private readonly requestLifecycle: CollectionRequestLifecycle = {}
+  ) {}
 
   setOnDidChange(cb: () => void): void {
     this.onDidChange = cb;
@@ -37,120 +53,169 @@ export class CollectionManager {
       collections: Collection[];
       requests: Array<PersistedJustRequest | JustRequest>;
     }>('collections');
-    if (data) {
-      this.collections = data.collections || [];
-      this.requests.clear();
-      if (data.requests) {
-        for (const req of data.requests) {
-          this.requests.set(req.id, normalizePersistedRequest(req));
-        }
-      }
+    if (!data) {
+      return;
     }
+
+    const collections = clone(data.collections || []);
+    const requests = (data.requests || []).map(request => normalizePersistedRequest(request));
+    assertCollectionGraph(collections, requests);
+    this.collections = collections;
+    this.requests = new Map(requests.map(request => [request.id, request]));
   }
 
   async save(): Promise<void> {
-    await this.store.write('collections', {
-      collections: this.collections,
-      requests: Array.from(this.requests.values()),
-    });
+    const requests = Array.from(this.requests.values());
+    assertCollectionGraph(this.collections, requests);
+    await this.writeState(this.collections, requests);
   }
 
   getCollections(): Collection[] {
-    return this.collections;
+    return clone(this.collections);
   }
 
   getRequests(): PersistedJustRequest[] {
-    return Array.from(this.requests.values());
+    return clone(Array.from(this.requests.values()));
   }
 
   async replaceRequests(requests: readonly PersistedJustRequest[]): Promise<void> {
-    this.requests = new Map(requests.map(request => [request.id, request]));
-    await this.save();
-    this.notify();
+    const nextRequests = requests.map(request => normalizePersistedRequest(request));
+    await this.commit(clone(this.collections), nextRequests);
   }
 
   getCollection(id: string): Collection | undefined {
-    return this.collections.find(c => c.id === id);
-  }
-
-  async createCollection(name: string): Promise<Collection> {
-    const collection = createDefaultCollection(name);
-    this.collections.push(collection);
-    await this.save();
-    this.notify();
-    return collection;
-  }
-
-  async updateCollection(collection: Collection): Promise<void> {
-    const idx = this.collections.findIndex(c => c.id === collection.id);
-    if (idx >= 0) {
-      collection.updated = Date.now();
-      this.collections[idx] = collection;
-      await this.save();
-      this.notify();
-    }
-  }
-
-  async deleteCollection(id: string): Promise<void> {
-    const collection = this.collections.find(c => c.id === id);
-    if (collection) {
-      this.collections = this.collections.filter(c => c.id !== id);
-      await this.save();
-      this.notify();
-    }
-  }
-
-  async duplicateCollection(id: string): Promise<Collection | undefined> {
-    const original = this.collections.find(c => c.id === id);
-    if (!original) { return undefined; }
-    const dup = JSON.parse(JSON.stringify(original)) as Collection;
-    dup.id = crypto.randomUUID();
-    dup.name = `${original.name} (Copy)`;
-    dup.created = Date.now();
-    dup.updated = Date.now();
-
-    // Clone all requests belonging to this collection with new IDs
-    const clonedRequests: PersistedJustRequest[] = [];
-    const cloneItems = async (items: CollectionItemRef[]): Promise<void> => {
-      for (const item of items) {
-        if (item.type === 'request' && item.requestId) {
-          const originalReq = this.requests.get(item.requestId);
-          if (originalReq) {
-            const newReqId = crypto.randomUUID();
-            const clonedReq = this.requestLifecycle.duplicateRequest
-              ? await this.requestLifecycle.duplicateRequest(originalReq, newReqId)
-              : { ...JSON.parse(JSON.stringify(originalReq)), id: newReqId, created: Date.now(), updated: Date.now() };
-            clonedRequests.push(clonedReq);
-            item.id = newReqId;
-            item.requestId = newReqId;
-          }
-        }
-        if (item.items) {
-          await cloneItems(item.items);
-        }
-      }
-    };
-    try {
-      await cloneItems(dup.items);
-      for (const request of clonedRequests) {
-        this.requests.set(request.id, request);
-      }
-      this.collections.push(dup);
-      await this.save();
-    } catch (error) {
-      this.collections = this.collections.filter(collection => collection.id !== dup.id);
-      for (const request of clonedRequests) {
-        this.requests.delete(request.id);
-      }
-      await this.requestLifecycle.afterRemove?.(clonedRequests, this.getRequests());
-      throw error;
-    }
-    this.notify();
-    return dup;
+    const collection = this.collections.find(candidate => candidate.id === id);
+    return collection ? clone(collection) : undefined;
   }
 
   getRequest(id: string): PersistedJustRequest | undefined {
-    return this.requests.get(id);
+    const request = this.requests.get(id);
+    return request ? clone(request) : undefined;
+  }
+
+  getRequestsForCollection(collectionId: string): PersistedJustRequest[] {
+    const collection = this.collections.find(candidate => candidate.id === collectionId);
+    if (!collection) {
+      this.fail('COLLECTION_NOT_FOUND', collectionId);
+    }
+    const result: PersistedJustRequest[] = [];
+    const visit = (items: readonly CollectionItemRef[]): void => {
+      for (const item of items) {
+        if (item.type === 'request' && item.requestId) {
+          const request = this.requests.get(item.requestId);
+          if (!request) {
+            this.fail('MISSING_REQUEST_REFERENCE', item.requestId);
+          }
+          result.push(clone(request));
+        } else if (item.type === 'folder' && item.items) {
+          visit(item.items);
+        }
+      }
+    };
+    visit(collection.items);
+    return result;
+  }
+
+  async createCollection(name: string): Promise<Collection> {
+    const collections = clone(this.collections);
+    const collection = createDefaultCollection(name);
+    collections.push(collection);
+    await this.commit(collections, this.getRequests());
+    return clone(collection);
+  }
+
+  async updateCollection(collection: Collection): Promise<void> {
+    assertCollectionGraph([collection], this.getRequests(), { requireEveryRequestOwned: false });
+    const collections = clone(this.collections);
+    const index = collections.findIndex(candidate => candidate.id === collection.id);
+    if (index < 0) {
+      this.fail('COLLECTION_NOT_FOUND', collection.id);
+    }
+    const updated = clone(collection);
+    updated.updated = Date.now();
+    collections[index] = updated;
+    await this.commit(collections, this.getRequests());
+  }
+
+  /** Delete behavior is an explicit cascade: the collection tree and every request it owns are removed. */
+  async deleteCollection(id: string): Promise<void> {
+    const collections = clone(this.collections);
+    const index = collections.findIndex(collection => collection.id === id);
+    if (index < 0) {
+      this.fail('COLLECTION_NOT_FOUND', id);
+    }
+    const requestIds = this.collectRequestIds(collections[index].items);
+    const nextRequests = new Map(this.getRequests().map(request => [request.id, request]));
+    const removed: PersistedJustRequest[] = [];
+    for (const requestId of requestIds) {
+      const request = nextRequests.get(requestId);
+      if (request) {
+        removed.push(request);
+        nextRequests.delete(requestId);
+      }
+    }
+    collections.splice(index, 1);
+    await this.commit(collections, Array.from(nextRequests.values()));
+    await this.requestLifecycle.afterRemove?.(removed, this.getRequests());
+  }
+
+  async duplicateCollection(id: string): Promise<Collection | undefined> {
+    const original = this.collections.find(collection => collection.id === id);
+    if (!original) {
+      this.fail('COLLECTION_NOT_FOUND', id);
+    }
+
+    const clonedRequests: PersistedJustRequest[] = [];
+    const cloneItems = async (items: readonly CollectionItemRef[]): Promise<CollectionItemRef[]> => {
+      const copies: CollectionItemRef[] = [];
+      for (const item of items) {
+        if (item.type === 'request' && item.requestId) {
+          const originalRequest = this.requests.get(item.requestId);
+          if (!originalRequest) {
+            this.fail('MISSING_REQUEST_REFERENCE', item.requestId);
+          }
+          const requestId = randomUUID();
+          const request = this.requestLifecycle.duplicateRequest
+            ? await this.requestLifecycle.duplicateRequest(clone(originalRequest), requestId)
+            : {
+                ...clone(originalRequest),
+                id: requestId,
+                created: Date.now(),
+                updated: Date.now(),
+              };
+          clonedRequests.push(request);
+          copies.push({ ...clone(item), id: requestId, requestId, name: request.name });
+        } else if (item.type === 'folder' && item.items) {
+          copies.push({
+            ...clone(item),
+            id: randomUUID(),
+            items: await cloneItems(item.items),
+          });
+        }
+      }
+      return copies;
+    };
+
+    try {
+      const now = Date.now();
+      const duplicate: Collection = {
+        ...clone(original),
+        id: randomUUID(),
+        name: `${original.name} (Copy)`,
+        items: await cloneItems(original.items),
+        variables: original.variables.map(variable => ({ ...clone(variable), id: randomUUID() })),
+        created: now,
+        updated: now,
+      };
+      await this.commit(
+        [...this.getCollections(), duplicate],
+        [...this.getRequests(), ...clonedRequests]
+      );
+      return clone(duplicate);
+    } catch (error) {
+      await this.requestLifecycle.afterRemove?.(clonedRequests, this.getRequests());
+      throw error;
+    }
   }
 
   async saveRequest(
@@ -158,159 +223,227 @@ export class CollectionManager {
     collectionId: string,
     parentId?: string
   ): Promise<void> {
-    const persistedRequest = normalizePersistedRequest(request);
-    persistedRequest.updated = Date.now();
-    this.requests.set(persistedRequest.id, persistedRequest);
-
-    const collection = this.collections.find(c => c.id === collectionId);
-    if (collection) {
-      if (parentId) {
-        this.addRequestToFolder(collection.items, parentId, persistedRequest.id, persistedRequest.name);
-      } else {
-        const existing = collection.items.find(i => i.type === 'request' && i.requestId === persistedRequest.id);
-        if (!existing) {
-          collection.items.push({
-            type: 'request',
-            id: persistedRequest.id,
-            name: persistedRequest.name,
-            requestId: persistedRequest.id,
-          });
-        }
-      }
-      collection.updated = Date.now();
+    const collections = clone(this.collections);
+    const collection = collections.find(candidate => candidate.id === collectionId);
+    if (!collection) {
+      this.fail('COLLECTION_NOT_FOUND', collectionId);
+    }
+    const destination = parentId ? this.findItem(collection.items, parentId) : undefined;
+    if (parentId && (!destination || destination.item.type !== 'folder' || !destination.item.items)) {
+      this.fail('INVALID_PARENT', parentId);
     }
 
-    await this.save();
-    this.notify();
+    const persistedRequest = normalizePersistedRequest(request);
+    persistedRequest.updated = Date.now();
+    let existingRef: CollectionItemRef | undefined;
+    for (const candidate of collections) {
+      const location = this.findRequest(candidate.items, persistedRequest.id);
+      if (location) {
+        existingRef = location.item;
+        location.parent.splice(location.index, 1);
+        candidate.updated = Date.now();
+        break;
+      }
+    }
+
+    const item: CollectionItemRef = existingRef
+      ? { ...existingRef, name: persistedRequest.name, requestId: persistedRequest.id }
+      : {
+          type: 'request',
+          id: persistedRequest.id,
+          name: persistedRequest.name,
+          requestId: persistedRequest.id,
+        };
+    const targetItems = destination?.item.items || collection.items;
+    targetItems.push(item);
+    collection.updated = Date.now();
+
+    const requests = new Map(this.getRequests().map(candidate => [candidate.id, candidate]));
+    requests.set(persistedRequest.id, persistedRequest);
+    await this.commit(collections, Array.from(requests.values()));
   }
 
   async deleteRequest(requestId: string, collectionId: string): Promise<void> {
+    const collections = clone(this.collections);
+    const collection = collections.find(candidate => candidate.id === collectionId);
+    if (!collection) {
+      this.fail('COLLECTION_NOT_FOUND', collectionId);
+    }
+    const location = this.findRequest(collection.items, requestId);
+    if (!location) {
+      this.fail('REQUEST_NOT_FOUND', requestId);
+    }
     const removed = this.requests.get(requestId);
-    this.requests.delete(requestId);
-    const collection = this.collections.find(c => c.id === collectionId);
-    if (collection) {
-      this.removeItem(collection.items, requestId);
-      collection.updated = Date.now();
+    if (!removed) {
+      this.fail('REQUEST_NOT_FOUND', requestId);
     }
-    await this.save();
-    if (removed) {
-      await this.requestLifecycle.afterRemove?.([removed], this.getRequests());
-    }
-    this.notify();
+
+    location.parent.splice(location.index, 1);
+    collection.updated = Date.now();
+    const requests = new Map(this.getRequests().map(request => [request.id, request]));
+    requests.delete(requestId);
+    await this.commit(collections, Array.from(requests.values()));
+    await this.requestLifecycle.afterRemove?.([clone(removed)], this.getRequests());
   }
 
   async moveItem(
     itemId: string,
     sourceCollectionId: string,
     targetCollectionId: string,
-    targetParentId?: string
+    targetParentId?: string,
+    targetIndex?: number
   ): Promise<void> {
-    const sourceCol = this.collections.find(c => c.id === sourceCollectionId);
-    const targetCol = this.collections.find(c => c.id === targetCollectionId);
-    if (!sourceCol || !targetCol) { return; }
-
-    const item = this.extractItem(sourceCol.items, itemId);
-    if (!item) { return; }
-
-    if (targetParentId) {
-      this.addToFolder(targetCol.items, targetParentId, item);
-    } else {
-      targetCol.items.push(item);
+    const collections = clone(this.collections);
+    const source = collections.find(collection => collection.id === sourceCollectionId);
+    const target = collections.find(collection => collection.id === targetCollectionId);
+    if (!source || !target) {
+      this.fail('COLLECTION_NOT_FOUND', !source ? sourceCollectionId : targetCollectionId);
+    }
+    const sourceLocation = this.findItem(source.items, itemId);
+    if (!sourceLocation) {
+      this.fail('ITEM_NOT_FOUND', itemId);
+    }
+    if (targetParentId && this.containsItem(sourceLocation.item, targetParentId)) {
+      this.fail('DESTINATION_IS_DESCENDANT', targetParentId);
+    }
+    const parentLocation = targetParentId ? this.findItem(target.items, targetParentId) : undefined;
+    if (targetParentId
+      && (!parentLocation || parentLocation.item.type !== 'folder' || !parentLocation.item.items)) {
+      this.fail('INVALID_PARENT', targetParentId);
     }
 
-    sourceCol.updated = Date.now();
-    targetCol.updated = Date.now();
-    await this.save();
-    this.notify();
+    sourceLocation.parent.splice(sourceLocation.index, 1);
+    const targetItems = parentLocation?.item.items || target.items;
+    const insertionIndex = targetIndex ?? targetItems.length;
+    if (!Number.isInteger(insertionIndex) || insertionIndex < 0 || insertionIndex > targetItems.length) {
+      this.fail('INVALID_DESTINATION', itemId);
+    }
+    targetItems.splice(insertionIndex, 0, sourceLocation.item);
+    const now = Date.now();
+    source.updated = now;
+    target.updated = now;
+    await this.commit(collections, this.getRequests());
   }
 
-  async addFolder(collectionId: string, name: string, parentId?: string): Promise<CollectionItemRef | undefined> {
-    const collection = this.collections.find(c => c.id === collectionId);
-    if (!collection) { return undefined; }
-
+  async addFolder(
+    collectionId: string,
+    name: string,
+    parentId?: string,
+    targetIndex?: number
+  ): Promise<CollectionItemRef | undefined> {
+    const collections = clone(this.collections);
+    const collection = collections.find(candidate => candidate.id === collectionId);
+    if (!collection) {
+      this.fail('COLLECTION_NOT_FOUND', collectionId);
+    }
+    const parent = parentId ? this.findItem(collection.items, parentId) : undefined;
+    if (parentId && (!parent || parent.item.type !== 'folder' || !parent.item.items)) {
+      this.fail('INVALID_PARENT', parentId);
+    }
+    const targetItems = parent?.item.items || collection.items;
+    const insertionIndex = targetIndex ?? targetItems.length;
+    if (!Number.isInteger(insertionIndex) || insertionIndex < 0 || insertionIndex > targetItems.length) {
+      this.fail('INVALID_DESTINATION', collectionId);
+    }
     const folder: CollectionItemRef = {
       type: 'folder',
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       name,
       items: [],
     };
-
-    if (parentId) {
-      this.addToFolder(collection.items, parentId, folder);
-    } else {
-      collection.items.push(folder);
-    }
-
+    targetItems.splice(insertionIndex, 0, folder);
     collection.updated = Date.now();
-    await this.save();
-    this.notify();
-    return folder;
+    await this.commit(collections, this.getRequests());
+    return clone(folder);
   }
 
   async importCollection(
     collection: Collection,
     requests: Array<PersistedJustRequest | JustRequest>
   ): Promise<void> {
-    for (const req of requests) {
-      if (req) {
-        this.requests.set(req.id, normalizePersistedRequest(req));
-      }
-    }
-    this.collections.push(collection);
-    await this.save();
+    const importedRequests = requests.map(request => normalizePersistedRequest(request));
+    assertCollectionGraph([collection], importedRequests);
+    const importedCollection = clone(collection);
+    await this.commit(
+      [...this.getCollections(), importedCollection],
+      [...this.getRequests(), ...importedRequests]
+    );
+  }
+
+  private async commit(
+    collections: Collection[],
+    requests: PersistedJustRequest[]
+  ): Promise<void> {
+    assertCollectionGraph(collections, requests);
+    await this.writeState(collections, requests);
+    this.collections = collections;
+    this.requests = new Map(requests.map(request => [request.id, request]));
     this.notify();
   }
 
-  private addRequestToFolder(items: CollectionItemRef[], folderId: string, requestId: string, name: string): boolean {
-    for (const item of items) {
-      if (item.type === 'folder' && item.id === folderId && item.items) {
-        item.items.push({ type: 'request', id: requestId, name, requestId });
-        return true;
+  private async writeState(
+    collections: readonly Collection[],
+    requests: readonly PersistedJustRequest[]
+  ): Promise<void> {
+    await this.store.write('collections', {
+      collections,
+      requests,
+    });
+  }
+
+  private findItem(items: CollectionItemRef[], itemId: string): ItemLocation | undefined {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (item.id === itemId) {
+        return { item, parent: items, index };
       }
       if (item.type === 'folder' && item.items) {
-        if (this.addRequestToFolder(item.items, folderId, requestId, name)) { return true; }
+        const nested = this.findItem(item.items, itemId);
+        if (nested) {
+          return nested;
+        }
       }
     }
-    return false;
+    return undefined;
   }
 
-  private addToFolder(items: CollectionItemRef[], folderId: string, newItem: CollectionItemRef): boolean {
-    for (const item of items) {
-      if (item.type === 'folder' && item.id === folderId && item.items) {
-        item.items.push(newItem);
-        return true;
+  private findRequest(items: CollectionItemRef[], requestId: string): ItemLocation | undefined {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (item.type === 'request' && item.requestId === requestId) {
+        return { item, parent: items, index };
       }
       if (item.type === 'folder' && item.items) {
-        if (this.addToFolder(item.items, folderId, newItem)) { return true; }
+        const nested = this.findRequest(item.items, requestId);
+        if (nested) {
+          return nested;
+        }
       }
     }
-    return false;
+    return undefined;
   }
 
-  private extractItem(items: CollectionItemRef[], itemId: string): CollectionItemRef | null {
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].id === itemId) {
-        return items.splice(i, 1)[0];
-      }
-      if (items[i].type === 'folder' && items[i].items) {
-        const found = this.extractItem(items[i].items!, itemId);
-        if (found) { return found; }
-      }
-    }
-    return null;
-  }
-
-  private removeItem(items: CollectionItemRef[], itemId: string): boolean {
-    const idx = items.findIndex(i => i.id === itemId || (i.type === 'request' && i.requestId === itemId));
-    if (idx >= 0) {
-      items.splice(idx, 1);
+  private containsItem(item: CollectionItemRef, itemId: string): boolean {
+    if (item.id === itemId) {
       return true;
     }
+    return item.type === 'folder'
+      && !!item.items?.some(child => this.containsItem(child, itemId));
+  }
+
+  private collectRequestIds(items: readonly CollectionItemRef[]): string[] {
+    const result: string[] = [];
     for (const item of items) {
-      if (item.type === 'folder' && item.items) {
-        if (this.removeItem(item.items, itemId)) { return true; }
+      if (item.type === 'request' && item.requestId) {
+        result.push(item.requestId);
+      } else if (item.type === 'folder' && item.items) {
+        result.push(...this.collectRequestIds(item.items));
       }
     }
-    return false;
+    return result;
+  }
+
+  private fail(code: CollectionIntegrityIssueCode, entityId?: string): never {
+    throw new CollectionIntegrityError([{ code, entityId }]);
   }
 }

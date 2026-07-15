@@ -10,6 +10,9 @@ import { PersistedJustRequest } from '../../models/Request';
 import { createRequestFixture } from '../fixtures/requestFixtures';
 import { fixtureSecret } from '../fixtures/securityFixtures';
 import { CodeGenerator } from '../../commands/CodeGenerator';
+import { createDefaultCollection } from '../../models/Collection';
+import { COLLECTION_TRANSFER_SCHEMA_VERSION } from '../../models/CollectionTransfer';
+import { validateCollectionImportDocument } from '../../protocol/MessageValidator';
 
 class MemorySecretStorage implements SecretStorageLike {
   readonly values = new Map<string, string>();
@@ -67,6 +70,22 @@ describe('AuthService', () => {
     const redacted = service.redactForDerivative(request);
     assert.equal(redacted.headers.at(-1)?.value, 'Bearer <BEARER_TOKEN>');
     assert.equal(JSON.stringify(redacted).includes(fixtureSecret), false);
+
+    const collection = createDefaultCollection('Redacted export');
+    collection.items.push({
+      type: 'request',
+      id: request.id,
+      name: request.name,
+      requestId: request.id,
+    });
+    const exportJson = JSON.stringify({
+      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
+      collection,
+      requests: [redacted],
+    });
+    assert.equal(validateCollectionImportDocument(exportJson).ok, true);
+    assert.equal(exportJson.includes(fixtureSecret), false);
+    assert.equal(exportJson.includes(ref), false);
 
     const transport = await service.resolveForTransport(request);
     assert.equal(transport.headers.at(-1)?.value, `Bearer ${fixtureSecret}`);
