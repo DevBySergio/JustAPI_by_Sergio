@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605991,
-  "updatedAt": 1784132342100,
+  "updatedAt": 1784132955269,
   "position": 1783967605991,
   "labelIds": [
     "bug",
@@ -28,44 +28,44 @@
     {
       "id": "check-mrjk92hy-coll0001",
       "text": "Document graph invariants for IDs, parents, ordering, request ownership, and deletion behavior",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605991,
-      "updatedAt": 1783967605991
+      "updatedAt": 1784132955264
     },
     {
       "id": "check-mrjk92hy-coll0002",
       "text": "Stage and validate create, rename, move, reorder, and delete mutations before an atomic commit",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605991,
-      "updatedAt": 1783967605991
+      "updatedAt": 1784132955265
     },
     {
       "id": "check-mrjk92hy-coll0003",
       "text": "Reject cycles, self/descendant moves, duplicate IDs, missing parents, and orphaned request references",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605991,
-      "updatedAt": 1783967605991
+      "updatedAt": 1784132955266
     },
     {
       "id": "check-mrjk92hy-coll0004",
       "text": "Define and implement explicit cascade or relocation behavior for collection deletion",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605991,
-      "updatedAt": 1783967605991
+      "updatedAt": 1784132955267
     },
     {
       "id": "check-mrjk92hy-coll0005",
       "text": "Create a recursive versioned export preserving hierarchy, order, requests, variables, and redacted auth",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605991,
-      "updatedAt": 1783967605991
+      "updatedAt": 1784132955268
     },
     {
       "id": "check-mrjk92hy-coll0006",
       "text": "Validate imports in staging and report conflicts without partially mutating stored data",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605991,
-      "updatedAt": 1783967605991
+      "updatedAt": 1784132955269
     },
     {
       "id": "check-mrjk92hy-coll0007",

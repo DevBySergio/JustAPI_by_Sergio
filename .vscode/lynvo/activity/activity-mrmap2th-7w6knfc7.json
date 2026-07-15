@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrmap2th-7w6knfc7",
+  "type": "checklist_updated",
+  "message": "Completed staged v1/v2 import validation and safe conflict reporting",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784132955269,
+  "taskId": "task-mrjk92hy-tzv9jeql"
+}
