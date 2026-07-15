@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784109772165,
+  "updatedAt": 1784111090687,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -78,9 +78,9 @@
     {
       "id": "check-mrjk92ho-road0008",
       "text": "Make variable resolution deterministic, bounded, and consistent",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784111090687
     },
     {
       "id": "check-mrjk92ho-road0009",
