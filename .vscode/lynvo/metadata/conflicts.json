@@ -104,9 +104,9 @@
     "entityType": "task",
     "entityId": "task-mrjk92hz-hkmxzgl8",
     "field": "status",
-    "localValue": "in-progress",
-    "remoteValue": "todo",
-    "createdAt": 1784133460416,
-    "resolved": true
+    "localValue": "done",
+    "remoteValue": "in-progress",
+    "createdAt": 1784134419381,
+    "resolved": false
   }
 }
