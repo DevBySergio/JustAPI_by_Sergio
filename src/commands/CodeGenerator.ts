@@ -3,16 +3,30 @@ import { KeyValuePair } from '../models/KeyValuePair';
 
 export class CodeGenerator {
   generate(request: JustRequest, language: string): string {
+    const preparedRequest: JustRequest = {
+      ...request,
+      url: this.buildUrl(request),
+    };
     switch (language) {
-      case 'javascript': return this.generateJavaScript(request);
-      case 'typescript': return this.generateTypeScript(request);
-      case 'python': return this.generatePython(request);
-      case 'curl': return this.generateCurl(request);
-      case 'csharp': return this.generateCSharp(request);
-      case 'java': return this.generateJava(request);
-      case 'go': return this.generateGo(request);
+      case 'javascript': return this.generateJavaScript(preparedRequest);
+      case 'typescript': return this.generateTypeScript(preparedRequest);
+      case 'python': return this.generatePython(preparedRequest);
+      case 'curl': return this.generateCurl(preparedRequest);
+      case 'csharp': return this.generateCSharp(preparedRequest);
+      case 'java': return this.generateJava(preparedRequest);
+      case 'go': return this.generateGo(preparedRequest);
       default: return `// Unsupported language: ${language}`;
     }
+  }
+
+  private buildUrl(request: JustRequest): string {
+    const params = request.queryParams
+      .filter(param => param.enabled && param.key)
+      .map(param => `${encodeURIComponent(param.key)}=${encodeURIComponent(param.value)}`);
+    if (params.length === 0) {
+      return request.url;
+    }
+    return `${request.url}${request.url.includes('?') ? '&' : '?'}${params.join('&')}`;
   }
 
   private generateJavaScript(req: JustRequest): string {

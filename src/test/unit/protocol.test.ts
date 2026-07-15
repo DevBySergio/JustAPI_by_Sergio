@@ -143,6 +143,31 @@ describe('webview protocol validation and correlation', () => {
     assert.doesNotMatch(failure.message, /authorization|fixture-secret|token=/i);
   });
 
+  test('accepts secret input only on the configure operation and rejects persisted references', () => {
+    const request = createRequestFixture();
+    assert.equal(validateWebviewMessage({
+      type: 'configureAuth',
+      operationId,
+      requestId: request.id,
+      auth: { type: 'bearer', token: 'synthetic-fixture-token' },
+    }).ok, true);
+    assert.equal(validateWebviewMessage({
+      type: 'executeRequest',
+      operationId,
+      executionId,
+      request: {
+        ...request,
+        auth: { type: 'bearer', secretRef: 'justapi.auth.v1.request.ref' },
+      },
+    }).ok, false);
+    assert.equal(validateExtensionMessage({
+      type: 'requestAuthUpdated',
+      operationId,
+      requestId: request.id,
+      auth: { type: 'bearer', configured: true },
+    }).ok, true);
+  });
+
   test('blocks duplicate operations and cancels exactly one registered execution', () => {
     const operations = new OperationRegistry();
     assert.equal(operations.claim(operationId), true);

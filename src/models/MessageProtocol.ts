@@ -4,6 +4,7 @@ import { Collection } from './Collection';
 import { Variable } from './Variable';
 import { VariableSet } from './VariableSet';
 import { HistoryEntry } from './HistoryEntry';
+import { AuthConfig, AuthInput } from './Auth';
 
 export type CodeTargetLanguage =
   | 'javascript'
@@ -23,6 +24,8 @@ export type ProtocolErrorCode =
   | 'DUPLICATE_EXECUTION'
   | 'EXECUTION_NOT_FOUND'
   | 'IMPORT_ERROR'
+  | 'AUTH_CONFLICT'
+  | 'AUTH_SECRET_NOT_FOUND'
   | 'OPERATION_FAILED'
   | 'OUTBOUND_MESSAGE_INVALID';
 
@@ -40,6 +43,7 @@ export type WebviewMessage =
   | ({ type: 'cancelRequest' } & ExecutionMessage)
   | ({ type: 'saveRequest'; request: JustRequest; collectionId: string; parentId?: string } & OperationMessage)
   | ({ type: 'deleteRequest'; requestId: string; collectionId: string } & OperationMessage)
+  | ({ type: 'configureAuth'; requestId: string; auth: AuthInput } & OperationMessage)
   | ({ type: 'getCollections' } & OperationMessage)
   | ({ type: 'getRequest'; requestId: string } & OperationMessage)
   | ({ type: 'createCollection'; name: string } & OperationMessage)
@@ -63,9 +67,14 @@ export type WebviewMessage =
   | ({ type: 'setSettings'; settings: Record<string, unknown> } & OperationMessage)
   | ({ type: 'search'; query: string } & OperationMessage)
   | ({ type: 'importCurl'; curlString: string } & OperationMessage)
-  | ({ type: 'exportCollection'; collectionId: string } & OperationMessage)
+  | ({ type: 'exportCollection'; collectionId: string; includeCredentials?: boolean } & OperationMessage)
   | ({ type: 'importCollection'; json: string } & OperationMessage)
-  | ({ type: 'generateCode'; request: JustRequest; language: CodeTargetLanguage } & OperationMessage)
+  | ({
+      type: 'generateCode';
+      request: JustRequest;
+      language: CodeTargetLanguage;
+      includeCredentials?: boolean;
+    } & OperationMessage)
   | ({ type: 'webviewReady' } & OperationMessage)
   | ({ type: 'previewResolution'; request: JustRequest | null; collectionId?: string } & OperationMessage)
   | ({ type: 'getVariableSets' } & OperationMessage)
@@ -81,6 +90,7 @@ export type WebviewMessageType = WebviewMessage['type'];
 export type ExtensionMessage =
   | ({ type: 'collections'; collections: Collection[] } & OperationMessage)
   | ({ type: 'requestLoaded'; request: JustRequest } & OperationMessage)
+  | ({ type: 'requestAuthUpdated'; requestId: string; auth: AuthConfig } & OperationMessage)
   | ({ type: 'history'; entries: HistoryEntry[] } & OperationMessage)
   | ({ type: 'historyEntry'; entry: HistoryEntry } & ExecutionMessage)
   | ({ type: 'response'; response: JustResponse } & ExecutionMessage)

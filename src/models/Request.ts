@@ -1,5 +1,6 @@
 import { KeyValuePair, PathParam } from './KeyValuePair';
 import { Variable } from './Variable';
+import { AuthConfig, PersistedAuthConfig } from './Auth';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
 
@@ -24,6 +25,7 @@ export interface JustRequest {
   url: string;
   headers: KeyValuePair[];
   queryParams: KeyValuePair[];
+  auth: AuthConfig;
   pathParams: PathParam[];
   body: RequestBody;
   settings: RequestSettings;
@@ -31,6 +33,10 @@ export interface JustRequest {
   created: number;
   updated: number;
 }
+
+export type PersistedJustRequest = Omit<JustRequest, 'auth'> & {
+  auth: PersistedAuthConfig;
+};
 
 export function createDefaultRequest(): JustRequest {
   const now = Date.now();
@@ -41,6 +47,7 @@ export function createDefaultRequest(): JustRequest {
     url: '',
     headers: [],
     queryParams: [],
+    auth: { type: 'none' },
     pathParams: [],
     body: { type: 'none', content: '' },
     settings: {

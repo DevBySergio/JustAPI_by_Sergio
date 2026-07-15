@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
-import { JustRequest } from '../models/Request';
+import { JustRequest, PersistedJustRequest } from '../models/Request';
 import { JustResponse } from '../models/Response';
 import { Collection } from '../models/Collection';
 import { Variable } from '../models/Variable';
@@ -30,6 +30,7 @@ import {
   validateWebviewMessage,
 } from '../protocol/MessageValidator';
 import { ExecutionRegistry, OperationRegistry } from '../protocol/OperationRegistry';
+import { AuthService, AuthServiceError } from '../engine/auth/AuthService';
 
 export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = ViewId.SIDEBAR;
@@ -44,6 +45,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   private settingsStore: JsonFileStore;
   private stores: JsonFileStore[];
   private variableSetManager: VariableSetManager;
+  private readonly authService: AuthService;
   private readonly operations = new OperationRegistry();
   private readonly executions = new ExecutionRegistry();
 
@@ -69,7 +71,13 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       this.globalVarsStore,
       this.settingsStore,
     ]));
-    this.collectionManager = new CollectionManager(this.store);
+    this.authService = new AuthService(context.secrets);
+    this.collectionManager = new CollectionManager(this.store, {
+      duplicateRequest: (request, newRequestId) =>
+        this.authService.duplicateRequest(request, newRequestId),
+      afterRemove: (removed, remaining) =>
+        this.authService.cleanupRemovedRequests(removed, remaining),
+    });
     this.variableSetManager = new VariableSetManager(this.store);
   }
 
@@ -104,6 +112,10 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
   private async loadCollections(): Promise<void> {
     await this.collectionManager.load();
+    await this.authService.migrateLegacyRequests(
+      this.collectionManager.getRequests(),
+      requests => this.collectionManager.replaceRequests(requests)
+    );
   }
 
   private async handleMessage(rawMessage: unknown): Promise<void> {
@@ -147,14 +159,32 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           break;
         }
 
-        case 'saveRequest':
-          await this.collectionManager.saveRequest(message.request, message.collectionId, message.parentId);
+        case 'saveRequest': {
+          const existing = this.collectionManager.getRequest(message.request.id);
+          const staged = await this.authService.stageRecognizedLegacyAuth(message.request, existing);
+          const persisted = this.authService.prepareForSave(staged.request, existing);
+          try {
+            await this.collectionManager.saveRequest(persisted, message.collectionId, message.parentId);
+            await this.authService.commitSave(message.request.id, this.collectionManager.getRequests());
+          } catch (error) {
+            await this.authService.rollbackSave(message.request.id);
+            throw error;
+          }
           this.postMessage({
             type: 'collections',
             operationId: message.operationId,
             collections: this.collectionManager.getCollections(),
           });
+          const saved = this.collectionManager.getRequest(message.request.id);
+          if (saved) {
+            this.postMessage({
+              type: 'requestLoaded',
+              operationId: message.operationId,
+              request: this.authService.toPublicRequest(saved),
+            });
+          }
           break;
+        }
 
         case 'deleteRequest':
           await this.collectionManager.deleteRequest(message.requestId, message.collectionId);
@@ -164,6 +194,18 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
             collections: this.collectionManager.getCollections(),
           });
           break;
+
+        case 'configureAuth': {
+          const existing = this.collectionManager.getRequest(message.requestId);
+          const auth = await this.authService.configure(message.requestId, message.auth, existing);
+          this.postMessage({
+            type: 'requestAuthUpdated',
+            operationId: message.operationId,
+            requestId: message.requestId,
+            auth,
+          });
+          break;
+        }
 
         case 'getCollections':
           this.postMessage({
@@ -179,7 +221,11 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
             this.postError(message.operationId, 'OPERATION_FAILED');
             return;
           }
-          this.postMessage({ type: 'requestLoaded', operationId: message.operationId, request });
+          this.postMessage({
+            type: 'requestLoaded',
+            operationId: message.operationId,
+            request: this.authService.toPublicRequest(request),
+          });
           break;
         }
 
@@ -288,7 +334,8 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           break;
 
         case 'importCurl': {
-          const request = this.curlParser.parse(message.curlString);
+          const parsed = this.curlParser.parse(message.curlString);
+          const { request } = await this.authService.stageRecognizedLegacyAuth(parsed);
           this.postMessage({ type: 'curlImportResult', operationId: message.operationId, request });
           break;
         }
@@ -299,13 +346,19 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
             this.postError(message.operationId, 'OPERATION_FAILED');
             return;
           }
+          const persistedRequests = this.getCollectionRequests(collection);
+          const includeCredentials = message.includeCredentials === true
+            && await this.confirmCredentialDisclosure(`collection “${collection.name}” export`);
+          const requests: JustRequest[] = [];
+          for (const persisted of persistedRequests) {
+            const request = this.authService.toPublicRequest(persisted);
+            requests.push(includeCredentials
+              ? await this.authService.resolveForTransport(request, persisted)
+              : this.authService.redactForDerivative(request));
+          }
           const exportData = {
             collection,
-            requests: collection.items
-              .map(item => item.type === 'request' && item.requestId
-                ? this.collectionManager.getRequest(item.requestId)
-                : null)
-              .filter((request): request is JustRequest => request !== null && request !== undefined),
+            requests,
           };
           const document = await vscode.workspace.openTextDocument({
             content: JSON.stringify(exportData, null, 2),
@@ -323,10 +376,22 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
               : 'IMPORT_ERROR');
             return;
           }
-          await this.collectionManager.importCollection(
-            importValidation.value.collection,
-            importValidation.value.requests
-          );
+          const importedRequests = importValidation.value.requests
+            .map(request => this.authService.prepareForImport(request));
+          let imported = false;
+          await this.authService.migrateLegacyRequests(importedRequests, async securedRequests => {
+            await this.collectionManager.importCollection(
+              importValidation.value.collection,
+              securedRequests
+            );
+            imported = true;
+          });
+          if (!imported) {
+            await this.collectionManager.importCollection(
+              importValidation.value.collection,
+              importedRequests
+            );
+          }
           this.postMessage({
             type: 'collections',
             operationId: message.operationId,
@@ -337,7 +402,13 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
         case 'generateCode': {
           const generator = new CodeGenerator();
-          const code = generator.generate(message.request, message.language);
+          const persisted = this.collectionManager.getRequest(message.request.id);
+          const includeCredentials = message.includeCredentials === true
+            && await this.confirmCredentialDisclosure(`${message.language} code sample`);
+          const request = includeCredentials
+            ? await this.authService.resolveForTransport(message.request, persisted)
+            : this.authService.redactForDerivative(message.request);
+          const code = generator.generate(request, message.language);
           this.postMessage({
             type: 'codeGenerationResult',
             operationId: message.operationId,
@@ -349,7 +420,9 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
         case 'previewResolution': {
           const collectionId = message.collectionId;
-          const request = message.request;
+          const request = message.request
+            ? this.authService.redactForDerivative(message.request)
+            : null;
           const collectionVars: Variable[] = collectionId
             ? (this.collectionManager.getCollection(collectionId)?.variables || [])
             : [];
@@ -437,8 +510,11 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           break;
       }
       this.acknowledge(message);
-    } catch {
-      this.postError(message.operationId, 'OPERATION_FAILED', this.executionIdOf(message));
+    } catch (error) {
+      const code = error instanceof AuthServiceError && error.code !== 'AUTH_INVALID'
+        ? error.code
+        : 'OPERATION_FAILED';
+      this.postError(message.operationId, code, this.executionIdOf(message));
     }
   }
 
@@ -505,7 +581,11 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         resolvedRequest.body.content = this.variableEngine.resolve(resolvedRequest.body.content, vars);
       }
 
-      const response = await client.execute(resolvedRequest);
+      const requestWithAuth = await this.authService.resolveForTransport(
+        resolvedRequest,
+        this.collectionManager.getRequest(message.request.id)
+      );
+      const response = await client.execute(requestWithAuth);
       if (execution.cancelled) {
         return true;
       }
@@ -543,9 +623,12 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         );
       }
       return true;
-    } catch {
+    } catch (error) {
       if (!execution.cancelled) {
-        this.postError(message.operationId, 'OPERATION_FAILED', message.executionId);
+        const code = error instanceof AuthServiceError && error.code !== 'AUTH_INVALID'
+          ? error.code
+          : 'OPERATION_FAILED';
+        this.postError(message.operationId, code, message.executionId);
       }
       return false;
     } finally {
@@ -719,17 +802,52 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
   postCurlImport(curlString: string): void {
     const operationId = this.createOperationId();
-    try {
-      const request = this.curlParser.parse(curlString);
-      this.postMessage({ type: 'curlImportResult', operationId, request });
-    } catch {
-      this.postError(operationId, 'OPERATION_FAILED');
-    }
+    void (async () => {
+      try {
+        const parsed = this.curlParser.parse(curlString);
+        const { request } = await this.authService.stageRecognizedLegacyAuth(parsed);
+        this.postMessage({ type: 'curlImportResult', operationId, request });
+      } catch {
+        this.postError(operationId, 'OPERATION_FAILED');
+      }
+    })();
   }
 
   async dispose(): Promise<void> {
     this.executions.cancelAll();
-    await Promise.all(this.stores.map(async store => await store.dispose()));
+    await Promise.all([
+      this.authService.dispose(),
+      ...this.stores.map(async store => await store.dispose()),
+    ]);
+  }
+
+  private getCollectionRequests(collection: Collection): PersistedJustRequest[] {
+    const requests: PersistedJustRequest[] = [];
+    const visit = (items: Collection['items']): void => {
+      for (const item of items) {
+        if (item.type === 'request' && item.requestId) {
+          const request = this.collectionManager.getRequest(item.requestId);
+          if (request) {
+            requests.push(request);
+          }
+        } else if (item.items) {
+          visit(item.items);
+        }
+      }
+    };
+    visit(collection.items);
+    return requests;
+  }
+
+  private async confirmCredentialDisclosure(destination: string): Promise<boolean> {
+    return this.authService.confirmDisclosure(destination, async disclosure => {
+      const choice = await vscode.window.showWarningMessage(
+        disclosure.warning,
+        { modal: true },
+        'Include once'
+      );
+      return choice === 'Include once';
+    });
   }
 
   private reportStorageFailure(failure: StorageFailure): void {

@@ -10,6 +10,7 @@ import type {
   WebviewMessageType,
 } from '../models/MessageProtocol';
 import type { JustRequest } from '../models/Request';
+import type { AuthConfig, AuthInput } from '../models/Auth';
 import type { JustResponse } from '../models/Response';
 import type { Variable } from '../models/Variable';
 import type { VariableSet } from '../models/VariableSet';
@@ -48,6 +49,7 @@ const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
   'cancelRequest',
   'saveRequest',
   'deleteRequest',
+  'configureAuth',
   'getCollections',
   'getRequest',
   'createCollection',
@@ -102,6 +104,8 @@ const PROTOCOL_ERROR_CODES = new Set<ProtocolErrorCode>([
   'DUPLICATE_EXECUTION',
   'EXECUTION_NOT_FOUND',
   'IMPORT_ERROR',
+  'AUTH_CONFLICT',
+  'AUTH_SECRET_NOT_FOUND',
   'OPERATION_FAILED',
   'OUTBOUND_MESSAGE_INVALID',
 ]);
@@ -116,6 +120,8 @@ function failure<T>(code: ProtocolErrorCode): ValidationResult<T> {
     DUPLICATE_EXECUTION: 'The execution identifier has already been used.',
     EXECUTION_NOT_FOUND: 'The requested execution is not active.',
     IMPORT_ERROR: 'The import document is invalid.',
+    AUTH_CONFLICT: 'Authentication conflicts with an enabled request field.',
+    AUTH_SECRET_NOT_FOUND: 'The configured authentication secret is unavailable.',
     OPERATION_FAILED: 'The requested operation could not be completed.',
     OUTBOUND_MESSAGE_INVALID: 'The extension produced an invalid protocol response.',
   };
@@ -289,6 +295,50 @@ function isVariableArray(value: unknown): value is Variable[] {
     && value.every(isVariable);
 }
 
+function isAuthConfig(value: unknown): value is AuthConfig {
+  if (!isRecord(value) || typeof value.type !== 'string') {
+    return false;
+  }
+  switch (value.type) {
+    case 'none':
+      return hasOnlyKeys(value, ['type']);
+    case 'bearer':
+    case 'basic':
+      return hasOnlyKeys(value, ['type', 'configured']) && value.configured === true;
+    case 'apiKey':
+      return hasOnlyKeys(value, ['type', 'name', 'in', 'configured'])
+        && isString(value.name, PROTOCOL_LIMITS.maximumHeaderNameLength, false)
+        && (value.in === 'header' || value.in === 'query')
+        && value.configured === true;
+    default:
+      return false;
+  }
+}
+
+function isAuthInput(value: unknown): value is AuthInput {
+  if (!isRecord(value) || typeof value.type !== 'string') {
+    return false;
+  }
+  switch (value.type) {
+    case 'none':
+      return hasOnlyKeys(value, ['type']);
+    case 'bearer':
+      return hasOnlyKeys(value, ['type', 'token'])
+        && isString(value.token, PROTOCOL_LIMITS.maximumValueLength, false);
+    case 'basic':
+      return hasOnlyKeys(value, ['type', 'username', 'password'])
+        && isString(value.username, PROTOCOL_LIMITS.maximumValueLength)
+        && isString(value.password, PROTOCOL_LIMITS.maximumValueLength);
+    case 'apiKey':
+      return hasOnlyKeys(value, ['type', 'name', 'in', 'value'])
+        && isString(value.name, PROTOCOL_LIMITS.maximumHeaderNameLength, false)
+        && (value.in === 'header' || value.in === 'query')
+        && isString(value.value, PROTOCOL_LIMITS.maximumValueLength, false);
+    default:
+      return false;
+  }
+}
+
 export function isJustRequest(value: unknown): value is JustRequest {
   if (!isRecord(value) || !hasOnlyKeys(value, [
     'id',
@@ -297,6 +347,7 @@ export function isJustRequest(value: unknown): value is JustRequest {
     'url',
     'headers',
     'queryParams',
+    'auth',
     'pathParams',
     'body',
     'settings',
@@ -318,6 +369,7 @@ export function isJustRequest(value: unknown): value is JustRequest {
     || !Array.isArray(value.queryParams)
     || value.queryParams.length > PROTOCOL_LIMITS.maximumHeaders
     || !value.queryParams.every(isKeyValuePair)
+    || !isAuthConfig(value.auth)
     || !Array.isArray(value.pathParams)
     || value.pathParams.length > PROTOCOL_LIMITS.maximumHeaders
     || !value.pathParams.every(isPathParam)
@@ -554,6 +606,10 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'collectionId'])
         && isProtocolIdentifier(value.requestId)
         && isProtocolIdentifier(value.collectionId);
+    case 'configureAuth':
+      return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'auth'])
+        && isProtocolIdentifier(value.requestId)
+        && isAuthInput(value.auth);
     case 'getCollections':
     case 'clearHistory':
     case 'getVariables':
@@ -571,9 +627,12 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'collection']) && isCollection(value.collection);
     case 'deleteCollection':
     case 'duplicateCollection':
-    case 'exportCollection':
       return hasOnlyKeys(value, ['type', 'operationId', 'collectionId'])
         && isProtocolIdentifier(value.collectionId);
+    case 'exportCollection':
+      return hasOnlyKeys(value, ['type', 'operationId', 'collectionId'], ['includeCredentials'])
+        && isProtocolIdentifier(value.collectionId)
+        && (value.includeCredentials === undefined || typeof value.includeCredentials === 'boolean');
     case 'renameCollection':
       return hasOnlyKeys(value, ['type', 'operationId', 'collectionId', 'name'])
         && isProtocolIdentifier(value.collectionId)
@@ -611,10 +670,11 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'json'])
         && isString(value.json, PROTOCOL_LIMITS.importMessageBytes, false);
     case 'generateCode':
-      return hasOnlyKeys(value, ['type', 'operationId', 'request', 'language'])
+      return hasOnlyKeys(value, ['type', 'operationId', 'request', 'language'], ['includeCredentials'])
         && isJustRequest(value.request)
         && typeof value.language === 'string'
-        && CODE_TARGET_LANGUAGES.has(value.language as CodeTargetLanguage);
+        && CODE_TARGET_LANGUAGES.has(value.language as CodeTargetLanguage)
+        && (value.includeCredentials === undefined || typeof value.includeCredentials === 'boolean');
     case 'previewResolution':
       return hasOnlyKeys(value, ['type', 'operationId', 'request'], ['collectionId'])
         && (value.request === null || isJustRequest(value.request))
@@ -664,6 +724,10 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
     case 'requestLoaded':
     case 'curlImportResult':
       return hasOnlyKeys(value, ['type', 'operationId', 'request']) && isJustRequest(value.request);
+    case 'requestAuthUpdated':
+      return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'auth'])
+        && isProtocolIdentifier(value.requestId)
+        && isAuthConfig(value.auth);
     case 'history':
       return hasOnlyKeys(value, ['type', 'operationId', 'entries'])
         && Array.isArray(value.entries)

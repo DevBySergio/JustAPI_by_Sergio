@@ -21,6 +21,7 @@ interface CodeGenPanelProps {
 export function CodeGenPanel({ code }: CodeGenPanelProps) {
   const currentRequest = useRequestStore((s) => s.currentRequest);
   const [language, setLanguage] = useState<TargetLanguage>('javascript');
+  const [includeCredentials, setIncludeCredentials] = useState(false);
 
   const handleGenerate = () => {
     if (!currentRequest.url) { return; }
@@ -28,6 +29,7 @@ export function CodeGenPanel({ code }: CodeGenPanelProps) {
       type: 'generateCode',
       request: currentRequest,
       language,
+      includeCredentials,
     });
   };
 
@@ -54,6 +56,15 @@ export function CodeGenPanel({ code }: CodeGenPanelProps) {
           </button>
         ))}
       </div>
+
+      <label style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px', fontSize: '10px' }}>
+        <input
+          type="checkbox"
+          checked={includeCredentials}
+          onChange={(event) => setIncludeCredentials(event.target.checked)}
+        />
+        Include credentials once (confirmation required)
+      </label>
 
       <button
         onClick={handleGenerate}

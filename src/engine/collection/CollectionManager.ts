@@ -1,14 +1,26 @@
 import { Collection, CollectionItemRef, createDefaultCollection } from '../../models/Collection';
-import { JustRequest, createDefaultRequest } from '../../models/Request';
+import { JustRequest, PersistedJustRequest } from '../../models/Request';
 import { JsonFileStore } from '../../storage/JsonFileStore';
+import { normalizePersistedRequest } from '../auth/AuthService';
+
+export interface CollectionRequestLifecycle {
+  duplicateRequest?: (
+    request: PersistedJustRequest,
+    newRequestId: string
+  ) => Promise<PersistedJustRequest>;
+  afterRemove?: (
+    removed: readonly PersistedJustRequest[],
+    remaining: readonly PersistedJustRequest[]
+  ) => Promise<void>;
+}
 
 export class CollectionManager {
   private collections: Collection[] = [];
-  private requests: Map<string, JustRequest> = new Map();
+  private requests: Map<string, PersistedJustRequest> = new Map();
   private store: JsonFileStore;
   private onDidChange: (() => void) | null = null;
 
-  constructor(store: JsonFileStore) {
+  constructor(store: JsonFileStore, private readonly requestLifecycle: CollectionRequestLifecycle = {}) {
     this.store = store;
   }
 
@@ -21,12 +33,16 @@ export class CollectionManager {
   }
 
   async load(): Promise<void> {
-    const data = await this.store.read<{ collections: Collection[]; requests: JustRequest[] }>('collections');
+    const data = await this.store.read<{
+      collections: Collection[];
+      requests: Array<PersistedJustRequest | JustRequest>;
+    }>('collections');
     if (data) {
       this.collections = data.collections || [];
+      this.requests.clear();
       if (data.requests) {
         for (const req of data.requests) {
-          this.requests.set(req.id, req);
+          this.requests.set(req.id, normalizePersistedRequest(req));
         }
       }
     }
@@ -41,6 +57,16 @@ export class CollectionManager {
 
   getCollections(): Collection[] {
     return this.collections;
+  }
+
+  getRequests(): PersistedJustRequest[] {
+    return Array.from(this.requests.values());
+  }
+
+  async replaceRequests(requests: readonly PersistedJustRequest[]): Promise<void> {
+    this.requests = new Map(requests.map(request => [request.id, request]));
+    await this.save();
+    this.notify();
   }
 
   getCollection(id: string): Collection | undefined {
@@ -84,53 +110,70 @@ export class CollectionManager {
     dup.updated = Date.now();
 
     // Clone all requests belonging to this collection with new IDs
-    const requestIdMap = new Map<string, string>();
-    const cloneItems = (items: CollectionItemRef[]) => {
+    const clonedRequests: PersistedJustRequest[] = [];
+    const cloneItems = async (items: CollectionItemRef[]): Promise<void> => {
       for (const item of items) {
         if (item.type === 'request' && item.requestId) {
           const originalReq = this.requests.get(item.requestId);
           if (originalReq) {
             const newReqId = crypto.randomUUID();
-            const clonedReq = { ...JSON.parse(JSON.stringify(originalReq)), id: newReqId, created: Date.now(), updated: Date.now() };
-            this.requests.set(newReqId, clonedReq);
-            requestIdMap.set(item.requestId, newReqId);
+            const clonedReq = this.requestLifecycle.duplicateRequest
+              ? await this.requestLifecycle.duplicateRequest(originalReq, newReqId)
+              : { ...JSON.parse(JSON.stringify(originalReq)), id: newReqId, created: Date.now(), updated: Date.now() };
+            clonedRequests.push(clonedReq);
             item.id = newReqId;
             item.requestId = newReqId;
           }
         }
         if (item.items) {
-          cloneItems(item.items);
+          await cloneItems(item.items);
         }
       }
     };
-    cloneItems(dup.items);
-
-    this.collections.push(dup);
-    await this.save();
+    try {
+      await cloneItems(dup.items);
+      for (const request of clonedRequests) {
+        this.requests.set(request.id, request);
+      }
+      this.collections.push(dup);
+      await this.save();
+    } catch (error) {
+      this.collections = this.collections.filter(collection => collection.id !== dup.id);
+      for (const request of clonedRequests) {
+        this.requests.delete(request.id);
+      }
+      await this.requestLifecycle.afterRemove?.(clonedRequests, this.getRequests());
+      throw error;
+    }
     this.notify();
     return dup;
   }
 
-  getRequest(id: string): JustRequest | undefined {
+  getRequest(id: string): PersistedJustRequest | undefined {
     return this.requests.get(id);
   }
 
-  async saveRequest(request: JustRequest, collectionId: string, parentId?: string): Promise<void> {
-    request.updated = Date.now();
-    this.requests.set(request.id, request);
+  async saveRequest(
+    request: PersistedJustRequest | JustRequest,
+    collectionId: string,
+    parentId?: string
+  ): Promise<void> {
+    const persistedRequest = normalizePersistedRequest(request);
+    persistedRequest.updated = Date.now();
+    this.requests.set(persistedRequest.id, persistedRequest);
 
     const collection = this.collections.find(c => c.id === collectionId);
     if (collection) {
       if (parentId) {
-        this.addRequestToFolder(collection.items, parentId, request.id, request.name);
+        this.addRequestToFolder(collection.items, parentId, persistedRequest.id, persistedRequest.name);
       } else {
-        const existing = collection.items.find(i => i.type === 'request' && i.requestId === request.id);
+        const existing = collection.items.find(i => i.type === 'request' && i.requestId === persistedRequest.id);
         if (!existing) {
           collection.items.push({
             type: 'request',
-            id: request.id,
-            name: request.name,
-            requestId: request.id,
+            id: persistedRequest.id,
+            name: persistedRequest.name,
+            requestId: persistedRequest.id,
           });
         }
       }
@@ -142,6 +185,7 @@ export class CollectionManager {
   }
 
   async deleteRequest(requestId: string, collectionId: string): Promise<void> {
+    const removed = this.requests.get(requestId);
     this.requests.delete(requestId);
     const collection = this.collections.find(c => c.id === collectionId);
     if (collection) {
@@ -149,6 +193,9 @@ export class CollectionManager {
       collection.updated = Date.now();
     }
     await this.save();
+    if (removed) {
+      await this.requestLifecycle.afterRemove?.([removed], this.getRequests());
+    }
     this.notify();
   }
 
@@ -200,10 +247,13 @@ export class CollectionManager {
     return folder;
   }
 
-  async importCollection(collection: Collection, requests: JustRequest[]): Promise<void> {
+  async importCollection(
+    collection: Collection,
+    requests: Array<PersistedJustRequest | JustRequest>
+  ): Promise<void> {
     for (const req of requests) {
       if (req) {
-        this.requests.set(req.id, req);
+        this.requests.set(req.id, normalizePersistedRequest(req));
       }
     }
     this.collections.push(collection);

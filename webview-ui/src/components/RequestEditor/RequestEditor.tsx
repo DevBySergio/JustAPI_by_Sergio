@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRequestStore } from '../../stores/useRequestStore';
 import { useCollectionStore } from '../../stores/useCollectionStore';
 import { useVariableStore } from '../../stores/useVariableStore';
@@ -285,7 +285,7 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
 }
 
 function AuthEditor() {
-  const { currentRequest, setHeaders } = useRequestStore();
+  const { currentRequest } = useRequestStore();
   const [authType, setAuthType] = useState<'none' | 'bearer' | 'basic' | 'apiKey'>('none');
   const [bearerToken, setBearerToken] = useState('');
   const [basicUser, setBasicUser] = useState('');
@@ -294,81 +294,48 @@ function AuthEditor() {
   const [apiKeyValue, setApiKeyValue] = useState('');
   const [apiKeyIn, setApiKeyIn] = useState<'header' | 'query'>('header');
 
-  // Detect existing auth headers on mount
   useEffect(() => {
-    const authHeader = currentRequest.headers.find(
-      h => h.enabled && (h.key.toLowerCase() === 'authorization' || h.key.toLowerCase() === 'x-api-key')
-    );
-    if (!authHeader) { setAuthType('none'); return; }
-
-    if (authHeader.key.toLowerCase() === 'x-api-key') {
-      setAuthType('apiKey');
-      setApiKeyName(authHeader.key);
-      setApiKeyValue(authHeader.value);
-    } else if (authHeader.value.startsWith('Bearer ')) {
-      setAuthType('bearer');
-      setBearerToken(authHeader.value.slice(7));
-    } else if (authHeader.value.startsWith('Basic ')) {
-      setAuthType('basic');
-      try {
-        const decoded = atob(authHeader.value.slice(6));
-        const colonIdx = decoded.indexOf(':');
-        setBasicUser(colonIdx > 0 ? decoded.slice(0, colonIdx) : decoded);
-        setBasicPass(colonIdx > 0 ? decoded.slice(colonIdx + 1) : '');
-      } catch { /* ignore decode errors */ }
+    setAuthType(currentRequest.auth.type);
+    setBearerToken('');
+    setBasicUser('');
+    setBasicPass('');
+    setApiKeyValue('');
+    if (currentRequest.auth.type === 'apiKey') {
+      setApiKeyName(currentRequest.auth.name);
+      setApiKeyIn(currentRequest.auth.in);
+    } else {
+      setApiKeyName('');
+      setApiKeyIn('header');
     }
-  }, []);
+  }, [currentRequest.id, currentRequest.auth]);
 
   const applyAuth = () => {
-    // Remove ALL previous auth-related headers (case-insensitive)
-    const filtered = currentRequest.headers.filter(h => {
-      const lk = h.key.toLowerCase();
-      return lk !== 'authorization' && lk !== 'x-api-key' && !lk.startsWith('x-api-');
-    });
-
-    if (authType === 'bearer' && bearerToken) {
-      filtered.push({
-        id: crypto.randomUUID(),
-        key: 'Authorization',
-        value: `Bearer ${bearerToken}`,
-        enabled: true,
+    if (authType === 'none') {
+      postMessage({ type: 'configureAuth', requestId: currentRequest.id, auth: { type: 'none' } });
+    } else if (authType === 'bearer' && bearerToken) {
+      postMessage({
+        type: 'configureAuth',
+        requestId: currentRequest.id,
+        auth: { type: 'bearer', token: bearerToken },
       });
+      setBearerToken('');
     } else if (authType === 'basic' && basicUser) {
-      filtered.push({
-        id: crypto.randomUUID(),
-        key: 'Authorization',
-        value: 'Basic ' + btoa(`${basicUser}:${basicPass}`),
-        enabled: true,
+      postMessage({
+        type: 'configureAuth',
+        requestId: currentRequest.id,
+        auth: { type: 'basic', username: basicUser, password: basicPass },
       });
-    } else if (authType === 'apiKey' && apiKeyName) {
-      if (apiKeyIn === 'header') {
-        filtered.push({
-          id: crypto.randomUUID(),
-          key: apiKeyName,
-          value: apiKeyValue,
-          enabled: true,
-        });
-      }
+      setBasicUser('');
+      setBasicPass('');
+    } else if (authType === 'apiKey' && apiKeyName && apiKeyValue) {
+      postMessage({
+        type: 'configureAuth',
+        requestId: currentRequest.id,
+        auth: { type: 'apiKey', name: apiKeyName, in: apiKeyIn, value: apiKeyValue },
+      });
+      setApiKeyValue('');
     }
-
-    setHeaders(filtered);
   };
-
-  // Auto-apply when auth type changes or form fields change
-  const prevType = useRef(authType);
-  useEffect(() => {
-    if (prevType.current !== authType) {
-      prevType.current = authType;
-      if (authType === 'none') {
-        // Clean up auth headers when switching to none
-        const filtered = currentRequest.headers.filter(h => {
-          const lk = h.key.toLowerCase();
-          return lk !== 'authorization' && lk !== 'x-api-key' && !lk.startsWith('x-api-');
-        });
-        setHeaders(filtered);
-      }
-    }
-  }, [authType]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
@@ -474,8 +441,17 @@ function AuthEditor() {
       )}
 
       {authType === 'none' && (
-        <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '11px' }}>
-          No authentication configured. Select a type above.
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '11px' }}>
+            No authentication configured.
+          </span>
+          <button onClick={applyAuth} style={{ padding: '3px 8px', background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)', border: 'none', cursor: 'pointer', fontSize: '10px' }}>Apply</button>
+        </div>
+      )}
+
+      {currentRequest.auth.type !== 'none' && (
+        <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '10px' }}>
+          A credential is stored securely. Enter a new value only to replace it.
         </div>
       )}
     </div>

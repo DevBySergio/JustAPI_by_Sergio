@@ -606,6 +606,16 @@ The final `npm run validate` gate passed on 2026-07-15: test policy, zero-warnin
 
 One intentional security deviation is recorded: a legacy history migration backup is normalized and redacted before the backup is written, rather than duplicating plaintext bodies and credential-bearing values byte-for-byte. The backup remains a valid v1 history document and is hash/length verified, but rollback cannot restore deliberately discarded sensitive history payloads. This is required by the Batch 1 rule that migration must not create a new secret-bearing derivative path. Non-history migration backups preserve the complete parsed legacy data.
 
+### AUTH task completion evidence (Batch 2 in progress)
+
+AUTH is complete at the owner-task level. Public requests now contain only safe `AuthConfig` metadata, persisted requests contain only opaque `justapi.auth.v1.<requestId>.<uuid>` references, and credential payloads live in VS Code `SecretStorage`. The host recognizes and migrates only unambiguous Bearer, valid UTF-8 Basic, or exact case-insensitive `X-API-Key` legacy headers. It removes the recognized ordinary header only after the new secret exists, commits through the versioned storage path, deletes the new entry on failed persistence, and leaves arbitrary or ambiguous auth-like headers unchanged.
+
+Bearer, UTF-8 Basic, and API-key header/query credentials are resolved once immediately before transport. Enabled ordinary fields with the same key block with `AUTH_CONFLICT`; disabled fields do not. Preview, default exports, generated snippets, protocol responses, webview request state, and persisted request JSON contain placeholders or configured-state metadata rather than a credential or internal reference. Credential-bearing exports and snippets require a fresh modal confirmation naming the one-operation destination. Replacing or deleting auth removes an unreferenced secret, shared references are retained until their last persisted owner disappears, collection duplication creates an independent secret, and unsaved staged entries are deleted on rollback or provider disposal.
+
+Targeted evidence consists of six auth unit tests plus a protocol regression and a localhost integration regression. They cover public/persisted/transport separation, default derivative redaction, one-shot destination confirmation, UTF-8 Basic encoding, API-key query placement and conflicts, conservative legacy migration, failed-persistence rollback, rotation, independent duplication, shared-reference cleanup, and generated query placeholders. The localhost server received the exact Bearer header and query API-key value only after SecretStorage-backed preflight. The complete `npm run validate` gate passed on 2026-07-15 with 40 unit tests, seven integration tests, four VS Code 1.80 extension-host tests, zero lint warnings, both strict type checks, production builds, zero audit findings, VSIX creation, and the nine-file payload allowlist.
+
+Batch 2 remains in progress because VARIABLES and HTTP have not yet completed their owner tasks. Accordingly, JAPI-001 and JAPI-017 retain `open` ledger status until the complete Batch 2 gate is rerun with all three owners green. Legacy pre-auth collection backups remain protected by the storage directory's `0600` permissions and are retained for rollback during stabilization; they are the only intentional location where pre-migration plaintext may remain.
+
 ## Execution ledger
 
 Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `rolled-back`.
@@ -614,7 +624,7 @@ Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `roll
 |---:|---|---|---|---|---|---|---|
 | 0 | passed | 2026-07-14 | 2026-07-14 | Staged REPO + TEST patch | Repository cleanup plus 13 unit, 6 localhost integration, and 4 VS Code 1.80 extension-host tests passed | Exact staged-index snapshot: clean `npm ci`, zero-warning lint, both strict type checks, all tests, builds, zero audits, VSIX, and payload allowlist passed | Webpack retains its pre-existing 269 KB performance advisory; JAPI-009 still owns command semantics beyond registration parity |
 | 1 | passed | 2026-07-15 | 2026-07-15 | Working-tree PROTOCOL + STORAGE patch | 7 protocol tests plus 16 storage/history tests passed, covering validation/correlation, migration, locking/revisions, interruption, corruption/recovery, history redaction/limits, and shutdown | `npm run validate` passed: 33 unit, 6 integration, 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Legacy history backups are intentionally redacted before creation; they cannot restore discarded sensitive bodies/values. Pre-existing 285 KiB webview performance advisory remains |
-| 2 | planned | — | — | — | — | — | None yet |
+| 2 | in-progress | 2026-07-15 | — | Working-tree AUTH patch | AUTH: 6 focused unit tests, protocol boundary regression, and localhost SecretStorage-backed Bearer/query API-key delivery passed | AUTH owner gate: `npm run validate` passed with 40 unit, 7 integration, and 4 extension-host tests, zero audits, builds, VSIX, and payload allowlist | VARIABLES and HTTP remain; legacy pre-auth collection backups are retained with `0600` permissions for rollback during stabilization |
 | 3 | planned | — | — | — | — | — | None yet |
 | 4 | planned | — | — | — | — | — | None yet |
 | 5 | planned | — | — | — | — | — | None yet |
@@ -623,7 +633,7 @@ Finding statuses remain `open` until their owner records the completion signal a
 
 | Finding | Status | Resolution evidence | Residual risk / acceptance |
 |---|---|---|---|
-| JAPI-001 | open | — | — |
+| JAPI-001 | open | SecretStorage-backed auth metadata/references, conservative migration with rollback, pre-transport resolution, redacted derivatives, explicit disclosure confirmation, cleanup lifecycle, and focused/full validation passed | Awaiting VARIABLES and HTTP plus the complete Batch 2 gate; protected pre-auth rollback backups intentionally retain legacy plaintext during stabilization |
 | JAPI-002 | passed | V2 envelopes, serialized fsynced atomic commits, PID-aware lock and revision conflict path, verified backups/quarantine/read-only recovery, shutdown flush, and 13 focused durability tests passed | Runtime backup retention is five per domain; migration backups are retained throughout stabilization |
 | JAPI-003 | passed | Runtime validation/correlation, operation and execution registries, targeted cancellation, stable errors, and seven protocol tests passed with the complete Batch 1 gate | Later service extraction remains owned by REFACTOR and does not reopen the trusted boundary |
 | JAPI-004 | open | — | — |
@@ -639,7 +649,7 @@ Finding statuses remain `open` until their owner records the completion signal a
 | JAPI-014 | open | — | — |
 | JAPI-015 | open | — | — |
 | JAPI-016 | open | — | — |
-| JAPI-017 | open | — | — |
+| JAPI-017 | open | API-key header/query placement, case-insensitive conflict blocking, redacted query placeholders, and exact localhost query delivery passed | Awaiting the complete Batch 2 gate with VARIABLES and HTTP |
 | JAPI-018 | open | TEST completed zero-warning lint across host and webview TS/TSX | UI still owns state persistence, keyboard behavior, focus restoration, and accessibility coverage |
 
 ## Definition of done

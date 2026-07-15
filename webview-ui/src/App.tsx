@@ -43,6 +43,7 @@ export function App() {
   }, []);
 
   const setRequest = useRequestStore((s) => s.setRequest);
+  const setAuth = useRequestStore((s) => s.setAuth);
   const resetRequest = useRequestStore((s) => s.resetRequest);
   const beginExecution = useRequestStore((s) => s.beginExecution);
   const setExecutionState = useRequestStore((s) => s.setExecutionState);
@@ -98,6 +99,12 @@ export function App() {
         case 'requestLoaded':
           setRequest(message.request);
           setActiveTab('editor');
+          break;
+        case 'requestAuthUpdated':
+          if (useRequestStore.getState().currentRequest.id === message.requestId) {
+            setAuth(message.auth);
+            showNotification('Authentication updated', 'success');
+          }
           break;
         case 'error':
           if (!message.executionId

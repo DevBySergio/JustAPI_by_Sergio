@@ -3,6 +3,16 @@ import { after, before, describe, test } from 'node:test';
 import { HttpClient } from '../../engine/http/HttpClient';
 import { createRequestFixture } from '../fixtures/requestFixtures';
 import { HttpFixtureServer, startHttpFixtureServer } from '../support/httpFixtureServer';
+import { AuthService, SecretStorageLike } from '../../engine/auth/AuthService';
+import { fixtureSecret } from '../fixtures/securityFixtures';
+
+class IntegrationSecretStorage implements SecretStorageLike {
+  private readonly values = new Map<string, string>();
+
+  async get(key: string): Promise<string | undefined> { return this.values.get(key); }
+  async store(key: string, value: string): Promise<void> { this.values.set(key, value); }
+  async delete(key: string): Promise<void> { this.values.delete(key); }
+}
 
 describe('HttpClient with a deterministic localhost server', () => {
   let fixtureServer: HttpFixtureServer;
@@ -34,6 +44,34 @@ describe('HttpClient with a deterministic localhost server', () => {
     assert.equal(body.query['spaced value'], 'one & two');
     assert.equal(body.headers['x-fixture'], 'enabled');
     assert.deepEqual(response.cookies, [{ name: 'fixture', value: 'value', path: '/', httpOnly: true }]);
+  });
+
+  test('sends SecretStorage-backed bearer and query API-key credentials only after preflight', async () => {
+    const authService = new AuthService(new IntegrationSecretStorage());
+    const bearer = createRequestFixture({ url: `${fixtureServer.baseUrl}/echo` });
+    bearer.auth = await authService.configure(bearer.id, {
+      type: 'bearer',
+      token: fixtureSecret,
+    });
+    const bearerResponse = await new HttpClient().execute(
+      await authService.resolveForTransport(bearer)
+    );
+    const bearerEcho = JSON.parse(bearerResponse.body) as { headers: Record<string, string> };
+    assert.equal(bearerEcho.headers.authorization, `Bearer ${fixtureSecret}`);
+    assert.equal(JSON.stringify(bearer).includes(fixtureSecret), false);
+
+    const apiKey = createRequestFixture({ url: `${fixtureServer.baseUrl}/echo` });
+    apiKey.auth = await authService.configure(apiKey.id, {
+      type: 'apiKey',
+      name: 'fixture_key',
+      in: 'query',
+      value: fixtureSecret,
+    });
+    const apiKeyResponse = await new HttpClient().execute(
+      await authService.resolveForTransport(apiKey)
+    );
+    const apiKeyEcho = JSON.parse(apiKeyResponse.body) as { query: Record<string, string> };
+    assert.equal(apiKeyEcho.query.fixture_key, fixtureSecret);
   });
 
   test('serializes JSON, URL-encoded, and multipart body fixtures', async () => {

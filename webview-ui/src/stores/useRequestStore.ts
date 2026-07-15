@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { JustRequest, HttpMethod, BodyType, createDefaultRequest } from '../../../src/models/Request';
 import { KeyValuePair } from '../../../src/models/KeyValuePair';
+import { AuthConfig } from '../../../src/models/Auth';
 
 interface RequestState {
   currentRequest: JustRequest;
@@ -11,6 +12,7 @@ interface RequestState {
   setName: (name: string) => void;
   setHeaders: (headers: KeyValuePair[]) => void;
   setQueryParams: (params: KeyValuePair[]) => void;
+  setAuth: (auth: AuthConfig) => void;
   setBodyType: (type: BodyType) => void;
   setBodyContent: (content: string) => void;
   setFormData: (formData: KeyValuePair[]) => void;
@@ -48,6 +50,11 @@ export const useRequestStore = create<RequestState>((set) => ({
   setQueryParams: (queryParams) =>
     set((state) => ({
       currentRequest: { ...state.currentRequest, queryParams, updated: Date.now() },
+    })),
+
+  setAuth: (auth) =>
+    set((state) => ({
+      currentRequest: { ...state.currentRequest, auth, updated: Date.now() },
     })),
 
   setBodyType: (type) =>
