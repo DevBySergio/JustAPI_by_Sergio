@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrlvm7d8-ko0op5q6",
+  "type": "checklist_updated",
+  "message": "Added cross-window locking, revision checks, and visible conflict handling",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784107626956,
+  "taskId": "task-mrjk92hu-l37yy8ky",
+  "metadata": {
+    "checklistItemId": "check-mrjk92hu-stor0004",
+    "done": true
+  }
+}

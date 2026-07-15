@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605987,
-  "updatedAt": 1784106752258,
+  "updatedAt": 1784107626959,
   "position": 1783967605987,
   "labelIds": [
     "bug",
@@ -29,51 +29,51 @@
     {
       "id": "check-mrjk92hu-stor0001",
       "text": "Define the versioned envelope, revision semantics, limits, and explicit failure modes",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605987,
-      "updatedAt": 1783967605987
+      "updatedAt": 1784107626953
     },
     {
       "id": "check-mrjk92hu-stor0002",
       "text": "Implement idempotent legacy migrations with pre-migration backups and post-migration validation",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605987,
-      "updatedAt": 1783967605987
+      "updatedAt": 1784107626954
     },
     {
       "id": "check-mrjk92hu-stor0003",
       "text": "Serialize durable writes and commit through a same-directory temporary file plus atomic rename",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605987,
-      "updatedAt": 1783967605987
+      "updatedAt": 1784107626955
     },
     {
       "id": "check-mrjk92hu-stor0004",
       "text": "Add cross-window locking or optimistic revision checks with a visible conflict path",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605987,
-      "updatedAt": 1783967605987
+      "updatedAt": 1784107626956
     },
     {
       "id": "check-mrjk92hu-stor0005",
       "text": "Quarantine corrupt data, verify backups before restore, and fall back to a non-destructive read-only state",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605987,
-      "updatedAt": 1783967605987
+      "updatedAt": 1784107626957
     },
     {
       "id": "check-mrjk92hu-stor0006",
       "text": "Migrate history to bounded, secret-free summaries and enforce retention and payload limits",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605987,
-      "updatedAt": 1783967605987
+      "updatedAt": 1784107626958
     },
     {
       "id": "check-mrjk92hu-stor0007",
       "text": "Flush or cancel queued work safely during disposal and extension shutdown",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605987,
-      "updatedAt": 1783967605987
+      "updatedAt": 1784107626959
     },
     {
       "id": "check-mrjk92hu-stor0008",

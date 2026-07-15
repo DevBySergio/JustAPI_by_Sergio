@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrlvm7da-tsmapfb2",
+  "type": "checklist_updated",
+  "message": "Migrated history to bounded secret-free summaries with count and byte caps",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784107626958,
+  "taskId": "task-mrjk92hu-l37yy8ky",
+  "metadata": {
+    "checklistItemId": "check-mrjk92hu-stor0006",
+    "done": true
+  }
+}
