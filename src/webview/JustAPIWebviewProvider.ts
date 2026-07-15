@@ -19,6 +19,7 @@ import { ResolutionContext, VariableEngine } from '../engine/variables/VariableE
 import { CollectionManager } from '../engine/collection/CollectionManager';
 import { JsonFileStore } from '../storage/JsonFileStore';
 import { CodeGenerator } from '../commands/CodeGenerator';
+import { normalizeEffectiveRequest } from '../engine/http/EffectiveRequest';
 import { VariableSetManager } from '../engine/variables/VariableSetManager';
 import { createHistorySummary, normalizeHistoryData } from '../storage/HistorySummary';
 import type { StorageFailure } from '../storage/JsonFileStore';
@@ -432,7 +433,9 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
                 message.request.auth
               )
             : this.authService.redactForDerivative(preflight.request);
-          const code = generator.generate(request, message.language);
+          const code = generator.generate(request, message.language, {
+            credentialRepresentation: includeCredentials ? 'resolved' : 'placeholder',
+          });
           this.postMessage({
             type: 'codeGenerationResult',
             operationId: message.operationId,
@@ -452,27 +455,37 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
               )
             : null;
           const resolvedRequest = preflight?.request;
-          const resolvedHeaders = (resolvedRequest?.headers || [])
-            .filter(header => header.enabled)
-            .map(({ key, value }) => ({ key, value }));
+          let effectiveRequest: ReturnType<typeof normalizeEffectiveRequest> | undefined;
+          if (resolvedRequest) {
+            try {
+              effectiveRequest = normalizeEffectiveRequest(resolvedRequest, {
+                credentialRepresentation: 'placeholder',
+              });
+            } catch {
+              // Keep unresolved editor values visible while validation reports the blocking issue.
+            }
+          }
+          const resolvedHeaders = effectiveRequest?.headers
+            .map(({ name: key, value }) => ({ key, value }))
+            ?? (resolvedRequest?.headers || [])
+              .filter(header => header.enabled)
+              .map(({ key, value }) => ({ key, value }));
           const resolvedQueryParams = (resolvedRequest?.queryParams || [])
             .filter(param => param.enabled)
             .map(({ key, value }) => ({ key, value }));
-          const resolvedBody = resolvedRequest?.body.formData
-            && (resolvedRequest.body.type === 'form-data'
-              || resolvedRequest.body.type === 'x-www-form-urlencoded')
+          const resolvedBody = effectiveRequest
+            && (effectiveRequest.body.type === 'form-data'
+              || effectiveRequest.body.type === 'x-www-form-urlencoded')
             ? JSON.stringify(
-                resolvedRequest.body.formData
-                  .filter(field => field.enabled)
-                  .map(({ key, value }) => ({ key, value })),
+                effectiveRequest.body.fields.map(({ name: key, value }) => ({ key, value })),
                 null,
                 2
               )
-            : resolvedRequest?.body.content || '';
+            : effectiveRequest?.body.content ?? resolvedRequest?.body.content ?? '';
           this.postMessage({
             type: 'resolutionPreview',
             operationId: message.operationId,
-            resolvedUrl: resolvedRequest?.url || '',
+            resolvedUrl: effectiveRequest?.url ?? resolvedRequest?.url ?? '',
             resolvedHeaders: JSON.stringify(resolvedHeaders, null, 2),
             resolvedQueryParams: JSON.stringify(resolvedQueryParams, null, 2),
             resolvedBody,

@@ -3,14 +3,7 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 import { TextDecoder } from 'node:util';
 import { brotliDecompress, gunzip, inflate, ZlibOptions } from 'node:zlib';
-import { KeyValuePair } from '../../models/KeyValuePair';
-import {
-  BodyType,
-  JustRequest,
-  normalizeRequestSettings,
-  RequestBody,
-  RequestSettings,
-} from '../../models/Request';
+import { JustRequest, normalizeRequestSettings, RequestSettings } from '../../models/Request';
 import {
   BodyType as ResponseBodyType,
   JustResponse,
@@ -18,6 +11,12 @@ import {
   ResponseCookie,
   ResponseTimings,
 } from '../../models/Response';
+import {
+  EffectiveRequestBody,
+  EffectiveRequestError,
+  EffectiveRequestHeader,
+  normalizeEffectiveRequest,
+} from './EffectiveRequest';
 
 const DEFAULT_MAX_REDIRECTS = 10;
 const MAX_URL_LENGTH = 16 * 1024;
@@ -156,11 +155,14 @@ export class HttpClient {
 
     let currentUrl: URL | undefined;
     try {
-      currentUrl = this.buildUrl(request.url, request.queryParams);
-      const payload = this.buildBody(request.body);
-      let method = request.method;
+      const effectiveRequest = normalizeEffectiveRequest(request, {
+        credentialRepresentation: request.auth.type === 'none' ? 'none' : 'resolved',
+      });
+      currentUrl = new URL(effectiveRequest.url);
+      const payload = this.buildBody(effectiveRequest.body);
+      let method = effectiveRequest.method;
       let body = payload.bytes;
-      let headers = this.buildHeaders(request.headers, payload);
+      let headers = this.buildHeaders(effectiveRequest.headers, payload);
       const sensitiveHeaders = this.sensitiveHeaderNames(request);
 
       while (true) {
@@ -214,7 +216,12 @@ export class HttpClient {
     } catch (error) {
       const requestError = error instanceof TransportFailure
         ? error.requestError
-        : this.classifyNodeError(error, state);
+        : error instanceof EffectiveRequestError
+          ? {
+              type: error.code === 'INVALID_URL' ? 'invalid-url' as const : 'invalid-response' as const,
+              message: error.message,
+            }
+          : this.classifyNodeError(error, state);
       return this.errorResponse(state, requestError, currentUrl, request);
     } finally {
       clearTimeout(timeout);
@@ -242,27 +249,6 @@ export class HttpClient {
     };
   }
 
-  private buildUrl(baseUrl: string, queryParams: KeyValuePair[]): URL {
-    let url: URL;
-    try {
-      url = new URL(baseUrl);
-    } catch {
-      throw new TransportFailure({
-        type: 'invalid-url',
-        message: 'The request URL is invalid.',
-      });
-    }
-    this.assertSupportedUrl(url, 'request');
-    for (const parameter of queryParams) {
-      if (parameter.enabled && parameter.key) {
-        url.searchParams.append(parameter.key, parameter.value);
-      }
-    }
-    url.hash = '';
-    this.assertSupportedUrl(url, 'request');
-    return url;
-  }
-
   private assertSupportedUrl(url: URL, kind: 'request' | 'redirect'): void {
     if ((url.protocol !== 'http:' && url.protocol !== 'https:')
       || url.toString().length > MAX_URL_LENGTH) {
@@ -286,7 +272,7 @@ export class HttpClient {
     }
   }
 
-  private buildBody(requestBody: RequestBody): BodyPayload {
+  private buildBody(requestBody: EffectiveRequestBody): BodyPayload {
     switch (requestBody.type) {
       case 'none':
         return {};
@@ -299,9 +285,8 @@ export class HttpClient {
           });
         }
         const chunks: Buffer[] = [];
-        for (const field of requestBody.formData || []) {
-          if (!field.enabled || !field.key) { continue; }
-          const name = field.key
+        for (const field of requestBody.fields) {
+          const name = field.name
             .replace(/\r|\n/g, ' ')
             .replace(/\\/g, '\\\\')
             .replace(/"/g, '\\"');
@@ -319,10 +304,8 @@ export class HttpClient {
       }
       case 'x-www-form-urlencoded': {
         const fields = new URLSearchParams();
-        for (const field of requestBody.formData || []) {
-          if (field.enabled && field.key) {
-            fields.append(field.key, field.value);
-          }
+        for (const field of requestBody.fields) {
+          fields.append(field.name, field.value);
         }
         return {
           bytes: Buffer.from(fields.toString(), 'utf8'),
@@ -332,34 +315,24 @@ export class HttpClient {
       default:
         return {
           bytes: Buffer.from(requestBody.content, 'utf8'),
-          contentType: this.defaultContentType(requestBody.type),
+          contentType: requestBody.contentType,
         };
     }
   }
 
-  private defaultContentType(type: Exclude<BodyType, 'none' | 'form-data' | 'x-www-form-urlencoded'>): string {
-    switch (type) {
-      case 'json': return 'application/json; charset=utf-8';
-      case 'xml': return 'application/xml; charset=utf-8';
-      case 'text': return 'text/plain; charset=utf-8';
-      case 'binary': return 'application/octet-stream';
-    }
-  }
-
-  private buildHeaders(headers: KeyValuePair[], payload: BodyPayload): Record<string, string> {
+  private buildHeaders(headers: EffectiveRequestHeader[], payload: BodyPayload): Record<string, string> {
     const normalized = new Map<string, { name: string; value: string }>();
     for (const header of headers) {
-      if (!header.enabled || !header.key) { continue; }
       try {
-        http.validateHeaderName(header.key);
-        http.validateHeaderValue(header.key, header.value);
+        http.validateHeaderName(header.name);
+        http.validateHeaderValue(header.name, header.value);
       } catch {
         throw new TransportFailure({
           type: 'invalid-response',
           message: 'An enabled request header is invalid.',
         });
       }
-      normalized.set(header.key.toLowerCase(), { name: header.key, value: header.value });
+      normalized.set(header.name.toLowerCase(), header);
     }
 
     const result = Object.fromEntries(Array.from(normalized.values()).map(header => [header.name, header.value]));

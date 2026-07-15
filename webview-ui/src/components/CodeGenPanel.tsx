@@ -34,6 +34,9 @@ export function CodeGenPanel({ code }: CodeGenPanelProps) {
       includeCredentials,
       collectionId: activeCollectionId ?? undefined,
     });
+    if (includeCredentials) {
+      setIncludeCredentials(false);
+    }
   };
 
   return (

@@ -2,6 +2,7 @@ import * as assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { CodeGenerator } from '../../commands/CodeGenerator';
 import { CurlParseError, CurlParser } from '../../engine/http/CurlParser';
+import { normalizeEffectiveRequest } from '../../engine/http/EffectiveRequest';
 import { curlImportFixtures } from '../fixtures/curlFixtures';
 import { createRequestFixture } from '../fixtures/requestFixtures';
 
@@ -204,9 +205,10 @@ describe('cURL parsing and code generation boundaries', () => {
 
     assert.equal(request.method, source.method);
     assert.equal(request.url, source.url);
+    const effective = normalizeEffectiveRequest(source);
     assert.deepEqual(
       request.headers.map(({ key, value }) => ({ key, value })),
-      source.headers.map(({ key, value }) => ({ key, value }))
+      effective.headers.map(({ name: key, value }) => ({ key, value }))
     );
     assert.deepEqual(request.body, source.body);
     assert.equal(request.settings.verifySSL, false);

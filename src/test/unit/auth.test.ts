@@ -130,7 +130,7 @@ describe('AuthService', () => {
   test('injects API keys in the selected location and blocks enabled conflicts', async () => {
     const secrets = new MemorySecretStorage();
     const service = new AuthService(secrets);
-    const request = createRequestFixture();
+    const request = createRequestFixture({ url: 'https://fixture.test/auth' });
     const unicodeSecret = `${fixtureSecret}-密钥`;
     request.auth = await service.configure(request.id, {
       type: 'apiKey',
