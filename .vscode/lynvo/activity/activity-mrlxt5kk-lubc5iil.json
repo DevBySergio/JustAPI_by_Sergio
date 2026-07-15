@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrlxt5kk-lubc5iil",
+  "type": "task_moved",
+  "message": "Moved \"Correct and harden the HTTP transport\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784111310452,
+  "taskId": "task-mrjk92hx-m3m57qoh",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}

@@ -2,7 +2,7 @@
   "id": "task-mrjk92hx-m3m57qoh",
   "title": "Correct and harden the HTTP transport",
   "description": "Make the transport standards-aware and predictable using a deterministic local HTTP harness. Correct URL/query construction, header normalization, raw and form bodies, cancellation ownership, redirect handling, decompression, charset decoding, binary preservation, timing, and error reporting.\n\nRedirects must apply method/body rules deliberately, enforce a hop limit, resolve relative locations, and strip authorization, cookies, and other sensitive headers on cross-origin hops. Each execution owns its own AbortController; cancellation must not affect another request. Decode supported content encodings before text conversion, honor declared charsets when feasible, and return binary content as exact base64 with the response MIME type.\n\nEnforce a configurable response limit with a 10 MiB default and allowed range of 1 KiB to 100 MiB. Fail with typed, user-actionable errors for timeout, cancellation, DNS/TLS/socket failures, malformed redirects, decompression, and size overflow. Cover all methods and body modes in automated tests.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605990,
-  "updatedAt": 1783968300002,
+  "updatedAt": 1784111310452,
   "position": 1783967605990,
   "labelIds": [
     "bug",
