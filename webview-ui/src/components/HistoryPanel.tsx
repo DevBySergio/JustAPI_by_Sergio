@@ -2,8 +2,13 @@ import { useEffect } from 'react';
 import { useHistoryStore } from '../stores/useHistoryStore';
 import { useRequestStore } from '../stores/useRequestStore';
 import { postMessage } from '../utils/vscodeApi';
+import { createDefaultRequest } from '../../../src/models/Request';
 
-export function HistoryPanel() {
+interface HistoryPanelProps {
+  onNotification: (text: string, type?: 'info' | 'error' | 'success') => void;
+}
+
+export function HistoryPanel({ onNotification }: HistoryPanelProps) {
   const entries = useHistoryStore((s) => s.entries);
   const filterText = useHistoryStore((s) => s.filterText);
   const setFilterText = useHistoryStore((s) => s.setFilterText);
@@ -18,7 +23,17 @@ export function HistoryPanel() {
   };
 
   const handleReplay = (entry: typeof entries[0]) => {
-    setRequest(entry.request);
+    if (entry.requestId) {
+      postMessage({ type: 'getRequest', requestId: entry.requestId });
+      return;
+    }
+    setRequest({
+      ...createDefaultRequest(),
+      name: `History: ${entry.method} request`,
+      method: entry.method,
+      url: entry.url,
+    });
+    onNotification('Sensitive values and the body were intentionally not retained in history.', 'info');
   };
 
   const handleDelete = (entryId: string) => {

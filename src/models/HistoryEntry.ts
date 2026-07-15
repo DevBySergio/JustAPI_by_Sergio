@@ -1,13 +1,16 @@
-import { JustRequest } from './Request';
-import { JustResponse } from './Response';
+import type { HttpMethod } from './Request';
+import type { RequestError } from './Response';
 
 export interface HistoryEntry {
   id: string;
-  request: JustRequest;
-  response: JustResponse;
   timestamp: number;
   duration: number;
   statusCode: number;
   url: string;
-  method: string;
+  method: HttpMethod;
+  responseSize: number;
+  requestId?: string;
+  collectionId?: string;
+  contentType?: string;
+  errorType?: RequestError['type'];
 }

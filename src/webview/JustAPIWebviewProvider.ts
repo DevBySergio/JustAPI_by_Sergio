@@ -20,6 +20,8 @@ import { CollectionManager } from '../engine/collection/CollectionManager';
 import { JsonFileStore } from '../storage/JsonFileStore';
 import { CodeGenerator } from '../commands/CodeGenerator';
 import { VariableSetManager } from '../engine/variables/VariableSetManager';
+import { createHistorySummary, normalizeHistoryData } from '../storage/HistorySummary';
+import type { StorageFailure } from '../storage/JsonFileStore';
 import {
   isProtocolIdentifier,
   protocolFailure,
@@ -40,6 +42,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   private historyStore: JsonFileStore;
   private globalVarsStore: JsonFileStore;
   private settingsStore: JsonFileStore;
+  private stores: JsonFileStore[];
   private variableSetManager: VariableSetManager;
   private readonly operations = new OperationRegistry();
   private readonly executions = new ExecutionRegistry();
@@ -49,10 +52,23 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     context: vscode.ExtensionContext,
     workspaceStore?: JsonFileStore
   ) {
-    this.store = workspaceStore || JsonFileStore.fromContext(context);
-    this.historyStore = workspaceStore || new JsonFileStore(context.globalStorageUri.fsPath);
-    this.globalVarsStore = new JsonFileStore(context.globalStorageUri.fsPath);
-    this.settingsStore = new JsonFileStore(context.globalStorageUri.fsPath);
+    const storageOptions = {
+      onFailure: (failure: StorageFailure) => this.reportStorageFailure(failure),
+      dataTransforms: { history: normalizeHistoryData },
+    };
+    const globalStore = JsonFileStore.fromContext(context, storageOptions);
+    this.store = workspaceStore || globalStore;
+    this.historyStore = workspaceStore
+      ? new JsonFileStore(workspaceStore.getBasePath(), storageOptions)
+      : globalStore;
+    this.globalVarsStore = globalStore;
+    this.settingsStore = globalStore;
+    this.stores = Array.from(new Set([
+      this.store,
+      this.historyStore,
+      this.globalVarsStore,
+      this.settingsStore,
+    ]));
     this.collectionManager = new CollectionManager(this.store);
     this.variableSetManager = new VariableSetManager(this.store);
   }
@@ -522,7 +538,8 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           message.request,
           response,
           message.operationId,
-          message.executionId
+          message.executionId,
+          message.collectionId
         );
       }
       return true;
@@ -589,27 +606,19 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     request: JustRequest,
     response: JustResponse,
     operationId: string,
-    executionId: string
+    executionId: string,
+    collectionId?: string
   ): Promise<void> {
-    const entry: HistoryEntry = {
+    const hasSavedRequest = collectionId !== undefined
+      && this.collectionManager.getRequest(request.id) !== undefined;
+    const entry = createHistorySummary(request, response, {
       id: randomUUID(),
-      request,
-      response,
       timestamp: Date.now(),
-      duration: response.duration,
-      statusCode: response.statusCode,
-      url: request.url,
-      method: request.method,
-    };
+      ...(hasSavedRequest ? { requestId: request.id, collectionId } : {}),
+    });
 
     const entries = await this.historyStore.read<HistoryEntry[]>('history') || [];
     entries.unshift(entry);
-
-    const MAX_HISTORY = 200;
-    if (entries.length > MAX_HISTORY) {
-      entries.length = MAX_HISTORY;
-    }
-
     await this.historyStore.write('history', entries);
     this.postMessage({ type: 'historyEntry', operationId, executionId, entry });
   }
@@ -718,8 +727,20 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.executions.cancelAll();
+    await Promise.all(this.stores.map(async store => await store.dispose()));
+  }
+
+  private reportStorageFailure(failure: StorageFailure): void {
+    const message = failure.recovered
+      ? `JustAPI recovered ${failure.key} storage from a verified backup.`
+      : `JustAPI ${failure.key} storage requires attention: ${failure.message}`;
+    if (failure.recovered) {
+      void vscode.window.showWarningMessage(message);
+    } else {
+      void vscode.window.showErrorMessage(message);
+    }
   }
 
   private postMessage(message: ExtensionMessage): void {

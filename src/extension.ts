@@ -19,6 +19,6 @@ export function activate(context: vscode.ExtensionContext): void {
   registerCommands(context, provider);
 }
 
-export function deactivate(): void {
-  provider?.dispose();
+export async function deactivate(): Promise<void> {
+  await provider?.dispose();
 }

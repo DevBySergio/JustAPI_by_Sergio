@@ -594,6 +594,18 @@ CI installs the lockfile with `npm ci`, caches only npm's download cache, runs t
 
 Batch 0 is complete. JAPI-010 and JAPI-012 have met their completion signals. The lint portion of JAPI-018 is complete, while its state persistence and accessibility work remains open for UI.
 
+### Batch 1 completion evidence
+
+PROTOCOL and STORAGE are complete. Persistence now writes only validated v2 envelopes with monotonic revisions and timestamps. Writes are serialized, guarded by an exclusive storage-root lock with bounded waiting and PID-aware stale-lock reclamation, checked against the caller's known revision, committed through an fsynced same-directory temporary file and atomic rename, and verified before acknowledgement. Migration and runtime backups are recorded with byte length and SHA-256 in an atomic journal; migration backups are retained, while runtime backups are bounded. Corrupt data is quarantined only after a verified backup is selected, unsupported future schemas remain untouched and read-only, and unrecoverable data produces a visible read-only failure instead of invented defaults.
+
+History now stores only stable summary metadata, optional saved request/collection references, redacted URL templates, bounded response metadata, and safe error categories. It stores no request/response bodies, header values, cookies, query values, resolved variables, or credentials. Migration and every later write enforce both the 200-entry and 2 MiB envelope limits. Saved requests replay from canonical collection storage; unsaved history produces a safe method/URL skeleton with an explicit warning.
+
+Targeted evidence includes 16 persistence/history tests covering v1-to-v2 idempotence, legacy field compatibility, backup journaling, queued writes, two simulated windows, stale revisions, interrupted rename, failed migration, corrupt and malformed recovery, unsupported schemas, live/dead lock handling, payload limits, history redaction and dual retention limits, orphan temp files, shutdown flush, and collection round trips. The existing seven protocol tests cover validation, size/depth limits, duplicate operations, targeted cancellation, correlation, and stale-result suppression.
+
+The final `npm run validate` gate passed on 2026-07-15: test policy, zero-warning lint, both strict type checks, 33 unit tests, six deterministic localhost integration tests, production builds, zero runtime/full audit findings, four VS Code 1.80 extension-host tests, VSIX creation, and the nine-file payload allowlist all completed successfully.
+
+One intentional security deviation is recorded: a legacy history migration backup is normalized and redacted before the backup is written, rather than duplicating plaintext bodies and credential-bearing values byte-for-byte. The backup remains a valid v1 history document and is hash/length verified, but rollback cannot restore deliberately discarded sensitive history payloads. This is required by the Batch 1 rule that migration must not create a new secret-bearing derivative path. Non-history migration backups preserve the complete parsed legacy data.
+
 ## Execution ledger
 
 Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `rolled-back`.
@@ -601,7 +613,7 @@ Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `roll
 | Batch | Status | Started | Completed | Change reference | Targeted evidence | Full-suite evidence | Deviations / residual risk |
 |---:|---|---|---|---|---|---|---|
 | 0 | passed | 2026-07-14 | 2026-07-14 | Staged REPO + TEST patch | Repository cleanup plus 13 unit, 6 localhost integration, and 4 VS Code 1.80 extension-host tests passed | Exact staged-index snapshot: clean `npm ci`, zero-warning lint, both strict type checks, all tests, builds, zero audits, VSIX, and payload allowlist passed | Webpack retains its pre-existing 269 KB performance advisory; JAPI-009 still owns command semantics beyond registration parity |
-| 1 | planned | — | — | — | — | — | None yet |
+| 1 | passed | 2026-07-15 | 2026-07-15 | Working-tree PROTOCOL + STORAGE patch | 7 protocol tests plus 16 storage/history tests passed, covering validation/correlation, migration, locking/revisions, interruption, corruption/recovery, history redaction/limits, and shutdown | `npm run validate` passed: 33 unit, 6 integration, 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Legacy history backups are intentionally redacted before creation; they cannot restore discarded sensitive bodies/values. Pre-existing 285 KiB webview performance advisory remains |
 | 2 | planned | — | — | — | — | — | None yet |
 | 3 | planned | — | — | — | — | — | None yet |
 | 4 | planned | — | — | — | — | — | None yet |
@@ -612,8 +624,8 @@ Finding statuses remain `open` until their owner records the completion signal a
 | Finding | Status | Resolution evidence | Residual risk / acceptance |
 |---|---|---|---|
 | JAPI-001 | open | — | — |
-| JAPI-002 | open | — | — |
-| JAPI-003 | open | — | — |
+| JAPI-002 | passed | V2 envelopes, serialized fsynced atomic commits, PID-aware lock and revision conflict path, verified backups/quarantine/read-only recovery, shutdown flush, and 13 focused durability tests passed | Runtime backup retention is five per domain; migration backups are retained throughout stabilization |
+| JAPI-003 | passed | Runtime validation/correlation, operation and execution registries, targeted cancellation, stable errors, and seven protocol tests passed with the complete Batch 1 gate | Later service extraction remains owned by REFACTOR and does not reopen the trusted boundary |
 | JAPI-004 | open | — | — |
 | JAPI-005 | open | — | — |
 | JAPI-006 | open | — | — |
@@ -621,7 +633,7 @@ Finding statuses remain `open` until their owner records the completion signal a
 | JAPI-008 | open | — | — |
 | JAPI-009 | open | — | — |
 | JAPI-010 | passed | Layered deterministic harness, test policy, CI, 23-fixture catalogue, and clean complete validation gate passed | Contract fixtures remain intentionally red until their owning product remediations land; no unfinished behavior is reported as active |
-| JAPI-011 | open | — | — |
+| JAPI-011 | passed | Redacted summary-only history migration, canonical saved-request references, safe unsaved skeletons, 200-entry/2 MiB limits, malformed-entry recovery, and recursive sensitive-fixture scan passed | Legacy history backups intentionally cannot restore discarded bodies or credential-bearing values |
 | JAPI-012 | passed | 20,901 dependency paths and 48 generated paths removed from the index; manifest-lock parity, clean install, zero audits, 9-file payload allowlist, and combined Batch 0 gate passed | Git history was not rewritten; the old object pack remains until normal Git maintenance |
 | JAPI-013 | open | — | — |
 | JAPI-014 | open | — | — |

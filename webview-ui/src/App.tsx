@@ -261,7 +261,7 @@ export function App() {
           <RequestEditor onSend={handleSend} onSave={handleSave} onNotification={showNotification} />
         )}
         {activeTab === 'collections' && <CollectionPanel />}
-        {activeTab === 'history' && <HistoryPanel />}
+        {activeTab === 'history' && <HistoryPanel onNotification={showNotification} />}
         {activeTab === 'variables' && (
           <div>
             <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid var(--vscode-panel-border)', padding: '0 8px' }}>

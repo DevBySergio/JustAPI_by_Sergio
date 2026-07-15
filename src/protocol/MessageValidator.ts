@@ -186,7 +186,10 @@ function inspectStructure(value: unknown, maximumBytes: number): ValidationResul
     if (nodeCount > PROTOCOL_LIMITS.maximumNodes || depth > PROTOCOL_LIMITS.maximumDepth) {
       return false;
     }
-    if (candidate === null || typeof candidate === 'string' || typeof candidate === 'boolean') {
+    if (candidate === undefined
+      || candidate === null
+      || typeof candidate === 'string'
+      || typeof candidate === 'boolean') {
       return true;
     }
     if (typeof candidate === 'number') {
@@ -461,10 +464,16 @@ function isJustResponse(value: unknown): value is JustResponse {
 
 function isHistoryEntry(value: unknown): value is HistoryEntry {
   return isRecord(value)
-    && hasOnlyKeys(value, ['id', 'request', 'response', 'timestamp', 'duration', 'statusCode', 'url', 'method'])
+    && hasOnlyKeys(value, [
+      'id',
+      'timestamp',
+      'duration',
+      'statusCode',
+      'url',
+      'method',
+      'responseSize',
+    ], ['requestId', 'collectionId', 'contentType', 'errorType'])
     && isProtocolIdentifier(value.id)
-    && isJustRequest(value.request)
-    && isJustResponse(value.response)
     && isTimestamp(value.timestamp)
     && typeof value.duration === 'number'
     && Number.isFinite(value.duration)
@@ -472,7 +481,13 @@ function isHistoryEntry(value: unknown): value is HistoryEntry {
     && isBoundedInteger(value.statusCode, 0, 999)
     && isString(value.url, PROTOCOL_LIMITS.maximumUrlLength)
     && typeof value.method === 'string'
-    && HTTP_METHODS.has(value.method);
+    && HTTP_METHODS.has(value.method)
+    && isBoundedInteger(value.responseSize, 0, 100 * 1024 * 1024)
+    && (value.requestId === undefined || isProtocolIdentifier(value.requestId))
+    && (value.collectionId === undefined || isProtocolIdentifier(value.collectionId))
+    && (value.contentType === undefined || isString(value.contentType, 256, false))
+    && (value.errorType === undefined
+      || (typeof value.errorType === 'string' && REQUEST_ERROR_TYPES.has(value.errorType)));
 }
 
 function isSearchResult(value: unknown): value is SearchResult {

@@ -128,6 +128,7 @@ describe('webview protocol validation and correlation', () => {
         duration: 1,
         cookies: [],
         redirected: false,
+        finalUrl: undefined,
       },
     };
     assert.equal(validateExtensionMessage(response).ok, true);
