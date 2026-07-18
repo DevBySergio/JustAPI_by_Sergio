@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605995,
-  "updatedAt": 1784365689143,
+  "updatedAt": 1784366934614,
   "position": 1783967605995,
   "labelIds": [
     "bug",
@@ -29,51 +29,51 @@
     {
       "id": "check-mrjk92i2-uiux0001",
       "text": "Persist safe editor/navigation state and warn before navigation or reload discards unsaved changes",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605995,
-      "updatedAt": 1783967605995
+      "updatedAt": 1784366934608
     },
     {
       "id": "check-mrjk92i2-uiux0002",
       "text": "Use operation/execution correlation to suppress duplicate submission and ignore stale results",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605995,
-      "updatedAt": 1783967605995
+      "updatedAt": 1784366934609
     },
     {
       "id": "check-mrjk92i2-uiux0003",
       "text": "Keep Auth Builder and request state synchronized while excluding credential values from persisted webview state",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605995,
-      "updatedAt": 1783967605995
+      "updatedAt": 1784366934610
     },
     {
       "id": "check-mrjk92i2-uiux0004",
       "text": "Repair history delete, clear, filter, and replay by stable ID with explicit empty/error feedback",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605995,
-      "updatedAt": 1783967605995
+      "updatedAt": 1784366934611
     },
     {
       "id": "check-mrjk92i2-uiux0005",
       "text": "Make global-search selection navigate to and load the exact collection/request result",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605995,
-      "updatedAt": 1783967605995
+      "updatedAt": 1784366934612
     },
     {
       "id": "check-mrjk92i2-uiux0006",
       "text": "Render bounded text/JSON and exact binary images safely, with allowlisted MIME types and cache cleanup",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605995,
-      "updatedAt": 1783967605995
+      "updatedAt": 1784366934613
     },
     {
       "id": "check-mrjk92i2-uiux0007",
       "text": "Add labels, keyboard behavior, focus management, accessible dialogs/tabs, and status announcements",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605995,
-      "updatedAt": 1783967605995
+      "updatedAt": 1784366934614
     },
     {
       "id": "check-mrjk92i2-uiux0008",
