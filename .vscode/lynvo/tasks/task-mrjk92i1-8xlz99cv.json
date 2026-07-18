@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605994,
-  "updatedAt": 1784364088296,
+  "updatedAt": 1784364811770,
   "position": 1783967605994,
   "labelIds": [
     "bug",
@@ -29,44 +29,44 @@
     {
       "id": "check-mrjk92i1-cmds0001",
       "text": "Inventory contributed, activated, registered, and handled command IDs and resolve every mismatch",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605994,
-      "updatedAt": 1783967605994
+      "updatedAt": 1784364811764
     },
     {
       "id": "check-mrjk92i1-cmds0002",
       "text": "Add a webview-ready handshake and queue startup actions until their target can receive them",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605994,
-      "updatedAt": 1783967605994
+      "updatedAt": 1784364811766
     },
     {
       "id": "check-mrjk92i1-cmds0003",
       "text": "Wire new request, cURL import, collections, history, variables, and code generation to real UI state",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605994,
-      "updatedAt": 1783967605994
+      "updatedAt": 1784364811767
     },
     {
       "id": "check-mrjk92i1-cmds0004",
       "text": "Use host-owned open/save dialogs and validate import/export data before filesystem changes",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605994,
-      "updatedAt": 1783967605994
+      "updatedAt": 1784364811768
     },
     {
       "id": "check-mrjk92i1-cmds0005",
       "text": "Return correlated acknowledgements and actionable errors for success, cancellation, invalid data, and I/O failure",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605994,
-      "updatedAt": 1783967605994
+      "updatedAt": 1784364811769
     },
     {
       "id": "check-mrjk92i1-cmds0006",
       "text": "Dispose command/message listeners and prevent duplicate execution across repeated webview opens",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605994,
-      "updatedAt": 1783967605994
+      "updatedAt": 1784364811770
     },
     {
       "id": "check-mrjk92i1-cmds0007",
