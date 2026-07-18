@@ -2,7 +2,7 @@
   "id": "task-mrjk92i1-8xlz99cv",
   "title": "Wire every contributed command and webview startup action",
   "description": "Reconcile `package.json` contributions, activation events, command registration, host handlers, and webview navigation so every advertised action has one working implementation. Register the exact contributed command set; remove unsupported contributions or implement them. Commands invoked before the webview is ready must open it, wait for a ready handshake, then deliver the intended action rather than dropping a message.\n\nImplement host-owned file dialogs and validation for imports/exports. Wire navigation for new request, import cURL, collections, history, variables, and code generation to real panels and operations. Every command must receive an acknowledgement or structured error correlated to its operation ID. Avoid duplicate listeners and dispose all registrations.\n\nExtension-host tests should invoke commands both before and after webview readiness, verify that exactly one action occurs, cover cancellation/error paths, and assert that contributed command IDs equal registered IDs.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605994,
-  "updatedAt": 1783967605994,
+  "updatedAt": 1784364088296,
   "position": 1783967605994,
   "labelIds": [
     "bug",
