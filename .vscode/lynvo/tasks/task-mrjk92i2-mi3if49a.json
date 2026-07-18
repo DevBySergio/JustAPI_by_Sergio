@@ -2,7 +2,7 @@
   "id": "task-mrjk92i2-mi3if49a",
   "title": "Stabilize webview state, history, search, responses, and accessibility",
   "description": "Make the webview resilient to reloads, rapid actions, large responses, and keyboard-only use. Persist safe editor/navigation state with VS Code webview state, distinguish saved from unsaved changes, and confirm before destructive navigation. Use protocol correlation so duplicate clicks, stale responses, and delayed history/search results cannot overwrite the active view. Keep Auth Builder state synchronized with the normalized request without placing secrets in webview persistence.\n\nMake history deletion, clearing, filtering, and replay operate on stable IDs and show clear empty/error states. Global search must navigate to and load the selected request, not merely display a result. Render binary images only from exact base64 plus an allowlisted MIME type; bound JSON formatting and large-text rendering, and release object URLs/caches when responses change.\n\nAdd semantic labels, keyboard navigation, visible focus, predictable focus restoration, accessible dialogs/tabs, and status announcements. Smoke tests should cover reload, unsaved changes, double-send, out-of-order results, replay, search navigation, large/binary responses, and keyboard flows.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605995,
-  "updatedAt": 1783968300006,
+  "updatedAt": 1784365689143,
   "position": 1783967605995,
   "labelIds": [
     "bug",

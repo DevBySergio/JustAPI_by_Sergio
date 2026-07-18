@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrq59dfb-rqtwmjau",
+  "type": "task_moved",
+  "message": "Moved \"Stabilize webview state, history, search, responses, and accessibility\" from To Do to In Progress",
+  "createdAt": 1784365689143,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "taskId": "task-mrjk92i2-mi3if49a",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}
