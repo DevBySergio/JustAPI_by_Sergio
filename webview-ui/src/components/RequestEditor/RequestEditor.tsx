@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRequestStore } from '../../stores/useRequestStore';
 import { useCollectionStore } from '../../stores/useCollectionStore';
 import { useVariableStore } from '../../stores/useVariableStore';
@@ -7,17 +7,24 @@ import { KeyValueEditor } from '../Common/KeyValueEditor';
 import { BodyEditor } from './BodyEditor';
 import { ActiveVariablesPanel } from './ActiveVariablesPanel';
 import { postMessage } from '../../utils/vscodeApi';
+import { nextTabIndex } from '../../../../src/webview/WebviewState';
 
 interface RequestEditorProps {
   onSend: () => void;
   onSave: () => void;
+  onNew: () => void;
+  isDirty: boolean;
+  isSaved: boolean;
   onNotification: (text: string, type: 'info' | 'error' | 'success') => void;
 }
 
 type EditorTab = 'headers' | 'params' | 'body' | 'auth' | 'settings' | 'variables';
 
-export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorProps) {
+const EDITOR_TABS: EditorTab[] = ['headers', 'params', 'body', 'auth', 'settings', 'variables'];
+
+export function RequestEditor({ onSend, onSave, onNew, isDirty, isSaved, onNotification }: RequestEditorProps) {
   const [activeTab, setActiveTab] = useState<EditorTab>('headers');
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const {
     currentRequest,
     isExecuting,
@@ -27,7 +34,6 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
     setName,
     setHeaders,
     setQueryParams,
-    resetRequest,
   } = useRequestStore();
 
   const collections = useCollectionStore((s) => s.collections);
@@ -54,24 +60,38 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
 
   return (
     <div style={{ padding: '8px' }}>
-      <input
-        type="text"
-        value={currentRequest.name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Request name (optional)"
-        style={{
-          width: '100%',
-          padding: '4px 8px',
-          marginBottom: '8px',
-          background: 'var(--vscode-input-background)',
-          color: 'var(--vscode-input-foreground)',
-          border: '1px solid var(--vscode-input-border)',
-          fontSize: '12px',
-          fontWeight: 600,
-          fontFamily: 'var(--vscode-font-family)',
-          outline: 'none',
-        }}
-      />
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px' }}>
+        <input
+          id="request-name-input"
+          aria-label="Request name"
+          type="text"
+          value={currentRequest.name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Request name (optional)"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: '4px 8px',
+            background: 'var(--vscode-input-background)',
+            color: 'var(--vscode-input-foreground)',
+            border: '1px solid var(--vscode-input-border)',
+            fontSize: '12px',
+            fontWeight: 600,
+            fontFamily: 'var(--vscode-font-family)',
+          }}
+        />
+        <span
+          role="status"
+          aria-live="polite"
+          style={{
+            fontSize: '10px',
+            color: isDirty ? 'var(--vscode-inputValidation-warningForeground)' : 'var(--vscode-descriptionForeground)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isDirty ? 'Unsaved changes' : isSaved ? 'Saved' : 'Draft'}
+        </span>
+      </div>
 
       <div style={{
         display: 'flex', gap: '4px', alignItems: 'center',
@@ -79,6 +99,7 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
       }}>
         <span style={{ color: 'var(--vscode-descriptionForeground)', whiteSpace: 'nowrap' }}>Collection:</span>
         <select
+          aria-label="Request collection"
           value={activeCollectionId || ''}
           onChange={(e) => {
             const id = e.target.value;
@@ -183,8 +204,7 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
 
         <button
           onClick={() => {
-            resetRequest();
-            onNotification('New request created', 'info');
+            onNew();
           }}
           style={{
             padding: '6px 8px',
@@ -222,18 +242,35 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
         </button>
       </div>
 
-      <div style={{
+      <div
+        role="tablist"
+        aria-label="Request editor sections"
+        style={{
         display: 'flex',
         gap: '2px',
         marginTop: '12px',
         borderBottom: '1px solid var(--vscode-panel-border)',
-      }}>
-        {(['headers', 'params', 'body', 'auth', 'settings', 'variables'] as EditorTab[]).map((tab) => (
+        }}
+      >
+        {EDITOR_TABS.map((tab, index) => (
           <button
             key={tab}
+            ref={(element) => { tabRefs.current[index] = element; }}
             role="tab"
             aria-selected={activeTab === tab}
+            aria-controls={`request-panel-${tab}`}
+            id={`request-tab-${tab}`}
+            tabIndex={activeTab === tab ? 0 : -1}
             onClick={() => setActiveTab(tab)}
+            onKeyDown={(event) => {
+              const nextIndex = nextTabIndex(index, event.key, EDITOR_TABS.length);
+              if (nextIndex === null) {
+                return;
+              }
+              event.preventDefault();
+              setActiveTab(EDITOR_TABS[nextIndex]);
+              tabRefs.current[nextIndex]?.focus();
+            }}
             className="editor-tab-btn"
             style={{
               padding: '4px 10px',
@@ -252,7 +289,13 @@ export function RequestEditor({ onSend, onSave, onNotification }: RequestEditorP
         ))}
       </div>
 
-      <div style={{ marginTop: '8px' }}>
+      <div
+        id={`request-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`request-tab-${activeTab}`}
+        tabIndex={0}
+        style={{ marginTop: '8px' }}
+      >
         {activeTab === 'headers' && (
           <KeyValueEditor
             pairs={currentRequest.headers}
@@ -339,10 +382,12 @@ function AuthEditor() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+      <div role="radiogroup" aria-label="Authentication type" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
         {(['none', 'bearer', 'basic', 'apiKey'] as const).map((t) => (
           <button
             key={t}
+            role="radio"
+            aria-checked={authType === t}
             onClick={() => { setAuthType(t); }}
             style={{
               padding: '3px 8px',
@@ -364,6 +409,7 @@ function AuthEditor() {
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           <span style={{ minWidth: '50px' }}>Token:</span>
           <input
+            aria-label="Bearer token"
             type="password"
             value={bearerToken}
             onChange={(e) => { setBearerToken(e.target.value); }}
@@ -385,6 +431,7 @@ function AuthEditor() {
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             <span style={{ minWidth: '50px' }}>Username:</span>
             <input
+              aria-label="Basic authentication username"
               type="text"
               value={basicUser}
               onChange={(e) => setBasicUser(e.target.value)}
@@ -395,6 +442,7 @@ function AuthEditor() {
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             <span style={{ minWidth: '50px' }}>Password:</span>
             <input
+              aria-label="Basic authentication password"
               type="password"
               value={basicPass}
               onChange={(e) => setBasicPass(e.target.value)}
@@ -411,6 +459,7 @@ function AuthEditor() {
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             <span style={{ minWidth: '50px' }}>Key:</span>
             <input
+              aria-label="API key name"
               type="text"
               value={apiKeyName}
               onChange={(e) => setApiKeyName(e.target.value)}
@@ -421,6 +470,7 @@ function AuthEditor() {
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             <span style={{ minWidth: '50px' }}>Value:</span>
             <input
+              aria-label="API key value"
               type="password"
               value={apiKeyValue}
               onChange={(e) => setApiKeyValue(e.target.value)}

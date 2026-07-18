@@ -673,11 +673,16 @@ function isHistoryEntry(value: unknown): value is HistoryEntry {
 
 function isSearchResult(value: unknown): value is SearchResult {
   return isRecord(value)
-    && hasOnlyKeys(value, ['type', 'id', 'name', 'matchField'], ['collectionId', 'url'])
-    && (value.type === 'collection' || value.type === 'folder' || value.type === 'request')
+    && hasOnlyKeys(value, ['type', 'id', 'name', 'matchField'], ['collectionId', 'requestId', 'url'])
+    && (value.type === 'collection'
+      || value.type === 'folder'
+      || value.type === 'request'
+      || value.type === 'history')
     && isProtocolIdentifier(value.id)
     && isString(value.name, PROTOCOL_LIMITS.maximumNameLength)
     && (value.collectionId === undefined || isProtocolIdentifier(value.collectionId))
+    && (value.requestId === undefined
+      || (value.type === 'history' && isProtocolIdentifier(value.requestId)))
     && (value.url === undefined || isString(value.url, PROTOCOL_LIMITS.maximumUrlLength))
     && (value.matchField === 'name'
       || value.matchField === 'url'

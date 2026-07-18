@@ -28,6 +28,7 @@ export function UrlBar({ url, method, onUrlChange, onMethodChange }: UrlBarProps
   return (
     <div style={{ display: 'flex', gap: '4px' }}>
       <select
+        aria-label="HTTP method"
         value={method}
         onChange={(e) => onMethodChange(e.target.value as HttpMethod)}
         style={{
@@ -51,6 +52,7 @@ export function UrlBar({ url, method, onUrlChange, onMethodChange }: UrlBarProps
         <VariableAutocomplete value={url} onChange={onUrlChange}>
           {({ onInput, onKeyDown, onBlur }) => (
             <HighlightedInput
+              ariaLabel="Request URL"
               value={url}
               onChange={(v) => {
                 onUrlChange(v);

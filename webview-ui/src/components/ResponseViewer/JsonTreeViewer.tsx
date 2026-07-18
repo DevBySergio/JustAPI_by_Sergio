@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { RESPONSE_RENDER_LIMITS } from '../../../../src/webview/ResponsePresentation';
 
 const indentSize = 16;
 
@@ -8,9 +9,14 @@ const v = {
     userSelect: 'none' as const,
     fontSize: '10px',
     color: 'var(--vscode-descriptionForeground)',
-    width: '12px',
-    display: 'inline-block',
+    width: '16px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
+    border: 'none',
+    padding: 0,
+    background: 'transparent',
   },
   key: { color: 'var(--vscode-textLink-foreground)' },
   str: { color: '#ce9178' },
@@ -30,12 +36,14 @@ interface JTProps {
   defaultExpanded: boolean;
 }
 
-const hasDescCache = new Map<object, boolean>();
+let hasDescCache = new WeakMap<object, Map<string, boolean>>();
 
-function cachedHasDesc(value: unknown, query: string): boolean {
+function cachedHasDesc(value: unknown, query: string, depth = 0): boolean {
   if (typeof value !== 'object' || value === null) { return false; }
+  if (depth >= RESPONSE_RENDER_LIMITS.maximumTreeDepth) { return false; }
 
-  const cached = hasDescCache.get(value);
+  const normalizedQuery = query.toLowerCase();
+  const cached = hasDescCache.get(value)?.get(normalizedQuery);
   if (cached !== undefined) { return cached; }
 
   const q = query.toLowerCase();
@@ -48,7 +56,7 @@ function cachedHasDesc(value: unknown, query: string): boolean {
       if (typeof item === 'number' && String(item).includes(q)) { return true; }
       if (typeof item === 'boolean' && String(item).includes(q)) { return true; }
       if (item === null && 'null'.includes(q)) { return true; }
-      return cachedHasDesc(item, query);
+      return cachedHasDesc(item, query, depth + 1);
     });
   } else {
     result = Object.entries(value as Record<string, unknown>).some(([key, val]) => {
@@ -57,17 +65,19 @@ function cachedHasDesc(value: unknown, query: string): boolean {
       if (typeof val === 'number' && String(val).includes(q)) { return true; }
       if (typeof val === 'boolean' && String(val).includes(q)) { return true; }
       if (val === null && 'null'.includes(q)) { return true; }
-      return cachedHasDesc(val, query);
+      return cachedHasDesc(val, query, depth + 1);
     });
   }
 
-  hasDescCache.set(value, result);
+  const queries = hasDescCache.get(value) ?? new Map<string, boolean>();
+  queries.set(normalizedQuery, result);
+  hasDescCache.set(value, queries);
   return result;
 }
 
 export function JsonTreeViewer({ data, searchQuery, defaultExpanded }: JTProps) {
   useEffect(() => {
-    hasDescCache.clear();
+    hasDescCache = new WeakMap<object, Map<string, boolean>>();
   }, [searchQuery]);
 
   return (
@@ -91,10 +101,18 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
   const isCol = isObj || isArr;
 
   const entries = useMemo(() => {
-    if (isObj) { return Object.entries(value as Record<string, unknown>); }
-    if (isArr) { return (value as unknown[]).map((v, i) => [String(i), v] as [string, unknown]); }
+    if (depth >= RESPONSE_RENDER_LIMITS.maximumTreeDepth) { return []; }
+    if (isObj) {
+      return Object.entries(value as Record<string, unknown>)
+        .slice(0, RESPONSE_RENDER_LIMITS.maximumTreeEntriesPerNode);
+    }
+    if (isArr) {
+      return (value as unknown[])
+        .slice(0, RESPONSE_RENDER_LIMITS.maximumTreeEntriesPerNode)
+        .map((v, i) => [String(i), v] as [string, unknown]);
+    }
     return [];
-  }, [value, isObj, isArr]);
+  }, [value, isObj, isArr, depth]);
 
   const match = useMemo(() => {
     if (!searchQuery) { return { self: false, desc: false }; }
@@ -167,12 +185,31 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
   }
 
   const br = isObj ? ['{', '}'] : ['[', ']'];
-  const info = `${entries.length} ${isObj ? 'properties' : 'items'}`;
+  const totalEntries = isArr
+    ? (value as unknown[]).length
+    : Object.keys(value as Record<string, unknown>).length;
+  const omittedEntries = totalEntries - entries.length;
+  const info = `${totalEntries} ${isObj ? 'properties' : 'items'}`;
+
+  if (depth >= RESPONSE_RENDER_LIMITS.maximumTreeDepth) {
+    return (
+      <div style={{ paddingLeft: depth * indentSize, color: 'var(--vscode-descriptionForeground)' }}>
+        {keyName !== null && keyName !== undefined && <span style={v.key}>{hr(keyName)}: </span>}
+        Preview depth limit reached ({info})
+      </div>
+    );
+  }
 
   if (!expanded) {
     return (
       <div style={{ paddingLeft: depth * indentSize, background: hlRow ? 'var(--vscode-editor-findMatchHighlightBackground)' : undefined }}>
-        <span onClick={() => setExpanded(true)} style={v.toggle}>▶ </span>
+        <button
+          type="button"
+          aria-expanded="false"
+          aria-label={`Expand ${keyName ?? 'JSON value'}`}
+          onClick={() => setExpanded(true)}
+          style={v.toggle}
+        >▶</button>
         {keyName !== null && keyName !== undefined && (
           <>
             <span style={v.key}>{hr(keyName)}</span>
@@ -188,7 +225,13 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
   return (
     <div>
       <div style={{ paddingLeft: depth * indentSize }}>
-        <span onClick={() => setExpanded(false)} style={v.toggle}>▾ </span>
+        <button
+          type="button"
+          aria-expanded="true"
+          aria-label={`Collapse ${keyName ?? 'JSON value'}`}
+          onClick={() => setExpanded(false)}
+          style={v.toggle}
+        >▾</button>
         {keyName !== null && keyName !== undefined && (
           <>
             <span style={v.key}>{hr(keyName)}</span>
@@ -207,10 +250,14 @@ const JN = React.memo(function JNInner({ keyName, value, searchQuery, defaultExp
           depth={depth + 1}
         />
       ))}
+      {omittedEntries > 0 && (
+        <div style={{ paddingLeft: (depth + 1) * indentSize, color: 'var(--vscode-descriptionForeground)' }}>
+          … {omittedEntries.toLocaleString()} more {isObj ? 'properties' : 'items'} omitted
+        </div>
+      )}
       <div style={{ paddingLeft: depth * indentSize }}>
         <span style={v.bracket}>{br[1]}</span>
       </div>
     </div>
   );
 });
-

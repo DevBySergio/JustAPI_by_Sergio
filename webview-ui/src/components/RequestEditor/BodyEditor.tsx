@@ -26,10 +26,12 @@ export function BodyEditor() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+      <div role="radiogroup" aria-label="Request body type" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
         {BODY_TYPES.map((bt) => (
           <button
             key={bt.value}
+            role="radio"
+            aria-checked={body.type === bt.value}
             onClick={() => setBodyType(bt.value)}
             style={{
               padding: '3px 8px',
@@ -69,6 +71,7 @@ export function BodyEditor() {
         <VariableAutocomplete value={body.content} onChange={setBodyContent}>
           {({ onInput, onKeyDown, onBlur }) => (
             <HighlightedInput
+              ariaLabel="Request body"
               value={body.content}
               onChange={(v) => {
                 setBodyContent(v);

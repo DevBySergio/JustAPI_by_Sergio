@@ -4,6 +4,7 @@ interface HighlightedInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  ariaLabel?: string;
   multiline?: boolean;
   minHeight?: string;
   spellCheck?: boolean;
@@ -57,6 +58,7 @@ export function HighlightedInput({
   value,
   onChange,
   placeholder,
+  ariaLabel,
   multiline,
   minHeight,
   spellCheck,
@@ -133,6 +135,7 @@ export function HighlightedInput({
 
         {/* Actual textarea (transparent text) */}
         <textarea
+          aria-label={ariaLabel}
           ref={activeRef as React.RefObject<HTMLTextAreaElement>}
           value={value}
           onChange={handleInput}
@@ -190,6 +193,7 @@ export function HighlightedInput({
 
       {/* Actual input */}
       <input
+        aria-label={ariaLabel}
         ref={activeRef as React.RefObject<HTMLInputElement>}
         type="text"
         value={value}

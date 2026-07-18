@@ -32,6 +32,7 @@ export function KeyValueEditor({ pairs, onChange, namePlaceholder = 'Key', value
       {pairs.map((pair, idx) => (
         <div key={pair.id} style={{ display: 'flex', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
           <input
+            aria-label={`${pair.enabled ? 'Disable' : 'Enable'} row ${idx + 1}`}
             type="checkbox"
             checked={pair.enabled}
             onChange={() => toggleRow(pair.id)}
@@ -39,6 +40,7 @@ export function KeyValueEditor({ pairs, onChange, namePlaceholder = 'Key', value
             disabled={readOnly}
           />
           <input
+            aria-label={`${namePlaceholder} ${idx + 1}`}
             type="text"
             value={pair.key}
             onChange={(e) => updateRow(pair.id, 'key', e.target.value)}
@@ -57,6 +59,7 @@ export function KeyValueEditor({ pairs, onChange, namePlaceholder = 'Key', value
           {showVariables ? (
             <div style={{ flex: 2 }}>
               <HighlightedInput
+                ariaLabel={`${valuePlaceholder} ${idx + 1}`}
                 value={pair.value}
                 onChange={(v) => updateRow(pair.id, 'value', v)}
                 placeholder={valuePlaceholder}
@@ -65,6 +68,7 @@ export function KeyValueEditor({ pairs, onChange, namePlaceholder = 'Key', value
             </div>
           ) : (
             <input
+              aria-label={`${valuePlaceholder} ${idx + 1}`}
               type="text"
               value={pair.value}
               onChange={(e) => updateRow(pair.id, 'value', e.target.value)}
@@ -95,6 +99,7 @@ export function KeyValueEditor({ pairs, onChange, namePlaceholder = 'Key', value
                 flexShrink: 0,
               }}
               title="Remove"
+              aria-label={`Remove row ${idx + 1}`}
             >
               ×
             </button>

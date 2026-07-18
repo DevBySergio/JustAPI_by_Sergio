@@ -1,10 +1,17 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useResponseStore } from '../../stores/useResponseStore';
 import { BodyType, ResponseCookie } from '../../../../src/models/Response';
 import { JsonTreeViewer } from './JsonTreeViewer';
+import {
+  boundResponseText,
+  RESPONSE_RENDER_LIMITS,
+  validateImagePreview,
+} from '../../../../src/webview/ResponsePresentation';
+import { nextTabIndex } from '../../../../src/webview/WebviewState';
 
 type ResponseTab = 'body' | 'headers' | 'cookies';
 type JsonViewMode = 'tree' | 'pretty' | 'raw';
+const RESPONSE_TABS: ResponseTab[] = ['body', 'headers', 'cookies'];
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) { return `${bytes} B`; }
@@ -194,6 +201,7 @@ export function ResponseViewer() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const responseTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     if (!showSearch) {
@@ -235,7 +243,7 @@ export function ResponseViewer() {
 
   if (response.error) {
     return (
-      <div style={{ borderTop: '1px solid var(--vscode-panel-border)' }}>
+      <div role="alert" style={{ borderTop: '1px solid var(--vscode-panel-border)' }}>
         <div style={{ padding: '8px', background: 'var(--vscode-inputValidation-errorBackground)', color: 'var(--vscode-errorForeground)' }}>
           <strong style={{ fontSize: '12px' }}>
             {response.error.type === 'network' ? 'Network Error' :
@@ -278,8 +286,15 @@ export function ResponseViewer() {
   }
 
   return (
-    <div style={{ borderTop: '1px solid var(--vscode-panel-border)' }}>
-      <div style={{
+    <div
+      style={{ borderTop: '1px solid var(--vscode-panel-border)' }}
+      role="region"
+      aria-label="HTTP response"
+    >
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
         display: 'flex',
         gap: '12px',
         padding: '6px 8px',
@@ -287,7 +302,8 @@ export function ResponseViewer() {
         fontSize: '12px',
         alignItems: 'center',
         flexWrap: 'wrap',
-      }}>
+        }}
+      >
         <span style={{
           fontWeight: 700,
           color: response.statusCode < 300 ? '#49cc90' : response.statusCode < 500 ? '#fca130' : '#f93e3e',
@@ -308,18 +324,37 @@ export function ResponseViewer() {
         )}
       </div>
 
-      <div style={{
+      <div
+        role="tablist"
+        aria-label="Response sections"
+        style={{
         display: 'flex',
         gap: '2px',
         borderBottom: '1px solid var(--vscode-panel-border)',
         paddingLeft: '8px',
         alignItems: 'center',
         flexWrap: 'wrap',
-      }}>
-        {(['body', 'headers', 'cookies'] as ResponseTab[]).map((tab) => (
+        }}
+      >
+        {RESPONSE_TABS.map((tab, index) => (
           <button
             key={tab}
+            ref={(element) => { responseTabRefs.current[index] = element; }}
+            role="tab"
+            aria-selected={activeTab === tab}
+            aria-controls={`response-panel-${tab}`}
+            id={`response-tab-${tab}`}
+            tabIndex={activeTab === tab ? 0 : -1}
             onClick={() => setActiveTab(tab)}
+            onKeyDown={(event) => {
+              const nextIndex = nextTabIndex(index, event.key, RESPONSE_TABS.length);
+              if (nextIndex === null) {
+                return;
+              }
+              event.preventDefault();
+              setActiveTab(RESPONSE_TABS[nextIndex]);
+              responseTabRefs.current[nextIndex]?.focus();
+            }}
             style={{
               padding: '4px 10px',
               border: 'none',
@@ -457,6 +492,7 @@ export function ResponseViewer() {
         }}>
           <span style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '11px' }}>&#x1F50D;</span>
           <input
+            aria-label="Search in response"
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -473,6 +509,7 @@ export function ResponseViewer() {
             autoFocus
           />
           <button
+            aria-label="Close response search"
             onClick={() => { setSearchInput(''); setShowSearch(false); }}
             style={{
               border: 'none',
@@ -488,7 +525,13 @@ export function ResponseViewer() {
         </div>
       )}
 
-      <div style={{ maxHeight: '300px', overflow: 'auto' }}>
+      <div
+        id={`response-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`response-tab-${activeTab}`}
+        tabIndex={0}
+        style={{ maxHeight: '300px', overflow: 'auto' }}
+      >
         {activeTab === 'body' && (
           <ResponseBody
             body={response.body}
@@ -516,13 +559,54 @@ function ResponseBody({ body, bodyType, mimeType, isPretty, jsonViewMode, search
   searchQuery: string;
   treeExpanded: boolean;
 }) {
+  const imagePreview = useMemo(
+    () => bodyType === 'image' ? validateImagePreview(mimeType, body) : null,
+    [body, bodyType, mimeType]
+  );
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!imagePreview?.ok) {
+      setImageUrl(null);
+      return;
+    }
+    try {
+      const binary = atob(body);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      const objectUrl = URL.createObjectURL(new Blob([bytes], { type: imagePreview.mimeType }));
+      setImageUrl(objectUrl);
+      return () => URL.revokeObjectURL(objectUrl);
+    } catch {
+      setImageUrl(null);
+    }
+  }, [body, imagePreview]);
+
   if (bodyType === 'image') {
+    if (!imagePreview?.ok || !imageUrl) {
+      return (
+        <div role="status" style={{ padding: '12px', color: 'var(--vscode-descriptionForeground)', fontSize: '11px' }}>
+          {imagePreview?.ok ? 'Preparing image preview…' : imagePreview?.reason ?? 'Image preview is unavailable.'}
+        </div>
+      );
+    }
     return (
       <div style={{ padding: '8px', textAlign: 'center' }}>
-        <img src={`data:${mimeType || 'image/*'};base64,${body}`} alt="Response image" style={{ maxWidth: '100%', maxHeight: '300px' }} />
+        <img src={imageUrl} alt={`Response image (${imagePreview.mimeType})`} style={{ maxWidth: '100%', maxHeight: '300px' }} />
       </div>
     );
   }
+
+  const bounded = boundResponseText(body);
+  const boundedBody = bounded.text;
+  const truncationNotice = (omittedCharacters: number) => omittedCharacters > 0 ? (
+      <div role="status" style={{ padding: '5px 8px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
+        Preview limited to {RESPONSE_RENDER_LIMITS.maximumTextCharacters.toLocaleString()} characters; {omittedCharacters.toLocaleString()} omitted.
+      </div>
+    ) : null;
+  const truncation = truncationNotice(bounded.omittedCharacters);
 
   const preStyle: React.CSSProperties = {
     margin: 0,
@@ -537,6 +621,9 @@ function ResponseBody({ body, bodyType, mimeType, isPretty, jsonViewMode, search
   };
 
   if (bodyType === 'json' && jsonViewMode === 'tree') {
+    if (body.length > RESPONSE_RENDER_LIMITS.maximumJsonCharacters) {
+      return <>{truncation}<pre style={preStyle}>{boundedBody}</pre></>;
+    }
     try {
       const parsed = JSON.parse(body);
       return (
@@ -550,40 +637,48 @@ function ResponseBody({ body, bodyType, mimeType, isPretty, jsonViewMode, search
         </div>
       );
     } catch {
-      return <pre style={preStyle}>{body}</pre>;
+      return <>{truncation}<pre style={preStyle}>{boundedBody}</pre></>;
     }
   }
 
   if (bodyType === 'json' && jsonViewMode === 'pretty') {
     let formatted: string;
     try {
-      formatted = JSON.stringify(JSON.parse(body), null, 2);
+      formatted = body.length <= RESPONSE_RENDER_LIMITS.maximumJsonCharacters
+        ? JSON.stringify(JSON.parse(body), null, 2)
+        : boundedBody;
     } catch {
-      formatted = body;
+      formatted = boundedBody;
     }
+    const boundedFormatted = boundResponseText(formatted);
+    formatted = boundedFormatted.text;
+    const prettyTruncation = truncationNotice(Math.max(
+      bounded.omittedCharacters,
+      boundedFormatted.omittedCharacters
+    ));
     if (searchQuery) {
-      return <pre style={preStyle}>{highlightTextInString(formatted, searchQuery)}</pre>;
+      return <>{prettyTruncation}<pre style={preStyle}>{highlightTextInString(formatted, searchQuery)}</pre></>;
     }
-    return <pre style={preStyle}><SyntaxHighlightedJson json={formatted} /></pre>;
+    return <>{prettyTruncation}<pre style={preStyle}><SyntaxHighlightedJson json={formatted} /></pre></>;
   }
 
   if (bodyType === 'json' && jsonViewMode === 'raw') {
     if (searchQuery) {
-      return <pre style={preStyle}>{highlightTextInString(body, searchQuery)}</pre>;
+      return <>{truncation}<pre style={preStyle}>{highlightTextInString(boundedBody, searchQuery)}</pre></>;
     }
-    return <pre style={preStyle}>{body}</pre>;
+    return <>{truncation}<pre style={preStyle}>{boundedBody}</pre></>;
   }
 
   const displayContent = (() => {
-    if (!isPretty) { return body; }
-    if (bodyType === 'xml') { return formatXml(body); }
-    return body;
+    if (!isPretty) { return boundedBody; }
+    if (bodyType === 'xml') { return formatXml(boundedBody); }
+    return boundedBody;
   })();
 
   if (searchQuery) {
-    return <pre style={preStyle}>{highlightTextInString(displayContent, searchQuery)}</pre>;
+    return <>{truncation}<pre style={preStyle}>{highlightTextInString(displayContent, searchQuery)}</pre></>;
   }
-  return <pre style={preStyle}>{displayContent}</pre>;
+  return <>{truncation}<pre style={preStyle}>{displayContent}</pre></>;
 }
 
 function ResponseHeaders({ headers }: { headers: Record<string, string> }) {

@@ -55,7 +55,11 @@ function VariableRow({ v, scope, onUpdate, onToggle, onRemove }: VariableRowProp
       </span>
 
       {/* Toggle */}
-      <ToggleSwitch checked={v.enabled} onChange={() => onToggle(v.id)} />
+      <ToggleSwitch
+        checked={v.enabled}
+        onChange={() => onToggle(v.id)}
+        label={`${v.enabled ? 'Disable' : 'Enable'} variable ${v.key || 'without a name'}`}
+      />
 
       {/* Key input */}
       <input

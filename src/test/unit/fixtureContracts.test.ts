@@ -31,6 +31,7 @@ describe('future-remediation fixture contracts', () => {
       'secret-storage',
       'redaction',
       'stale-responses',
+      'webview-resilience',
       'extension-activation',
       'command-startup-queue',
       'webview-lifecycle',

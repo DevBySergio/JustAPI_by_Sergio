@@ -29,6 +29,7 @@ export const regressionFixtures: readonly RegressionFixture[] = [
   { id: 'secret-storage', area: 'security', owner: 'AUTH', status: 'contract', purpose: 'SecretStorage migration and reference lifecycle' },
   { id: 'redaction', area: 'security', owner: 'AUTH', status: 'contract', purpose: 'Recursive artifact redaction' },
   { id: 'stale-responses', area: 'webview', owner: 'UI', status: 'active', purpose: 'Ignore results from superseded executions' },
+  { id: 'webview-resilience', area: 'webview', owner: 'UI', status: 'active', purpose: 'Safe reload state, dirty navigation, exact search and history replay, bounded rendering, and keyboard focus' },
   { id: 'extension-activation', area: 'extension', owner: 'TEST', status: 'active', purpose: 'Activation at the declared VS Code engine floor' },
   { id: 'command-startup-queue', area: 'extension', owner: 'COMMANDS', status: 'active', purpose: 'Deliver cold-start commands once the view is ready' },
   { id: 'webview-lifecycle', area: 'extension', owner: 'TEST', status: 'active', purpose: 'Open, reveal, and close the contributed view' },

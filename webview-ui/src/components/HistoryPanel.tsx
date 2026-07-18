@@ -1,43 +1,37 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useHistoryStore } from '../stores/useHistoryStore';
-import { useRequestStore } from '../stores/useRequestStore';
 import { postMessage } from '../utils/vscodeApi';
-import { createDefaultRequest } from '../../../src/models/Request';
+import type { HistoryEntry } from '../../../src/models/HistoryEntry';
 
 interface HistoryPanelProps {
   onNotification: (text: string, type?: 'info' | 'error' | 'success') => void;
+  onReplay: (entry: HistoryEntry) => void;
+  onAcknowledge: (operationId: string, message: string) => void;
 }
 
-export function HistoryPanel({ onNotification }: HistoryPanelProps) {
+export function HistoryPanel({ onNotification, onReplay, onAcknowledge }: HistoryPanelProps) {
   const entries = useHistoryStore((s) => s.entries);
   const filterText = useHistoryStore((s) => s.filterText);
   const setFilterText = useHistoryStore((s) => s.setFilterText);
-  const setRequest = useRequestStore((s) => s.setRequest);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
     postMessage({ type: 'getHistory' });
   }, []);
 
   const handleClear = () => {
-    postMessage({ type: 'clearHistory' });
+    const operation = postMessage({ type: 'clearHistory' });
+    onAcknowledge(operation.operationId, 'History cleared');
+    setConfirmClear(false);
   };
 
   const handleReplay = (entry: typeof entries[0]) => {
-    if (entry.requestId) {
-      postMessage({ type: 'getRequest', requestId: entry.requestId });
-      return;
-    }
-    setRequest({
-      ...createDefaultRequest(),
-      name: `History: ${entry.method} request`,
-      method: entry.method,
-      url: entry.url,
-    });
-    onNotification('Sensitive values and the body were intentionally not retained in history.', 'info');
+    onReplay(entry);
   };
 
   const handleDelete = (entryId: string) => {
-    postMessage({ type: 'deleteHistoryEntry', entryId });
+    const operation = postMessage({ type: 'deleteHistoryEntry', entryId });
+    onAcknowledge(operation.operationId, 'History entry deleted');
   };
 
   const filteredEntries = filterText
@@ -55,6 +49,7 @@ export function HistoryPanel({ onNotification }: HistoryPanelProps) {
     <div style={{ padding: '8px' }}>
       <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
         <input
+          aria-label="Filter request history"
           type="text"
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
@@ -73,8 +68,19 @@ export function HistoryPanel({ onNotification }: HistoryPanelProps) {
             fontSize: '11px',
           }}
         />
-        <button
-          onClick={handleClear}
+        {confirmClear ? (
+          <div role="group" aria-label="Confirm clearing history" style={{ display: 'flex', gap: '4px' }}>
+            <button type="button" onClick={handleClear}>Clear all</button>
+            <button type="button" onClick={() => setConfirmClear(false)}>Cancel</button>
+          </div>
+        ) : <button
+          onClick={() => {
+            if (entries.length === 0) {
+              onNotification('History is already empty', 'info');
+              return;
+            }
+            setConfirmClear(true);
+          }}
           style={{
             padding: '4px 8px',
             background: 'none',
@@ -83,14 +89,17 @@ export function HistoryPanel({ onNotification }: HistoryPanelProps) {
             cursor: 'pointer',
             fontSize: '10px',
           }}
+          disabled={entries.length === 0}
         >
           Clear
-        </button>
+        </button>}
       </div>
 
       {filteredEntries.length === 0 && (
         <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '11px', textAlign: 'center', padding: '16px' }}>
-          No history yet. Execute requests to see them here.
+          {entries.length === 0
+            ? 'No history yet. Execute requests to see them here.'
+            : `No history entries match “${filterText}”.`}
         </div>
       )}
 
@@ -103,9 +112,7 @@ export function HistoryPanel({ onNotification }: HistoryPanelProps) {
             alignItems: 'center',
             padding: '6px 4px',
             borderBottom: '1px solid var(--vscode-panel-border)',
-            cursor: 'pointer',
           }}
-          onClick={() => handleReplay(entry)}
         >
           <span style={{
             fontSize: '10px',
@@ -120,14 +127,28 @@ export function HistoryPanel({ onNotification }: HistoryPanelProps) {
             {entry.method}
           </span>
 
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <button
+            type="button"
+            onClick={() => handleReplay(entry)}
+            aria-label={`Replay ${entry.method} ${entry.url}`}
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              border: 'none',
+              background: 'transparent',
+              color: 'inherit',
+              textAlign: 'left',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
             <div style={{ fontSize: '10px', color: 'var(--vscode-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {entry.url}
             </div>
             <div style={{ fontSize: '9px', color: 'var(--vscode-descriptionForeground)' }}>
               {new Date(entry.timestamp).toLocaleString()} · {entry.duration.toFixed(0)}ms · {entry.statusCode}
             </div>
-          </div>
+          </button>
 
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
@@ -141,6 +162,7 @@ export function HistoryPanel({ onNotification }: HistoryPanelProps) {
               flexShrink: 0,
             }}
             title="Delete"
+            aria-label={`Delete history entry ${entry.method} ${entry.url}`}
           >
             ×
           </button>

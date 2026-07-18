@@ -282,7 +282,9 @@ function VarGroup({
 
   return (
     <div style={{ marginBottom: '6px', border: '1px solid var(--vscode-panel-border)', borderRadius: '3px', overflow: 'hidden' }}>
-      <div
+      <button
+        type="button"
+        aria-expanded={!collapsed}
         onClick={() => setCollapsed(!collapsed)}
         style={{
           display: 'flex',
@@ -293,6 +295,10 @@ function VarGroup({
           background: 'var(--vscode-sideBarSectionHeader-background)',
           fontSize: '10px',
           fontWeight: 600,
+          border: 'none',
+          width: '100%',
+          color: 'var(--vscode-foreground)',
+          textAlign: 'left',
         }}
       >
         <span style={{ fontSize: '8px', width: '10px', textAlign: 'center' }}>{collapsed ? '▶' : '▼'}</span>
@@ -303,7 +309,7 @@ function VarGroup({
         }}>{badge}</span>
         <span style={{ flex: 1 }}>{title}</span>
         <span style={{ fontSize: '9px', color: 'var(--vscode-descriptionForeground)' }}>{active.length}</span>
-      </div>
+      </button>
 
       {!collapsed && active.map(v => (
         <div

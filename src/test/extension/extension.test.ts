@@ -44,5 +44,6 @@ suite('JustAPI extension host', () => {
     assert.ok(fixtureIds.has('command-startup-queue'));
     assert.ok(fixtureIds.has('protocol-errors'));
     assert.ok(fixtureIds.has('stale-responses'));
+    assert.ok(fixtureIds.has('webview-resilience'));
   });
 });

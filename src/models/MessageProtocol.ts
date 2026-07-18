@@ -163,10 +163,11 @@ export interface InitialState {
 }
 
 export interface SearchResult {
-  type: 'collection' | 'folder' | 'request';
+  type: 'collection' | 'folder' | 'request' | 'history';
   id: string;
   name: string;
   collectionId?: string;
+  requestId?: string;
   url?: string;
   matchField: 'name' | 'url' | 'variable' | 'header';
 }

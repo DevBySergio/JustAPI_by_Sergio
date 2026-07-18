@@ -1,9 +1,18 @@
-export function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+export function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
   return (
     <button
       onClick={onChange}
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       style={{
         width: '26px',
         height: '13px',

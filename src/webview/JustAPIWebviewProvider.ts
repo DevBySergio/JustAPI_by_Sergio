@@ -2,14 +2,12 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
 import { JustRequest, PersistedJustRequest } from '../models/Request';
 import { JustResponse } from '../models/Response';
-import { Collection } from '../models/Collection';
 import { Variable } from '../models/Variable';
 import { HistoryEntry } from '../models/HistoryEntry';
 import {
   ExtensionMessage,
   InitialState,
   ProtocolErrorCode,
-  SearchResult,
   StartupAction,
   WebviewMessage,
 } from '../models/MessageProtocol';
@@ -40,6 +38,7 @@ import {
   CommandStartupAction,
 } from '../commands/CommandController';
 import { StartupActionQueue } from '../commands/StartupActionQueue';
+import { buildSearchResults } from './SearchIndex';
 
 export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = ViewId.SIDEBAR;
@@ -332,7 +331,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
           break;
 
         case 'deleteHistoryEntry':
-          await this.deleteHistoryEntry(message.entryId);
+          await this.deleteHistoryEntry(message.entryId, message.operationId);
           break;
 
         case 'getVariables': {
@@ -756,10 +755,14 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: 'history', operationId, entries: [] });
   }
 
-  private async deleteHistoryEntry(entryId: string): Promise<void> {
+  private async deleteHistoryEntry(entryId: string, operationId: string): Promise<void> {
     const entries = await this.historyStore.read<HistoryEntry[]>('history') || [];
     const filtered = entries.filter(e => e.id !== entryId);
+    if (filtered.length === entries.length) {
+      throw new Error('History entry not found');
+    }
     await this.historyStore.write('history', filtered);
+    this.postMessage({ type: 'history', operationId, entries: filtered });
   }
 
   private async loadGlobalVariables(): Promise<Variable[]> {
@@ -779,66 +782,14 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleSearch(query: string, operationId: string): Promise<void> {
-    const lower = query.toLowerCase();
-    const results: SearchResult[] = [];
-
-    for (const collection of this.collectionManager.getCollections()) {
-      if (collection.name.toLowerCase().includes(lower)) {
-        results.push({ type: 'collection', id: collection.id, name: collection.name, matchField: 'name' });
-      }
-
-      this.searchItems(collection.items, lower, collection.id, results);
-    }
-
     const history = await this.loadHistory();
-    for (const entry of history) {
-      if (entry.url.toLowerCase().includes(lower) || entry.method.toLowerCase().includes(lower)) {
-        results.push({
-          type: 'request',
-          id: entry.id,
-          name: `${entry.method} ${entry.url}`,
-          url: entry.url,
-          matchField: 'url',
-        });
-      }
-    }
-
+    const results = buildSearchResults(
+      this.collectionManager.getCollections(),
+      requestId => this.collectionManager.getRequest(requestId),
+      history,
+      query
+    );
     this.postMessage({ type: 'searchResults', operationId, results });
-  }
-
-  private searchItems(
-    items: Collection['items'],
-    query: string,
-    collectionId: string,
-    results: SearchResult[]
-  ): void {
-    for (const item of items) {
-      if (item.name.toLowerCase().includes(query)) {
-        results.push({
-          type: item.type,
-          id: item.id,
-          name: item.name,
-          collectionId,
-          matchField: 'name',
-        });
-      }
-      if (item.type === 'folder' && item.items) {
-        this.searchItems(item.items, query, collectionId, results);
-      }
-      if (item.type === 'request' && item.requestId) {
-        const req = this.collectionManager.getRequest(item.requestId);
-        if (req?.url.toLowerCase().includes(query)) {
-          results.push({
-            type: 'request',
-            id: req.id,
-            name: `${req.method} ${req.url}`,
-            collectionId,
-            url: req.url,
-            matchField: 'url',
-          });
-        }
-      }
-    }
   }
 
   async runStartupAction(

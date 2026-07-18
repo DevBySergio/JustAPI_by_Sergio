@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CurlImportWarning } from '../../../src/models/CurlImport';
 import type { JustRequest } from '../../../src/models/Request';
 
@@ -24,7 +24,41 @@ function authSummary(request: JustRequest): string {
 
 export function CurlImportPreview({ request, warnings, onConfirm, onCancel }: CurlImportPreviewProps) {
   const [acknowledged, setAcknowledged] = useState(false);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
   useEffect(() => setAcknowledged(false), [request.id]);
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    cancelButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancelRef.current();
+      } else if (event.key === 'Tab') {
+        const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex="0"]'
+        ) ?? []);
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (first && last && event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (first && last && !event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [request.id]);
   const mustAcknowledge = warnings.length > 0;
 
   return (
@@ -42,6 +76,7 @@ export function CurlImportPreview({ request, warnings, onConfirm, onCancel }: Cu
       }}
     >
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="curl-import-preview-title"
@@ -150,7 +185,7 @@ export function CurlImportPreview({ request, warnings, onConfirm, onCancel }: Cu
           justifyContent: 'flex-end',
           gap: '8px',
         }}>
-          <button type="button" onClick={onCancel}>Cancel</button>
+          <button ref={cancelButtonRef} type="button" onClick={onCancel}>Cancel</button>
           <button
             type="button"
             onClick={onConfirm}

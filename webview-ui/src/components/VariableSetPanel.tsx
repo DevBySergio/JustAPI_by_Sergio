@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { postMessage, onMessage } from '../utils/vscodeApi';
 import { useCollectionStore } from '../stores/useCollectionStore';
 import { VariableSet } from '../../../src/models/VariableSet';
@@ -13,6 +13,42 @@ function LinkModal({
   collections: { id: string; name: string }[];
   onClose: () => void;
 }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+      } else if (event.key === 'Tab') {
+        const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex="0"]'
+        ) ?? []);
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (first && last && event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (first && last && !event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, []);
+
   const handleToggle = (collectionId: string, isLinked: boolean) => {
     if (isLinked) {
       postMessage({ type: 'unlinkVariableSet', setId: set.id, collectionId });
@@ -23,6 +59,7 @@ function LinkModal({
 
   return (
     <div
+      role="presentation"
       onClick={onClose}
       style={{
         position: 'fixed',
@@ -35,6 +72,10 @@ function LinkModal({
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="link-variable-set-title"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'var(--vscode-editor-background)',
@@ -49,8 +90,8 @@ function LinkModal({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600 }}>Link "{set.name}" to:</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--vscode-foreground)', cursor: 'pointer', fontSize: '14px', padding: '2px' }}>×</button>
+          <span id="link-variable-set-title" style={{ fontSize: '12px', fontWeight: 600 }}>Link "{set.name}" to:</span>
+          <button ref={closeButtonRef} aria-label="Close collection linking dialog" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--vscode-foreground)', cursor: 'pointer', fontSize: '14px', padding: '2px' }}>×</button>
         </div>
 
         {collections.length === 0 && (
@@ -215,7 +256,18 @@ export function VariableSetPanel() {
           >
             {/* Card Header */}
             <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={isExpanded}
               onClick={() => setExpandedSet(isExpanded ? null : set.id)}
+              onKeyDown={(event) => {
+                if (event.currentTarget !== event.target
+                  || (event.key !== 'Enter' && event.key !== ' ')) {
+                  return;
+                }
+                event.preventDefault();
+                setExpandedSet(isExpanded ? null : set.id);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -316,7 +368,11 @@ export function VariableSetPanel() {
                   {set.variables.map((v) => (
                     <div key={v.id} style={{ display: 'flex', gap: '4px', marginBottom: '3px', alignItems: 'center' }}>
                       <div style={{ flexShrink: 0 }}>
-                        <ToggleSwitch checked={v.enabled} onChange={() => handleToggleVar(set.id, v.id)} />
+                        <ToggleSwitch
+                          checked={v.enabled}
+                          onChange={() => handleToggleVar(set.id, v.id)}
+                          label={`${v.enabled ? 'Disable' : 'Enable'} variable ${v.key || 'without a name'}`}
+                        />
                       </div>
                       <input type="text" value={v.key} onChange={(e) => handleUpdateVar(set.id, v.id, 'key', e.target.value)} placeholder="Name"
                         style={{ flex: 1, padding: '2px 4px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)', fontSize: '10px', fontFamily: 'var(--vscode-editor-font-family)', outline: 'none', borderRadius: '2px' }} />
