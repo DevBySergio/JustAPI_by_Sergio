@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrq52b3u-0ygfh9la",
+  "type": "task_moved",
+  "message": "Moved \"Wire every contributed command and webview startup action\" from In Progress to Done",
+  "createdAt": 1784365359546,
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "taskId": "task-mrjk92i1-8xlz99cv",
+  "metadata": {
+    "from": "in-progress",
+    "to": "done"
+  }
+}
