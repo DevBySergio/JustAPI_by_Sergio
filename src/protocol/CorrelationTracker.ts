@@ -54,6 +54,8 @@ export class OperationCorrelationTracker {
       case 'linkVariableSet':
       case 'unlinkVariableSet':
         return 'variableSets';
+      case 'startupActionHandled':
+        return 'startupActions';
       default:
         return action;
     }

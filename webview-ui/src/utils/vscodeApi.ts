@@ -1,5 +1,6 @@
 import type {
   ExtensionMessage,
+  StartupActionName,
   WebviewMessage,
 } from '../../../src/models/MessageProtocol';
 import {
@@ -51,6 +52,22 @@ export function postMessage(message: WebviewMessageInput): WebviewMessage {
   correlationTracker.record(validation.value.type, validation.value.operationId);
   getVscodeApi().postMessage(validation.value);
   return validation.value;
+}
+
+export function completeStartupAction(
+  operationId: string,
+  action: StartupActionName
+): void {
+  const candidate: WebviewMessage = {
+    type: 'startupActionHandled',
+    operationId,
+    action,
+  };
+  const validation = validateWebviewMessage(candidate);
+  if (!validation.ok) {
+    throw new Error('The webview attempted to acknowledge an invalid startup action.');
+  }
+  getVscodeApi().postMessage(validation.value);
 }
 
 export function isCurrentOperation(operationId: string): boolean {

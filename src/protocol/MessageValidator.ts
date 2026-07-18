@@ -6,6 +6,8 @@ import type {
   InitialState,
   ProtocolErrorCode,
   SearchResult,
+  StartupAction,
+  StartupActionName,
   WebviewMessage,
   WebviewMessageType,
 } from '../models/MessageProtocol';
@@ -83,6 +85,7 @@ const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
   'importCollection',
   'generateCode',
   'webviewReady',
+  'startupActionHandled',
   'previewResolution',
   'getVariableSets',
   'createVariableSet',
@@ -93,6 +96,14 @@ const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
 ];
 
 const WEBVIEW_MESSAGE_TYPE_SET = new Set<string>(WEBVIEW_MESSAGE_TYPES);
+const STARTUP_ACTION_TYPES = new Set<StartupActionName>([
+  'newRequest',
+  'importCurl',
+  'showCollections',
+  'showHistory',
+  'showVariables',
+  'showCodeGeneration',
+]);
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']);
 const REQUEST_BODY_TYPES = new Set(['none', 'json', 'form-data', 'x-www-form-urlencoded', 'text', 'xml', 'binary']);
 const RESPONSE_BODY_TYPES = new Set(['json', 'html', 'xml', 'text', 'image', 'binary', 'unknown']);
@@ -169,6 +180,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   }
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
+}
+
+function isStartupAction(value: unknown): value is StartupAction {
+  if (!isRecord(value) || typeof value.type !== 'string'
+    || !STARTUP_ACTION_TYPES.has(value.type as StartupActionName)) {
+    return false;
+  }
+  switch (value.type as StartupActionName) {
+    case 'newRequest':
+    case 'showHistory':
+    case 'showVariables':
+    case 'showCodeGeneration':
+      return hasOnlyKeys(value, ['type']);
+    case 'showCollections':
+      return hasOnlyKeys(value, ['type'], ['collectionId'])
+        && (value.collectionId === undefined || isProtocolIdentifier(value.collectionId));
+    case 'importCurl':
+      return hasOnlyKeys(value, ['type', 'request', 'warnings'])
+        && isJustRequest(value.request)
+        && Array.isArray(value.warnings)
+        && value.warnings.length <= PROTOCOL_LIMITS.maximumDiagnostics
+        && value.warnings.every(isCurlImportWarning);
+  }
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []): boolean {
@@ -712,6 +746,10 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
     case 'webviewReady':
     case 'getVariableSets':
       return validNoPayloadMessage(value);
+    case 'startupActionHandled':
+      return hasOnlyKeys(value, ['type', 'operationId', 'action'])
+        && typeof value.action === 'string'
+        && STARTUP_ACTION_TYPES.has(value.action as StartupActionName);
     case 'getRequest':
       return hasOnlyKeys(value, ['type', 'operationId', 'requestId']) && isProtocolIdentifier(value.requestId);
     case 'createCollection':
@@ -905,8 +943,9 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
         && value.diagnostics.length <= PROTOCOL_LIMITS.maximumDiagnostics
         && value.diagnostics.every(isVariableDiagnostic)
         && typeof value.canExecute === 'boolean';
-    case 'createNewRequest':
-      return hasOnlyKeys(value, ['type', 'operationId']);
+    case 'startupAction':
+      return hasOnlyKeys(value, ['type', 'operationId', 'action'])
+        && isStartupAction(value.action);
     case 'acknowledgement':
       return hasOnlyKeys(value, ['type', 'operationId', 'action', 'status'], ['executionId'])
         && typeof value.action === 'string'

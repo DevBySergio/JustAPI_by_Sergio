@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   createExecutionId,
+  completeStartupAction,
   isCurrentOperation,
   onMessage,
   postMessage,
@@ -139,10 +140,46 @@ export function App() {
         case 'resolutionPreview':
           emit('resolutionPreview', message);
           break;
-        case 'createNewRequest':
-          resetRequest();
-          setActiveTab('editor');
-          showNotification('New request created', 'success');
+        case 'startupAction':
+          switch (message.action.type) {
+            case 'newRequest':
+              resetRequest();
+              setActiveTab('editor');
+              showNotification('New request created', 'success');
+              break;
+            case 'importCurl':
+              if (curlImportPreviewRef.current
+                && curlImportPreviewRef.current.request.id !== message.action.request.id) {
+                postMessage({
+                  type: 'cancelCurlImport',
+                  requestId: curlImportPreviewRef.current.request.id,
+                });
+              }
+              curlImportPreviewRef.current = {
+                request: message.action.request,
+                warnings: message.action.warnings,
+              };
+              setCurlImportPreview(curlImportPreviewRef.current);
+              setActiveTab('editor');
+              break;
+            case 'showCollections':
+              if (message.action.collectionId) {
+                selectCollection(message.action.collectionId);
+              }
+              setActiveTab('collections');
+              break;
+            case 'showHistory':
+              setActiveTab('history');
+              break;
+            case 'showVariables':
+              setVarSubTab('vars');
+              setActiveTab('variables');
+              break;
+            case 'showCodeGeneration':
+              setActiveTab('codegen');
+              break;
+          }
+          completeStartupAction(message.operationId, message.action.type);
           break;
         case 'acknowledgement': {
           const notification = acknowledgementNotifications.current.get(message.operationId);

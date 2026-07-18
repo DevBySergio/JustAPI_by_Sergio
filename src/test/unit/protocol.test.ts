@@ -279,6 +279,40 @@ describe('webview protocol validation and correlation', () => {
     assert.equal(protocolFailure('CURL_PARSE_ERROR').message, 'The cURL command could not be parsed.');
   });
 
+  test('validates host startup actions and their correlated webview acknowledgement', () => {
+    const request = createRequestFixture({ url: 'https://fixture.test/startup' });
+    assert.equal(validateExtensionMessage({
+      type: 'startupAction',
+      operationId,
+      action: { type: 'newRequest' },
+    }).ok, true);
+    assert.equal(validateExtensionMessage({
+      type: 'startupAction',
+      operationId,
+      action: { type: 'showCollections', collectionId: 'collection-fixture' },
+    }).ok, true);
+    assert.equal(validateExtensionMessage({
+      type: 'startupAction',
+      operationId,
+      action: { type: 'importCurl', request, warnings: [] },
+    }).ok, true);
+    assert.equal(validateExtensionMessage({
+      type: 'startupAction',
+      operationId,
+      action: { type: 'unknownAction' },
+    }).ok, false);
+    assert.equal(validateWebviewMessage({
+      type: 'startupActionHandled',
+      operationId,
+      action: 'showHistory',
+    }).ok, true);
+    assert.equal(validateWebviewMessage({
+      type: 'startupActionHandled',
+      operationId,
+      action: 'unknownAction',
+    }).ok, false);
+  });
+
   test('validates correlated variable previews and exposes a stable blocking error', () => {
     assert.equal(validateExtensionMessage({
       type: 'resolutionPreview',

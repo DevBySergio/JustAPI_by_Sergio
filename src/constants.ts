@@ -21,7 +21,6 @@ export const DEFAULT_TIMEOUT = 30000;
 
 export const COMMANDS = {
   CREATE_REQUEST: 'justapi.createRequest',
-  SEND_REQUEST: 'justapi.sendRequest',
   IMPORT_CURL: 'justapi.importCurl',
   EXPORT_COLLECTION: 'justapi.exportCollection',
   IMPORT_COLLECTION: 'justapi.importCollection',

@@ -10,6 +10,7 @@ import {
   InitialState,
   ProtocolErrorCode,
   SearchResult,
+  StartupAction,
   WebviewMessage,
 } from '../models/MessageProtocol';
 import { ViewId } from '../constants';
@@ -34,6 +35,11 @@ import { ExecutionRegistry, OperationRegistry } from '../protocol/OperationRegis
 import { AuthService, AuthServiceError } from '../engine/auth/AuthService';
 import { COLLECTION_TRANSFER_SCHEMA_VERSION } from '../models/CollectionTransfer';
 import { CollectionIntegrityError } from '../engine/collection/CollectionGraph';
+import {
+  CommandOperationError,
+  CommandStartupAction,
+} from '../commands/CommandController';
+import { StartupActionQueue } from '../commands/StartupActionQueue';
 
 export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = ViewId.SIDEBAR;
@@ -51,6 +57,8 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
   private readonly authService: AuthService;
   private readonly operations = new OperationRegistry();
   private readonly executions = new ExecutionRegistry();
+  private readonly startupActions: StartupActionQueue<StartupAction>;
+  private readonly viewDisposables: vscode.Disposable[] = [];
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -82,6 +90,9 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
         this.authService.cleanupRemovedRequests(removed, remaining),
     });
     this.variableSetManager = new VariableSetManager(this.store);
+    this.startupActions = new StartupActionQueue(async (operationId, action) => (
+      await this.postStartupAction(operationId, action)
+    ));
   }
 
   async resolveWebviewView(
@@ -89,7 +100,9 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): Promise<void> {
+    this.disposeViewListeners();
     this.view = webviewView;
+    this.startupActions.resetForNewTarget();
     console.log('JustAPI: resolveWebviewView called');
 
     webviewView.webview.options = {
@@ -101,13 +114,14 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this.getHtmlContent(webviewView.webview);
 
-    webviewView.webview.onDidReceiveMessage(async (message: unknown) => {
-      await this.handleMessage(message);
-    });
-
-    webviewView.onDidChangeVisibility(() => {
-      console.log('JustAPI: visibility changed, visible =', webviewView.visible);
-    });
+    this.viewDisposables.push(
+      webviewView.webview.onDidReceiveMessage(async (message: unknown) => {
+        await this.handleMessage(message);
+      }),
+      webviewView.onDidChangeVisibility(() => {
+        console.log('JustAPI: visibility changed, visible =', webviewView.visible);
+      })
+    );
 
     await this.loadCollections();
     await this.variableSetManager.load();
@@ -139,6 +153,14 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       switch (message.type) {
         case 'webviewReady':
           await this.sendInitialState(message.operationId);
+          this.startupActions.setReady(true);
+          break;
+
+        case 'startupActionHandled':
+          if (!this.startupActions.complete(message.operationId)) {
+            this.postError(message.operationId, 'OPERATION_FAILED');
+            return;
+          }
           break;
 
         case 'executeRequest':
@@ -819,38 +841,124 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  createNewRequest(): void {
-    this.postMessage({ type: 'createNewRequest', operationId: this.createOperationId() });
-  }
-
-  postCurlImport(curlString: string): void {
-    const operationId = this.createOperationId();
-    void (async () => {
+  async runStartupAction(
+    action: CommandStartupAction,
+    operationId: string
+  ): Promise<void> {
+    let startupAction: StartupAction;
+    if (action.type === 'importCurl') {
       try {
-        const parsed = this.curlParser.parseWithWarnings(curlString);
+        const parsed = this.curlParser.parseWithWarnings(action.curlString);
         const { request } = await this.authService.stageRecognizedLegacyAuth(parsed.request);
-        this.postMessage({
-          type: 'curlImportResult',
-          operationId,
+        startupAction = {
+          type: 'importCurl',
           request,
           warnings: parsed.warnings,
-        });
+        };
       } catch (error) {
         if (error instanceof CurlParseError) {
-          this.postError(
-            operationId,
-            'CURL_PARSE_ERROR',
-            undefined,
+          throw new CommandOperationError(
+            'INVALID_CLIPBOARD',
+            'The clipboard cURL command could not be parsed.',
             [`${error.code}${error.tokenIndex === undefined ? '' : ` at token ${error.tokenIndex}`}`]
           );
-        } else {
-          this.postError(operationId, 'OPERATION_FAILED');
         }
+        throw error;
       }
-    })();
+    } else {
+      startupAction = action;
+    }
+    await this.startupActions.enqueue(operationId, startupAction);
+  }
+
+  async getCommandCollections(): Promise<Array<{
+    id: string;
+    name: string;
+    requestCount: number;
+  }>> {
+    await this.loadCollections();
+    return this.collectionManager.getCollections().map(collection => ({
+      id: collection.id,
+      name: collection.name,
+      requestCount: this.collectionManager.getRequestsForCollection(collection.id).length,
+    }));
+  }
+
+  async exportCollectionForCommand(collectionId: string): Promise<{
+    collectionId: string;
+    name: string;
+    json: string;
+  }> {
+    await this.loadCollections();
+    const collection = this.collectionManager.getCollection(collectionId);
+    if (!collection) {
+      throw new CommandOperationError(
+        'INVALID_EXPORT',
+        'The selected collection no longer exists. Refresh JustAPI and try again.'
+      );
+    }
+    const requests = this.collectionManager.getRequestsForCollection(collection.id)
+      .map(request => this.authService.redactForDerivative(
+        this.authService.toPublicRequest(request)
+      ));
+    const json = JSON.stringify({
+      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
+      collection,
+      requests,
+    }, null, 2);
+    const validation = validateCollectionImportDocument(json);
+    if (!validation.ok) {
+      throw new CommandOperationError(
+        'INVALID_EXPORT',
+        'JustAPI could not validate the collection export.',
+        validation.details
+      );
+    }
+    return { collectionId: collection.id, name: collection.name, json };
+  }
+
+  async importCollectionForCommand(json: string): Promise<{ collectionId: string }> {
+    const validation = validateCollectionImportDocument(json);
+    if (!validation.ok) {
+      throw new CommandOperationError(
+        'INVALID_IMPORT',
+        'The selected file is not a valid JustAPI collection export.',
+        validation.details
+      );
+    }
+    await this.loadCollections();
+    const importedRequests = validation.value.requests
+      .map(request => this.authService.prepareForImport(request));
+    try {
+      let imported = false;
+      await this.authService.migrateLegacyRequests(importedRequests, async securedRequests => {
+        await this.collectionManager.importCollection(validation.value.collection, securedRequests);
+        imported = true;
+      });
+      if (!imported) {
+        await this.collectionManager.importCollection(
+          validation.value.collection,
+          importedRequests
+        );
+      }
+    } catch (error) {
+      if (error instanceof CollectionIntegrityError) {
+        throw new CommandOperationError(
+          'INVALID_IMPORT',
+          'The collection conflicts with existing JustAPI data.',
+          error.issues.map(issue => issue.entityId
+            ? `${issue.code}: ${issue.entityId}`
+            : issue.code)
+        );
+      }
+      throw error;
+    }
+    return { collectionId: validation.value.collection.id };
   }
 
   async dispose(): Promise<void> {
+    this.disposeViewListeners();
+    this.startupActions.dispose();
     this.executions.cancelAll();
     await Promise.all([
       this.authService.dispose(),
@@ -877,6 +985,24 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       void vscode.window.showWarningMessage(message);
     } else {
       void vscode.window.showErrorMessage(message);
+    }
+  }
+
+  private async postStartupAction(
+    operationId: string,
+    action: StartupAction
+  ): Promise<boolean> {
+    const message: ExtensionMessage = { type: 'startupAction', operationId, action };
+    const validation = validateExtensionMessage(message);
+    if (!validation.ok || !this.view) {
+      return false;
+    }
+    return await this.view.webview.postMessage(validation.value);
+  }
+
+  private disposeViewListeners(): void {
+    for (const disposable of this.viewDisposables.splice(0)) {
+      disposable.dispose();
     }
   }
 

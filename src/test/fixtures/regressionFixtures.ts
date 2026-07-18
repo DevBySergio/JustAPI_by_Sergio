@@ -30,6 +30,6 @@ export const regressionFixtures: readonly RegressionFixture[] = [
   { id: 'redaction', area: 'security', owner: 'AUTH', status: 'contract', purpose: 'Recursive artifact redaction' },
   { id: 'stale-responses', area: 'webview', owner: 'UI', status: 'active', purpose: 'Ignore results from superseded executions' },
   { id: 'extension-activation', area: 'extension', owner: 'TEST', status: 'active', purpose: 'Activation at the declared VS Code engine floor' },
-  { id: 'command-startup-queue', area: 'extension', owner: 'COMMANDS', status: 'contract', purpose: 'Deliver cold-start commands once the view is ready' },
+  { id: 'command-startup-queue', area: 'extension', owner: 'COMMANDS', status: 'active', purpose: 'Deliver cold-start commands once the view is ready' },
   { id: 'webview-lifecycle', area: 'extension', owner: 'TEST', status: 'active', purpose: 'Open, reveal, and close the contributed view' },
 ];

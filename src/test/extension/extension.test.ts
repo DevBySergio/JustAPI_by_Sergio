@@ -1,5 +1,7 @@
 import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
+import type { CommandResult } from '../../commands/CommandController';
+import { COMMANDS } from '../../constants';
 import { regressionFixtures } from '../fixtures/regressionFixtures';
 
 suite('JustAPI extension host', () => {
@@ -21,14 +23,19 @@ suite('JustAPI extension host', () => {
 
     const contributedCommands = (extension.packageJSON.contributes.commands as Array<{ command: string }>)
       .map(contribution => contribution.command);
+    assert.deepEqual([...contributedCommands].sort(), Object.values(COMMANDS).sort());
     for (const command of contributedCommands) {
       assert.ok(availableCommands.has(command), `Expected command to be registered: ${command}`);
     }
   });
 
-  test('opens and closes the contributed webview lifecycle', async () => {
-    await vscode.commands.executeCommand('workbench.view.extension.justapi-activity');
-    await vscode.commands.executeCommand('justapi.createRequest');
+  test('delivers cold and warm startup commands through the contributed webview', async () => {
+    const coldResult = await vscode.commands.executeCommand<CommandResult>(COMMANDS.CREATE_REQUEST);
+    assert.equal(coldResult?.status, 'completed');
+
+    const warmResult = await vscode.commands.executeCommand<CommandResult>(COMMANDS.OPEN_HISTORY);
+    assert.equal(warmResult?.status, 'completed');
+
     await vscode.commands.executeCommand('workbench.action.closeSidebar');
   });
 

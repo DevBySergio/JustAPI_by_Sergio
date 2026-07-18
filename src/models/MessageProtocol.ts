@@ -17,6 +17,22 @@ export type CodeTargetLanguage =
   | 'java'
   | 'go';
 
+export type StartupActionName =
+  | 'newRequest'
+  | 'importCurl'
+  | 'showCollections'
+  | 'showHistory'
+  | 'showVariables'
+  | 'showCodeGeneration';
+
+export type StartupAction =
+  | { type: 'newRequest' }
+  | { type: 'importCurl'; request: JustRequest; warnings: CurlImportWarning[] }
+  | { type: 'showCollections'; collectionId?: string }
+  | { type: 'showHistory' }
+  | { type: 'showVariables' }
+  | { type: 'showCodeGeneration' };
+
 export type ProtocolErrorCode =
   | 'INVALID_MESSAGE'
   | 'UNKNOWN_MESSAGE'
@@ -83,6 +99,7 @@ export type WebviewMessage =
       collectionId?: string;
     } & OperationMessage)
   | ({ type: 'webviewReady' } & OperationMessage)
+  | ({ type: 'startupActionHandled'; action: StartupActionName } & OperationMessage)
   | ({ type: 'previewResolution'; request: JustRequest | null; collectionId?: string } & OperationMessage)
   | ({ type: 'getVariableSets' } & OperationMessage)
   | ({ type: 'createVariableSet'; name: string } & OperationMessage)
@@ -129,7 +146,7 @@ export type ExtensionMessage =
       diagnostics: VariableDiagnostic[];
       canExecute: boolean;
     } & OperationMessage)
-  | ({ type: 'createNewRequest' } & OperationMessage)
+  | ({ type: 'startupAction'; action: StartupAction } & OperationMessage)
   | ({
       type: 'acknowledgement';
       action: WebviewMessageType;
