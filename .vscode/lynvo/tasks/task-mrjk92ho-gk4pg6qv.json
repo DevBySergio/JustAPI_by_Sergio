@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784365359549,
+  "updatedAt": 1784367187179,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -120,9 +120,9 @@
     {
       "id": "check-mrjk92ho-road0014",
       "text": "Stabilize webview state, history, search, response rendering, and accessibility",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784367187179
     },
     {
       "id": "check-mrjk92ho-road0015",
