@@ -2,7 +2,7 @@
   "id": "task-mrjk92i3-sr46q2x6",
   "title": "Decompose the webview provider into testable services",
   "description": "After correctness fixes are protected by tests, reduce the provider's responsibilities without changing product behavior. Extract a typed message router and focused request, persistence, collection/import, history, and code-generation services behind narrow interfaces. The provider should own VS Code lifecycle and composition, not business rules or data transformations.\n\nCentralize request normalization, structured errors, redaction, limits, and operation correlation so services cannot drift. Inject filesystem, SecretStorage, transport, clock, and UI boundaries to make unit tests deterministic. Establish clear ownership and disposal for listeners, queues, locks, and in-flight executions.\n\nMove in small reviewable slices while keeping the regression suite green. Do not use this task to add deferred Postman-parity features or redesign the UI. Completion requires lower coupling, no circular dependencies, documented module boundaries, and focused tests that no longer require the full provider.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605996,
-  "updatedAt": 1783967605996,
+  "updatedAt": 1784505059826,
   "position": 1783967605996,
   "labelIds": [
     "label-mrjk92hs-kq6kgyvq",

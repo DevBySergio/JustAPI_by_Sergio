@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrsg8kj6-x4cpio3w",
+  "type": "task_moved",
+  "message": "Moved \"Decompose the webview provider into testable services\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784505059826,
+  "taskId": "task-mrjk92i3-sr46q2x6",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}
