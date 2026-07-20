@@ -2,7 +2,7 @@
   "id": "task-mrjk92ho-gk4pg6qv",
   "title": "Plan: JustAPI deep audit and stabilization",
   "description": "Master roadmap for auditing, remediating, validating, and documenting JustAPI before any Postman feature-gap work begins. The child tasks are ordered so evidence and the written remediation plan exist before production changes, high-risk correctness and security defects are handled before UX/refactoring work, and closure is based only on commands and smoke tests that were actually run.\n\nApproved decisions:\n- Migrate recognized Auth Builder credentials to VS Code SecretStorage.\n- Remove tracked dependencies and use the lockfile as the reproducible source.\n- Correct documentation for substantial unsupported capabilities instead of adding major features during stabilization.\n\nDefinition of done: every child task is completed or explicitly deferred with evidence and risk; all Blocker/Critical/High findings are resolved or externally blocked; the three audit artifacts are complete; runnable validation passes; packaging succeeds; no user data is silently lost; and the closure report states whether the repository is ready for the separate product-capability phase.",
-  "status": "in-progress",
+  "status": "done",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784506703012,
+  "updatedAt": 1784507549579,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -141,9 +141,9 @@
     {
       "id": "check-mrjk92ho-road0017",
       "text": "Run final validation, execute smoke tests, and publish the closure report",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784507549578
     }
   ],
   "relations": []
