@@ -2,7 +2,7 @@
   "id": "task-mrjk92i5-pbs05wwz",
   "title": "Run final validation, smoke tests, and closure report",
   "description": "Execute the complete stabilization gate from a clean dependency install and record the exact command, result, environment, and relevant artifact for every check. Run install, lint, type-check, production build, unit/integration/extension tests, dependency audit, and VSIX packaging using repository scripts established by the validation task. Inspect the final diff for generated artifacts, credentials, tracked dependencies, accidental feature expansion, and documentation drift.\n\nPerform the documented end-to-end smoke matrix against the deterministic local server: activation; all commands; create/save/reopen; variables; auth; raw/form bodies; cancellation; timeout; redirects; compression/charset/binary; response limits; history; collection operations and round trip; cURL import; code generation; search; reload/unsaved state; and keyboard accessibility. Mark unsupported scenarios explicitly deferred or not applicable—never as passed.\n\nPublish a closure report containing the resolved/open finding registry, migration and compatibility notes, residual risks, command evidence, smoke evidence, packaged artifact details, and a clear readiness decision for beginning the separate capability phase. Any unresolved Blocker/Critical/High finding prevents a ready decision unless externally blocked and accepted.",
-  "status": "todo",
+  "status": "in-progress",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605998,
-  "updatedAt": 1783967605998,
+  "updatedAt": 1784507021944,
   "position": 1783967605998,
   "labelIds": [
     "label-mrjk92hr-iyd9w6j3",

@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrshemig-xka2kg5h",
+  "type": "task_moved",
+  "message": "Moved \"Run final validation, smoke tests, and closure report\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784507021944,
+  "taskId": "task-mrjk92i5-pbs05wwz",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}
