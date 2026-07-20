@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrsgo6vh-gnq19upb",
+  "type": "checklist_updated",
+  "message": "Completed typed protocol router extraction in \"Decompose the webview provider into testable services\"",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784505788621,
+  "taskId": "task-mrjk92i3-sr46q2x6"
+}

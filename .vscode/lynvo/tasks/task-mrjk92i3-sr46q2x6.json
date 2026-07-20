@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605996,
-  "updatedAt": 1784505505991,
+  "updatedAt": 1784505788625,
   "position": 1783967605996,
   "labelIds": [
     "label-mrjk92hs-kq6kgyvq",
@@ -35,37 +35,37 @@
     {
       "id": "check-mrjk92i3-arch0002",
       "text": "Extract a typed message router with validation, correlation, acknowledgements, and shared error mapping",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605996,
-      "updatedAt": 1783967605996
+      "updatedAt": 1784505788621
     },
     {
       "id": "check-mrjk92i3-arch0003",
       "text": "Extract focused request, persistence, collection/import, history, and code-generation services",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605996,
-      "updatedAt": 1783967605996
+      "updatedAt": 1784505788622
     },
     {
       "id": "check-mrjk92i3-arch0004",
       "text": "Centralize normalization, redaction, validation limits, and structured domain errors",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605996,
-      "updatedAt": 1783967605996
+      "updatedAt": 1784505788623
     },
     {
       "id": "check-mrjk92i3-arch0005",
       "text": "Inject transport, storage, secrets, filesystem, clock, and VS Code UI boundaries for deterministic tests",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605996,
-      "updatedAt": 1783967605996
+      "updatedAt": 1784505788624
     },
     {
       "id": "check-mrjk92i3-arch0006",
       "text": "Define lifecycle ownership and dispose listeners, locks, queues, and executions exactly once",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605996,
-      "updatedAt": 1783967605996
+      "updatedAt": 1784505788625
     },
     {
       "id": "check-mrjk92i3-arch0007",
