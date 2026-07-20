@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrsh7sf4-docs0008",
+  "type": "checklist_updated",
+  "message": "Completed consistent README, CHANGELOG, architecture, audit, and remediation updates in \"Correct public claims and document deferred capability gaps\"",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784506703008,
+  "taskId": "task-mrjk92i4-k3xayiqc"
+}

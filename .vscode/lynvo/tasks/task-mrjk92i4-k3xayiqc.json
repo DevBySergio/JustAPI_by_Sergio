@@ -2,7 +2,7 @@
   "id": "task-mrjk92i4-k3xayiqc",
   "title": "Correct public claims and document deferred capability gaps",
   "description": "Update README, CHANGELOG, command documentation, and the audit artifacts to describe only behavior verified in the stabilized extension. Remove or qualify claims of full folder CRUD/move, request-scoped variable editing, workspace mode, cookie-jar support, proxy configuration, and local file bodies unless implementation and tests prove them. Record these substantial items as deferred product-capability work rather than silently expanding stabilization scope.\n\nDocument the actual command set and startup behavior; storage location, schema, backup/recovery, and global-versus-workspace scope; variable precedence and unresolved-value behavior; authentication/SecretStorage and redaction guarantees; import/export limits; HTTP limits; and code generation as starter snippets. Provide migration and recovery guidance without exposing internal secrets.\n\nKeep the evidence-backed architecture audit, finding registry, and remediation plan current as work closes. Do not introduce competitive comparisons or Postman-parity promises. Every feature statement must link to a test, implementation, or explicit limitation.",
-  "status": "in-progress",
+  "status": "done",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605997,
-  "updatedAt": 1784506536880,
+  "updatedAt": 1784506703010,
   "position": 1783967605997,
   "labelIds": [
     "label-mrjk92hr-iyd9w6j3"
@@ -21,7 +21,7 @@
   "codeReference": {
     "filePath": "README.md",
     "lineStart": 1,
-    "lineEnd": 128
+    "lineEnd": 122
   },
   "checklist": [
     {
@@ -62,9 +62,9 @@
     {
       "id": "check-mrjk92i4-docs0006",
       "text": "Update the architecture audit, finding registry, remediation status, README, and CHANGELOG consistently",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605997,
-      "updatedAt": 1783967605997
+      "updatedAt": 1784506703008
     },
     {
       "id": "check-mrjk92i4-docs0007",

@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784506048472,
+  "updatedAt": 1784506703012,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -106,9 +106,9 @@
     {
       "id": "check-mrjk92ho-road0012",
       "text": "Generate valid, normalized, secret-aware code snippets",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784506703011
     },
     {
       "id": "check-mrjk92ho-road0013",
@@ -134,9 +134,9 @@
     {
       "id": "check-mrjk92ho-road0016",
       "text": "Correct public documentation and record deferred capability gaps",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784506703012
     },
     {
       "id": "check-mrjk92ho-road0017",
