@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrsgysg4-docs0001",
+  "type": "task_moved",
+  "message": "Moved \"Correct public claims and document deferred capability gaps\" from To Do to In Progress",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784506283140,
+  "taskId": "task-mrjk92i4-k3xayiqc",
+  "metadata": {
+    "from": "todo",
+    "to": "in-progress"
+  }
+}
