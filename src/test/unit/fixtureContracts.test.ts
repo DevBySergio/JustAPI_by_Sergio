@@ -5,7 +5,7 @@ import { regressionFixtures } from '../fixtures/regressionFixtures';
 import { expectedRedactedFixture, fixtureSecret, secretStorageFixture } from '../fixtures/securityFixtures';
 import { corruptStorageDocument, legacyStorageFixture } from '../fixtures/storageFixtures';
 
-describe('future-remediation fixture contracts', () => {
+describe('regression fixture catalogue', () => {
   test('keeps every required regression area represented by a unique fixture', () => {
     const ids = regressionFixtures.map(fixture => fixture.id);
     assert.equal(new Set(ids).size, ids.length);

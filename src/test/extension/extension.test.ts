@@ -39,7 +39,7 @@ suite('JustAPI extension host', () => {
     await vscode.commands.executeCommand('workbench.action.closeSidebar');
   });
 
-  test('tracks deferred startup and protocol contracts explicitly', () => {
+  test('tracks startup and protocol contracts explicitly', () => {
     const fixtureIds = new Set(regressionFixtures.map(fixture => fixture.id));
     assert.ok(fixtureIds.has('command-startup-queue'));
     assert.ok(fixtureIds.has('protocol-errors'));

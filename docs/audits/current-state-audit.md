@@ -8,7 +8,7 @@ Scope: factual baseline and architecture audit before production remediation
 > **Document status (2026-07-20):** Sections below preserve the evidence captured at the
 > pre-remediation revision. They are intentionally historical. The resolution index immediately
 > below and the live [remediation ledger](./remediation-plan.md) record the stabilized state; the
-> final release decision remains owned by the final-validation task.
+> [closure report](./closure-report.md) records the completed final gate and release decision.
 
 ## Stabilization resolution index
 
@@ -30,7 +30,7 @@ current module boundaries are documented in [`docs/architecture.md`](../architec
 | JAPI-010 | Resolved | Layered unit, localhost integration, VS Code 1.80 extension-host, package, audit, and CI gates replace the placeholder assertion. |
 | JAPI-011 | Resolved | History is a redacted summary store bounded to 200 entries and a 2 MiB envelope. |
 | JAPI-012 | Resolved | Dependencies/generated output left the index; manifest/lock parity, audits, and package allowlisting are enforced. |
-| JAPI-013 | Documentation owner checkpoint passed; final gate pending | README/CHANGELOG distinguish verified behavior from the deferred product gaps listed below, local links resolve, and the complete validation gate passes. The final validation task still owns release sign-off. |
+| JAPI-013 | Resolved | README/CHANGELOG distinguish verified behavior from deferred product gaps; claim trace, local links, package documentation, and the final Batch 5 gate passed. |
 | JAPI-014 | Resolved | Stable-ID history mutation/replay and exact search navigation are covered by webview resilience tests. |
 | JAPI-015 | Resolved | Text/JSON/tree presentation and exact raster images are bounded and tested. |
 | JAPI-016 | Resolved | Seven normalized starter-snippet targets use placeholders by default, target-specific escaping, and parser/compiler checks. |
