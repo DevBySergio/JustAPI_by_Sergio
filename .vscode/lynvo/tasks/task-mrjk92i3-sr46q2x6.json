@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605996,
-  "updatedAt": 1784505059826,
+  "updatedAt": 1784505505991,
   "position": 1783967605996,
   "labelIds": [
     "label-mrjk92hs-kq6kgyvq",
@@ -28,9 +28,9 @@
     {
       "id": "check-mrjk92i3-arch0001",
       "text": "Map current provider responsibilities, side effects, dependencies, and regression coverage",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605996,
-      "updatedAt": 1783967605996
+      "updatedAt": 1784505505991
     },
     {
       "id": "check-mrjk92i3-arch0002",
