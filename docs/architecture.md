@@ -49,3 +49,20 @@ remains centralized in `EffectiveRequest`, and credential redaction remains cent
 
 The unit suite checks the TypeScript source dependency graph and fails with the complete cycle
 path if any relative-import cycle is introduced.
+
+## Runtime and storage boundaries
+
+- Production composes `JsonFileStore` from `ExtensionContext.globalStorageUri`. The optional
+  workspace store constructor parameter exists for injected tests/alternate composition only;
+  the shipped activation path does not enable workspace-scoped storage.
+- Collections, variable sets, redacted history summaries, global variables, and settings use
+  schema-v2 JSON envelopes. Auth Builder credential payloads live separately in VS Code
+  `SecretStorage`; application services receive only public auth metadata and opaque references.
+- HTTP transport accepts bounded HTTP(S) inputs only. It does not own a cookie jar, proxy
+  configuration, or local-file reader. cURL import is a parser and never executes shell syntax.
+- Folder graphs and request-scoped variables are valid domain data, but the webview currently
+  exposes neither folder-management actions nor a request-variable editor.
+
+The exact user-facing support contract, runtime assumptions, and deferred capabilities are
+maintained in [`README.md`](../README.md). Architectural support in an engine or protocol is not
+treated as a public UI capability unless the command/webview path and regression coverage prove it.

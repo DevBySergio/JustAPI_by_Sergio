@@ -3,7 +3,7 @@
 Plan date: 2026-07-14<br>
 Source audit: [`current-state-audit.md`](./current-state-audit.md)<br>
 Audited revision: `b21b04f1` on `main`<br>
-Plan status: decision-complete; implementation not started<br>
+Plan status: Batches 0–4 passed; Batch 5 documentation owner complete and final validation pending<br>
 Scope: stabilization and evidence-backed remediation only
 
 ## Decision summary
@@ -692,6 +692,54 @@ Targeted evidence consists of four focused resilience tests covering secret-safe
 
 Batch 4 remains in progress until REFACTOR completes its independent provider-boundary task and reruns the batch exit gate. JAPI-014, JAPI-015, and JAPI-018 therefore retain `open` ledger status at this checkpoint. The production webview is 321 KiB and retains the existing webpack performance advisory; REFACTOR remains the next owner for service boundaries and may reduce composition overhead without changing this UI behavior.
 
+### REFACTOR task and Batch 4 completion evidence
+
+REFACTOR is complete, and its successful full gate closes Batch 4. `JustAPIWebviewProvider`
+now owns only VS Code lifecycle and dependency composition. Runtime-validated routing and shared
+error/acknowledgement mapping live in `WebviewProtocol`; focused request, request-preparation,
+collection/import, history, persistence, and code-generation services own application workflows;
+engines and storage remain independent boundaries. Transport, stores, SecretStorage, clock/ID,
+credential confirmation, and VS Code document/UI effects are injected at their owning seams.
+
+Lifecycle ownership is explicit and idempotent: replacing a webview disposes view listeners,
+request execution and startup queues are disposed once, staged secrets are cleaned, and each
+distinct store drains its serialized work during provider shutdown. The architecture document
+records these boundaries, while dependency-graph tests reject circular relative imports with a
+complete cycle path. Focused application-service tests cover dispatch, redaction, error mapping,
+execution cleanup, and lifecycle disposal without constructing a VS Code webview.
+
+The complete `npm run validate` gate passed on 2026-07-20 with 94 unit tests, 13 deterministic
+localhost integration tests, four VS Code 1.80 extension-host tests, zero lint warnings, both
+strict type checks, zero runtime/full audit findings, production builds, VSIX creation, and the
+nine-file payload allowlist. JAPI-014, JAPI-015, and JAPI-018 are closed. The production webview
+remains 321 KiB and retains webpack's performance advisory; bundle-size optimization is not a
+functional or release-blocking finding in this stabilization plan.
+
+### DOCS task completion evidence (owner checkpoint)
+
+DOCS is complete at its Batch 5 owner checkpoint. README claims were traced against the manifest,
+command controller, provider composition, application services, engines, and active regression
+tests. The resulting support contract documents all seven commands and cold-start delivery;
+extension-global schema-v2 storage, SecretStorage, migrations, backups, recovery, and read-only
+failure behavior; variable precedence and blocking diagnostics; credential redaction and one-time
+disclosure; import/export and HTTP limits; history/response bounds; and starter-snippet target
+assumptions.
+
+Unsupported folder-management UI, request-variable editing, workspace-scoped storage, cookie-jar
+persistence, proxies, client certificates/OAuth, and local-file/streaming uploads are named as
+deferred capabilities. Imported folder data and request-variable model support are qualified
+separately from user-reachable editing. cURL `@file` values are documented as unresolved text, and
+response cookies are documented as inspection-only. No account/cloud/telemetry statement obscures
+the fact that an explicitly sent HTTP request communicates with its configured destination.
+
+README, CHANGELOG, the architecture guide, the historical audit's live resolution index, and this
+ledger now agree. A local Markdown-link check found no missing targets, `git diff --check` passed,
+and `npm run validate` passed on 2026-07-20 with 94 unit tests, 13 deterministic localhost
+integration tests, four VS Code 1.80 extension-host tests, zero lint warnings, both strict type
+checks, zero runtime/full audit findings, production builds, an 11-file 141.92 KB VSIX, and the
+nine-file runtime payload allowlist. JAPI-013 remains `open` until FINAL runs the complete Batch 5
+smoke, artifact-inspection, and release-decision contract.
+
 ## Execution ledger
 
 Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `rolled-back`.
@@ -702,8 +750,8 @@ Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `roll
 | 1 | passed | 2026-07-15 | 2026-07-15 | Working-tree PROTOCOL + STORAGE patch | 7 protocol tests plus 16 storage/history tests passed, covering validation/correlation, migration, locking/revisions, interruption, corruption/recovery, history redaction/limits, and shutdown | `npm run validate` passed: 33 unit, 6 integration, 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Legacy history backups are intentionally redacted before creation; they cannot restore discarded sensitive bodies/values. Pre-existing 285 KiB webview performance advisory remains |
 | 2 | passed | 2026-07-15 | 2026-07-15 | AUTH and VARIABLES commits plus working-tree HTTP patch | AUTH: 6 focused unit tests and SecretStorage-backed transport regressions; VARIABLES: 13 resolver tests; HTTP: 13 deterministic integration tests plus protocol/auth/model regressions | `npm run validate` passed with 52 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Protected legacy pre-auth collection backups remain for rollback; pre-existing 293 KiB webview performance advisory remains |
 | 3 | passed | 2026-07-15 | 2026-07-18 | COLLECTIONS and CURL commits plus CODEGEN and COMMANDS working-tree patches | Collection transactions, cURL parsing/preview, seven stable codegen goldens, all 49 target/body fixture combinations, seven command-controller/queue tests, startup protocol validation, and cold/warm extension-host commands passed | `npm run validate` passed with 83 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX creation, and the 9-file payload allowlist | Current 300 KiB webview performance advisory remains deferred to UI/REFACTOR; OS file-dialog adapters are deterministically covered below the real VS Code registration boundary |
-| 4 | in-progress | 2026-07-18 | — | UI working-tree patch; REFACTOR pending | Four webview-resilience tests plus protocol race coverage, exact-byte localhost cases, and the real contributed-view startup smoke passed | UI checkpoint `npm run validate` passed with 87 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX creation, and the 9-file payload allowlist | REFACTOR remains before the Batch 4 exit gate; production webview is 321 KiB and retains the webpack performance advisory |
-| 5 | planned | — | — | — | — | — | None yet |
+| 4 | passed | 2026-07-18 | 2026-07-20 | UI + REFACTOR working-tree patches | Webview resilience, protocol races, exact-byte response cases, application-service isolation, lifecycle disposal, and dependency-cycle checks passed | `npm run validate` passed with 94 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX creation, and the 9-file payload allowlist | Production webview is 321 KiB and retains the non-blocking webpack performance advisory |
+| 5 | in-progress | 2026-07-20 | — | DOCS working-tree patch; FINAL pending | Public claims checked against manifest, source, and regression coverage; supported behavior and explicit capability gaps documented; local Markdown links and whitespace checks passed | DOCS checkpoint `npm run validate` passed with 94 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX creation, and the 9-file payload allowlist; final smoke/artifact/release decision remains owned by FINAL | No release sign-off is implied by documentation completion |
 
 Finding statuses remain `open` until their owner records the completion signal and the batch full gate passes:
 
@@ -721,12 +769,12 @@ Finding statuses remain `open` until their owner records the completion signal a
 | JAPI-010 | passed | Layered deterministic harness, test policy, CI, 24-fixture catalogue, and clean complete validation gate passed | Contract fixtures remain intentionally red until their owning product remediations land; no unfinished behavior is reported as active |
 | JAPI-011 | passed | Redacted summary-only history migration, canonical saved-request references, safe unsaved skeletons, 200-entry/2 MiB limits, malformed-entry recovery, and recursive sensitive-fixture scan passed | Legacy history backups intentionally cannot restore discarded bodies or credential-bearing values |
 | JAPI-012 | passed | 20,901 dependency paths and 48 generated paths removed from the index; manifest-lock parity, clean install, zero audits, 9-file payload allowlist, and combined Batch 0 gate passed | Git history was not rewritten; the old object pack remains until normal Git maintenance |
-| JAPI-013 | open | — | — |
-| JAPI-014 | open | UI checkpoint passed stable-ID history mutation/replay, exact request search navigation, bounded/deduplicated results, stale-operation suppression, focused tests, and complete validation | Awaiting REFACTOR and the complete Batch 4 exit gate |
-| JAPI-015 | open | UI checkpoint passed bounded text/JSON/tree presentation, exact base64 raster allowlisting, object-URL cleanup, focused rendering tests, and the exact-byte localhost matrix | Awaiting REFACTOR and the complete Batch 4 exit gate |
+| JAPI-013 | open | README, CHANGELOG, architecture, baseline resolution index, and this ledger distinguish verified behavior from folder, request-variable, workspace, cookie-jar, proxy, and local-file gaps; link checks and the DOCS complete gate passed | Awaiting the complete Batch 5 FINAL gate and release decision |
+| JAPI-014 | passed | Stable-ID history mutation/replay, exact request search navigation, bounded/deduplicated results, stale-operation suppression, focused tests, provider isolation, and the complete Batch 4 gate passed | None beyond documented summary-only replay for unsaved history |
+| JAPI-015 | passed | Bounded text/JSON/tree presentation, exact base64 raster allowlisting, object-URL cleanup, focused rendering tests, exact-byte localhost cases, and the complete Batch 4 gate passed | Inline previews intentionally exclude SVG and non-raster formats |
 | JAPI-016 | passed | Shared effective-request normalization, target-specific escaping/body renderers, credential placeholders by default, explicit one-shot disclosure, golden outputs, parser/compiler checks, and complete Batch 3 validation passed | Generated snippets remain starter examples with documented target/runtime limitations |
 | JAPI-017 | passed | API-key header/query placement, case-insensitive conflict blocking, redacted query placeholders/final URLs, exact localhost query delivery, and complete Batch 2 validation passed | None |
-| JAPI-018 | open | UI checkpoint passed safe state restoration, credential/oversize omission, dirty protection, roving tabs, focus-managed dialogs/search/tree controls, announcements, zero-warning lint, focused tests, and complete validation | Awaiting REFACTOR and the complete Batch 4 exit gate |
+| JAPI-018 | passed | Safe state restoration, credential/oversize omission, dirty protection, roving tabs, focus-managed dialogs/search/tree controls, announcements, zero-warning TSX lint, provider lifecycle isolation, and the complete Batch 4 gate passed | Automated semantics and keyboard checks complement—but do not replace—manual assistive-technology review |
 
 ## Definition of done
 

@@ -5,6 +5,42 @@ Audited revision: `b21b04f1` (`main`, tracking `origin/main`)<br>
 Audited manifest version: `1.0.1`<br>
 Scope: factual baseline and architecture audit before production remediation
 
+> **Document status (2026-07-20):** Sections below preserve the evidence captured at the
+> pre-remediation revision. They are intentionally historical. The resolution index immediately
+> below and the live [remediation ledger](./remediation-plan.md) record the stabilized state; the
+> final release decision remains owned by the final-validation task.
+
+## Stabilization resolution index
+
+The provider now acts as a VS Code composition/lifecycle root over a validated protocol router and
+focused request, preparation, collection, history, persistence, and code-generation services. The
+current module boundaries are documented in [`docs/architecture.md`](../architecture.md).
+
+| Finding | Current status | Evidence / residual scope |
+|---|---|---|
+| JAPI-001 | Resolved | Auth Builder values use SecretStorage; persisted and derivative forms are redacted by default. Protected pre-auth migration backups remain an explicit rollback artifact. |
+| JAPI-002 | Resolved | Schema-v2 atomic storage, locks, revision checks, verified backups, recovery, read-only failure states, and disposal flushing are covered by storage tests. |
+| JAPI-003 | Resolved | Both protocol directions are runtime validated, bounded, acknowledged, and correlated by operation/execution IDs. |
+| JAPI-004 | Resolved | cURL executable parsing, structured warnings, previews, and cancellation are covered by parser fixtures. Local-file references remain unsupported. |
+| JAPI-005 | Resolved | One bounded resolver enforces Global < Set < Collection < Request and shares preflight across preview, transport, and code generation. |
+| JAPI-006 | Resolved | Text-field multipart and URL-encoded bodies are byte-tested against the localhost fixture server. File-valued multipart is deferred. |
+| JAPI-007 | Resolved | Response/redirect/decompression limits, cross-origin stripping, exact binary data, timings, and cancellation are covered by the localhost matrix. |
+| JAPI-008 | Resolved | Collection mutations and recursive schema-v2 import/export validate and commit transactionally. Folder-management UI remains deferred. |
+| JAPI-009 | Resolved | All seven commands are registered and use a ready-gated, one-shot startup-action queue with correlated outcomes. |
+| JAPI-010 | Resolved | Layered unit, localhost integration, VS Code 1.80 extension-host, package, audit, and CI gates replace the placeholder assertion. |
+| JAPI-011 | Resolved | History is a redacted summary store bounded to 200 entries and a 2 MiB envelope. |
+| JAPI-012 | Resolved | Dependencies/generated output left the index; manifest/lock parity, audits, and package allowlisting are enforced. |
+| JAPI-013 | Documentation owner checkpoint passed; final gate pending | README/CHANGELOG distinguish verified behavior from the deferred product gaps listed below, local links resolve, and the complete validation gate passes. The final validation task still owns release sign-off. |
+| JAPI-014 | Resolved | Stable-ID history mutation/replay and exact search navigation are covered by webview resilience tests. |
+| JAPI-015 | Resolved | Text/JSON/tree presentation and exact raster images are bounded and tested. |
+| JAPI-016 | Resolved | Seven normalized starter-snippet targets use placeholders by default, target-specific escaping, and parser/compiler checks. |
+| JAPI-017 | Resolved | API-key header and query placement use SecretStorage-backed pre-transport resolution. |
+| JAPI-018 | Resolved | Safe state restoration, dirty-navigation protection, TSX lint, keyboard semantics, focus management, and announcements are covered. |
+
+Deferred capabilities are folder-management UI, request-variable editing, workspace-scoped storage,
+cookie-jar persistence, proxies, client certificates/OAuth, local-file or streaming uploads, and
+shell-compatible cURL/file expansion. No current documentation claims these are implemented.
+
 ## Executive summary
 
 JustAPI has a compact, understandable architecture and its clean install, TypeScript checks, builds, placeholder extension-host test, and VSIX packaging all complete successfully. The package produced from the clean snapshot contains 11 files and is 97.43 KB. The project is not ready for correctness or security sign-off: the audit confirms 11 High, 6 Medium, and 1 Low findings. No finding met the threshold for Blocker or Critical.

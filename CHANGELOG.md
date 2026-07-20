@@ -1,27 +1,35 @@
 # Change Log
 
-All notable changes to the "justapi" extension will be documented in this file.
+All notable changes to JustAPI are documented in this file.
+
+## Unreleased — stabilization
+
+### Changed
+
+- Corrected the public capability contract and documented all active commands, startup delivery, storage scope/schema, recovery behavior, validation limits, and generated-code runtime assumptions.
+- Clarified that production storage is extension-global rather than workspace-scoped and that user-initiated HTTP requests send data to their configured destinations.
+- Described code generation as reviewed starter snippets with credential placeholders by default.
+- Limited history to redacted summaries and made collection JSON exports credential-redacted by default.
+
+### Fixed
+
+- Added runtime-validated, operation-correlated webview messaging and ready-gated command delivery for all seven contributed commands.
+- Added versioned atomic storage, verified backups, legacy migration, corruption recovery, revision conflict detection, and shutdown flushing.
+- Moved Auth Builder credentials to VS Code SecretStorage and added explicit one-time disclosure for credential-bearing derivatives.
+- Corrected variable precedence/bounds, multipart and URL-encoded bodies, redirects, cancellation, decompression, response limits, collection transactions, cURL parsing, search/history behavior, binary/image rendering, and code generation.
+- Split the provider into protocol, application-service, engine, and storage boundaries with deterministic tests.
+
+### Deferred
+
+- Folder-management UI, request-variable editing, workspace-scoped storage, cookie jars, proxies, local-file/streaming uploads, and automatic cURL `@file` reads are not supported.
 
 ## [0.0.1] - 2026-05-17
 
 ### Added
 
-- Full HTTP client with support for GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD
-- Redirect following, SSL toggle, configurable timeout, and error classification
-- Collection manager with nested folders, duplicate, rename, move, import/export
-- cURL import with support for -X, -H, -d, -F, -k, -L and more
-- Variable engine with four scopes (Global, Sets, Collection, Request)
-- Variable Sets — reusable variable groups linkable to multiple collections
-- Inline `{{variable}}` autocomplete with scope badges and keyboard navigation
-- Variable syntax highlighting in all text inputs
-- Authentication builder: Bearer Token, Basic Auth, API Key
-- Rich response viewer with JSON tree view, syntax highlighting, search, copy
-- XML formatting and image rendering for responses
-- Response headers and cookies inspection
-- Request history with replay, filter, and auto-cap (200 entries)
-- Code generation for: JavaScript, TypeScript, Python, cURL, C#, Java, Go
-- Global search across collections, folders, requests, and history
-- Slide-down toast notification system
-- 7 commands in VS Code Command Palette
-- 2 keyboard shortcuts (New Request, Import cURL)
-- 100% local storage — no data ever leaves the machine
+- HTTP request editing for GET, POST, PUT, PATCH, DELETE, OPTIONS, and HEAD.
+- Collections, saved requests, JSON import/export, cURL import, four-scope variable resolution, Auth Builder, response inspection, history summaries, search, and seven code-snippet targets.
+- Seven Command Palette contributions and two keyboard shortcuts.
+- Local extension storage with no account, telemetry, or cloud-sync integration. User-initiated requests still communicate with their configured HTTP(S) targets.
+
+The current supported behavior and known capability gaps are defined in [README.md](README.md); this historical entry does not expand that contract.
