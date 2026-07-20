@@ -167,7 +167,7 @@
     "localValue": "done",
     "remoteValue": "in-progress",
     "createdAt": 1784507785246,
-    "resolved": false
+    "resolved": true
   },
   "task-task-mrjk92ho-gk4pg6qv-status": {
     "id": "task-task-mrjk92ho-gk4pg6qv-status",
