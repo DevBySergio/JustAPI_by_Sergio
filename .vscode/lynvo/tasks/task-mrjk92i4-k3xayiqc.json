@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605997,
-  "updatedAt": 1784506399283,
+  "updatedAt": 1784506536880,
   "position": 1783967605997,
   "labelIds": [
     "label-mrjk92hr-iyd9w6j3"
@@ -34,30 +34,30 @@
     {
       "id": "check-mrjk92i4-docs0002",
       "text": "Remove or qualify unsupported folder, request-variable, workspace, cookie, proxy, and local-file capabilities",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605997,
-      "updatedAt": 1783967605997
+      "updatedAt": 1784506536876
     },
     {
       "id": "check-mrjk92i4-docs0003",
       "text": "Document commands, startup behavior, storage scope/schema, migrations, backups, recovery, and limits",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605997,
-      "updatedAt": 1783967605997
+      "updatedAt": 1784506536877
     },
     {
       "id": "check-mrjk92i4-docs0004",
       "text": "Document variable precedence, auth SecretStorage, redaction, import/export behavior, and HTTP limits",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605997,
-      "updatedAt": 1783967605997
+      "updatedAt": 1784506536878
     },
     {
       "id": "check-mrjk92i4-docs0005",
       "text": "Describe generated code as starter snippets and state language/runtime assumptions",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605997,
-      "updatedAt": 1783967605997
+      "updatedAt": 1784506536879
     },
     {
       "id": "check-mrjk92i4-docs0006",
@@ -69,9 +69,9 @@
     {
       "id": "check-mrjk92i4-docs0007",
       "text": "Record deferred capability work explicitly without competitive comparisons or unverified parity claims",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605997,
-      "updatedAt": 1783967605997
+      "updatedAt": 1784506536880
     }
   ],
   "relations": [

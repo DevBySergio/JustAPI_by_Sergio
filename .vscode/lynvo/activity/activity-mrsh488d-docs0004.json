@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrsh488d-docs0004",
+  "type": "checklist_updated",
+  "message": "Documented commands, startup, storage, migration, recovery, and limits in \"Correct public claims and document deferred capability gaps\"",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784506536877,
+  "taskId": "task-mrjk92i4-k3xayiqc"
+}

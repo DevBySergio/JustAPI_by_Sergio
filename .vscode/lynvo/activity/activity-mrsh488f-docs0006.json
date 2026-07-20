@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrsh488f-docs0006",
+  "type": "checklist_updated",
+  "message": "Documented starter-snippet targets and runtime assumptions in \"Correct public claims and document deferred capability gaps\"",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784506536879,
+  "taskId": "task-mrjk92i4-k3xayiqc"
+}
