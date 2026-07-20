@@ -756,9 +756,9 @@ Unsupported folder management, request-variable editing, workspace storage, cook
 expansion, local-file/streaming uploads, and shell-compatible cURL behavior are explicitly deferred
 rather than reported as passed.
 
-The final 145,325-byte (141.92 KiB) VSIX contains 11 ZIP entries and the nine approved extension
+The final 145,311-byte (141.91 KiB) version 1.1.0 VSIX contains 11 ZIP entries and the nine approved extension
 payloads. Its SHA-256 is
-`208d38056b049ffca0b8d28c3ef767a831a99e36f6eeabbc258c0164ef0a6858`. Package scans found no
+`dac38c9f5c6545bf187a927a0d75aa77a0ce5dcb5bf0b877ed176305b04ac699`. Package scans found no
 synthetic fixture marker or common high-confidence credential signature, and Git tracks no
 dependency, build, coverage, or VSIX output. All 18 findings are passed, including JAPI-013; no
 unaccepted Blocker, Critical, or High finding remains. The complete decision, compatibility notes,
@@ -776,7 +776,7 @@ Status values: `planned`, `in-progress`, `passed`, `failed`, `blocked`, or `roll
 | 2 | passed | 2026-07-15 | 2026-07-15 | AUTH and VARIABLES commits plus working-tree HTTP patch | AUTH: 6 focused unit tests and SecretStorage-backed transport regressions; VARIABLES: 13 resolver tests; HTTP: 13 deterministic integration tests plus protocol/auth/model regressions | `npm run validate` passed with 52 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX, and 9-file payload allowlist | Protected legacy pre-auth collection backups remain for rollback; pre-existing 293 KiB webview performance advisory remains |
 | 3 | passed | 2026-07-15 | 2026-07-18 | COLLECTIONS and CURL commits plus CODEGEN and COMMANDS working-tree patches | Collection transactions, cURL parsing/preview, seven stable codegen goldens, all 49 target/body fixture combinations, seven command-controller/queue tests, startup protocol validation, and cold/warm extension-host commands passed | `npm run validate` passed with 83 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX creation, and the 9-file payload allowlist | Current 300 KiB webview performance advisory remains deferred to UI/REFACTOR; OS file-dialog adapters are deterministically covered below the real VS Code registration boundary |
 | 4 | passed | 2026-07-18 | 2026-07-20 | UI + REFACTOR working-tree patches | Webview resilience, protocol races, exact-byte response cases, application-service isolation, lifecycle disposal, and dependency-cycle checks passed | `npm run validate` passed with 94 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, VSIX creation, and the 9-file payload allowlist | Production webview is 321 KiB and retains the non-blocking webpack performance advisory |
-| 5 | passed | 2026-07-20 | 2026-07-20 | DOCS + FINAL closure patch | Claim trace plus activation/commands/data/UI/accessibility smoke matrix, 24 active regression-catalogue entries, final diff/security/scope inspection, and finding reconciliation passed | Clean `npm ci` followed by `npm run validate`: 94 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, 145,325-byte VSIX, and 9-file payload allowlist passed | 321 KiB webview advisory and manual assistive-technology review retained as documented non-blocking residuals |
+| 5 | passed | 2026-07-20 | 2026-07-20 | DOCS + FINAL closure patch | Claim trace plus activation/commands/data/UI/accessibility smoke matrix, 24 active regression-catalogue entries, final diff/security/scope inspection, and finding reconciliation passed | Clean `npm ci` followed by `npm run validate`: 94 unit, 13 integration, and 4 extension-host tests, zero audits, production builds, 145,311-byte version 1.1.0 VSIX, and 9-file payload allowlist passed | 321 KiB webview advisory and manual assistive-technology review retained as documented non-blocking residuals |
 
 Finding statuses below record the final owner completion signal and batch gate:
 

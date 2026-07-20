@@ -2,7 +2,7 @@
 
 All notable changes to JustAPI are documented in this file.
 
-## Unreleased — stabilization
+## [1.1.0] - 2026-07-20
 
 ### Changed
 

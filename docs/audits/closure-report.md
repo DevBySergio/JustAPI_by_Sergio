@@ -1,9 +1,9 @@
 # JustAPI stabilization closure report
 
-Closure date: 2026-07-20  
-Audited baseline: `b21b04f1`  
-Validated product revision: `042775d3dc2b22c7c61c0fd64d08d84c30b96e98`  
-Manifest/artifact version: `1.0.1`  
+Closure date: 2026-07-20<br>
+Audited baseline: `b21b04f1`<br>
+Validated source revision: `53717e9558b8a41259c4d191c88408f882b328f0` plus the `1.1.0` release metadata<br>
+Manifest/artifact version: `1.1.0`<br>
 Decision: **ready to close stabilization and begin a separately scoped capability phase**
 
 ## Decision
@@ -12,7 +12,7 @@ The stabilization roadmap meets its exit criteria. All 18 audit findings are res
 all 11 High findings. There is no unaccepted Blocker, Critical, or High finding, no unresolved
 Lynvo conflict, and no detected credential or dependency leak in the final VSIX.
 
-JustAPI 1.0.1 is ready for release within the support contract in `README.md`. This decision does
+JustAPI 1.1.0 is ready for release within the support contract in `README.md`. This decision does
 not claim support for the deferred capabilities listed below. New product capabilities should be
 planned separately so they do not silently broaden this stabilization sign-off.
 
@@ -95,11 +95,11 @@ No finding is accepted as unresolved or externally blocked.
 
 Final artifact:
 
-- file: `justapi-1.0.1.vsix`;
-- size: 145,325 bytes (141.92 KiB);
-- SHA-256: `208d38056b049ffca0b8d28c3ef767a831a99e36f6eeabbc258c0164ef0a6858`;
+- file: `justapi-1.1.0.vsix`;
+- size: 145,311 bytes (141.91 KiB);
+- SHA-256: `dac38c9f5c6545bf187a927a0d75aa77a0ce5dcb5bf0b877ed176305b04ac699`;
 - archive: 11 ZIP entries, comprising two VSIX metadata entries and nine allowlisted extension payloads;
-- manifest: `justapi` 1.0.1, entry point `./dist/extension.js`, VS Code engine `^1.80.0`.
+- manifest: `justapi` 1.1.0, entry point `./dist/extension.js`, VS Code engine `^1.80.0`.
 
 The payload contains only package metadata, README, license, changelog, two media assets, the
 minified extension bundle, the minified webview bundle, and its license notice. It contains no
@@ -134,7 +134,7 @@ repository-cleanup scope.
   SecretStorage. Ambiguous/custom auth-like values are left as ordinary request data rather than
   guessed. Secret writes are rolled back if request persistence fails.
 - The VS Code compatibility floor remains 1.80.0. The manifest, lockfile root, and artifact version
-  agree at 1.0.1.
+  agree at 1.1.0.
 
 ## Accepted residual risks and deferred scope
 
