@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605998,
-  "updatedAt": 1784507021944,
+  "updatedAt": 1784507156799,
   "position": 1783967605998,
   "labelIds": [
     "label-mrjk92hr-iyd9w6j3",
@@ -29,16 +29,16 @@
     {
       "id": "check-mrjk92i5-final001",
       "text": "Run the clean-install, lint, type-check, production-build, full-test, audit, and package gates and record exact evidence",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507156798
     },
     {
       "id": "check-mrjk92i5-final002",
       "text": "Execute the full local-server smoke matrix for transport, variables, auth, bodies, cancellation, redirects, decoding, and limits",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507156799
     },
     {
       "id": "check-mrjk92i5-final003",
