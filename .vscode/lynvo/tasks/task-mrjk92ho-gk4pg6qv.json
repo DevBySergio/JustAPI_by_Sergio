@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605981,
-  "updatedAt": 1784367187179,
+  "updatedAt": 1784506048472,
   "position": 1783967605981,
   "labelIds": [
     "bug",
@@ -127,9 +127,9 @@
     {
       "id": "check-mrjk92ho-road0015",
       "text": "Decompose the provider into testable services without redesigning the product",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605981,
-      "updatedAt": 1783967605981
+      "updatedAt": 1784506048472
     },
     {
       "id": "check-mrjk92ho-road0016",

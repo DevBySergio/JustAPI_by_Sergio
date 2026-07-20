@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrsgtrdi-rr4hqhgu",
+  "type": "task_updated",
+  "message": "Updated source reference for \"Decompose the webview provider into testable services\"",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784506048470,
+  "taskId": "task-mrjk92i3-sr46q2x6"
+}
