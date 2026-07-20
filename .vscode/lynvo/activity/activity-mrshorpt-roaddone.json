@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrshorpt-roaddone",
+  "type": "task_moved",
+  "message": "Moved \"Plan: JustAPI deep audit and stabilization\" from In Progress to Done",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784507712609,
+  "taskId": "task-mrjk92ho-gk4pg6qv",
+  "metadata": {
+    "from": "in-progress",
+    "to": "done"
+  }
+}

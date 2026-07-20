@@ -1,0 +1,15 @@
+{
+  "id": "activity-mrshorpr-finaldone",
+  "type": "task_moved",
+  "message": "Moved \"Run final validation, smoke tests, and closure report\" from In Progress to Done",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784507712607,
+  "taskId": "task-mrjk92i5-pbs05wwz",
+  "metadata": {
+    "from": "in-progress",
+    "to": "done"
+  }
+}

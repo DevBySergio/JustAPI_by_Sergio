@@ -1,0 +1,11 @@
+{
+  "id": "activity-mrshorpq-finalref",
+  "type": "task_updated",
+  "message": "Linked \"Run final validation, smoke tests, and closure report\" to docs/audits/closure-report.md",
+  "actor": {
+    "githubId": "unknown",
+    "username": "Lynvo - Agent"
+  },
+  "createdAt": 1784507712606,
+  "taskId": "task-mrjk92i5-pbs05wwz"
+}

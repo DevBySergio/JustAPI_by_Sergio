@@ -2,7 +2,7 @@
   "id": "task-mrjk92i5-pbs05wwz",
   "title": "Run final validation, smoke tests, and closure report",
   "description": "Execute the complete stabilization gate from a clean dependency install and record the exact command, result, environment, and relevant artifact for every check. Run install, lint, type-check, production build, unit/integration/extension tests, dependency audit, and VSIX packaging using repository scripts established by the validation task. Inspect the final diff for generated artifacts, credentials, tracked dependencies, accidental feature expansion, and documentation drift.\n\nPerform the documented end-to-end smoke matrix against the deterministic local server: activation; all commands; create/save/reopen; variables; auth; raw/form bodies; cancellation; timeout; redirects; compression/charset/binary; response limits; history; collection operations and round trip; cURL import; code generation; search; reload/unsaved state; and keyboard accessibility. Mark unsupported scenarios explicitly deferred or not applicable—never as passed.\n\nPublish a closure report containing the resolved/open finding registry, migration and compatibility notes, residual risks, command evidence, smoke evidence, packaged artifact details, and a clear readiness decision for beginning the separate capability phase. Any unresolved Blocker/Critical/High finding prevents a ready decision unless externally blocked and accepted.",
-  "status": "in-progress",
+  "status": "done",
   "createdBy": {
     "githubId": "unknown",
     "username": "Lynvo - Agent"
@@ -12,7 +12,7 @@
     "username": "Lynvo - Agent"
   },
   "createdAt": 1783967605998,
-  "updatedAt": 1784507156799,
+  "updatedAt": 1784507712607,
   "position": 1783967605998,
   "labelIds": [
     "label-mrjk92hr-iyd9w6j3",
@@ -21,9 +21,9 @@
   ],
   "priority": "high",
   "codeReference": {
-    "filePath": "package.json",
-    "lineStart": 67,
-    "lineEnd": 79
+    "filePath": "docs/audits/closure-report.md",
+    "lineStart": 1,
+    "lineEnd": 157
   },
   "checklist": [
     {
@@ -43,44 +43,44 @@
     {
       "id": "check-mrjk92i5-final003",
       "text": "Smoke-test activation, every command, persistence/reload, history, collections, import/export, cURL, codegen, and search",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507712600
     },
     {
       "id": "check-mrjk92i5-final004",
       "text": "Verify unsaved-state handling, race resistance, large/binary response rendering, keyboard navigation, and accessibility announcements",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507712601
     },
     {
       "id": "check-mrjk92i5-final005",
       "text": "Inspect the final diff and VSIX for secrets, tracked dependencies, generated noise, stale claims, and unapproved scope",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507712602
     },
     {
       "id": "check-mrjk92i5-final006",
       "text": "Reconcile every audit finding as resolved, accepted/deferred, or externally blocked with evidence and residual risk",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507712603
     },
     {
       "id": "check-mrjk92i5-final007",
       "text": "Publish migration/compatibility notes, validation evidence, artifact details, residual risks, and the readiness decision",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507712604
     },
     {
       "id": "check-mrjk92i5-final008",
       "text": "Close the roadmap only if no unaccepted Blocker, Critical, or High finding remains",
-      "done": false,
+      "done": true,
       "createdAt": 1783967605998,
-      "updatedAt": 1783967605998
+      "updatedAt": 1784507712605
     }
   ],
   "relations": [
