@@ -1,3 +1,4 @@
+import type { RequestFile, MultipartFile } from '../../../src/models/RequestFile';
 import { create } from 'zustand';
 import { JustRequest, HttpMethod, BodyType, createDefaultRequest } from '../../../src/models/Request';
 import { KeyValuePair, PathParam } from '../../../src/models/KeyValuePair';
@@ -8,7 +9,14 @@ import { requestsDiffer, REQUEST_WORKSPACE_LIMITS } from '../../../src/webview/W
 
 export const MAX_REQUEST_TABS = REQUEST_WORKSPACE_LIMITS.maximumTabs;
 
+export interface ResponseDownloadState {
+  responseId: string; operationId: string; status: 'saving' | 'saved' | 'cancelled' | 'error'; message: string;
+}
+
 export interface RequestTab {
+  downloadState: ResponseDownloadState | undefined;
+  fileSelections: Record<string, string>;
+  fileSelectionError: string | null;
   tabId: string;
   currentRequest: JustRequest;
   baselineRequest: JustRequest;
@@ -29,7 +37,7 @@ export interface RequestTab {
 }
 
 export function createRequestTab(request = createDefaultRequest(), collectionId: string | null = null): RequestTab {
-  return { tabId: `tab-${crypto.randomUUID()}`, currentRequest: request, baselineRequest: request, collectionId, baselineCollectionId: collectionId,
+  return { fileSelections: {}, fileSelectionError: null, downloadState: undefined, tabId: `tab-${crypto.randomUUID()}`, currentRequest: request, baselineRequest: request, collectionId, baselineCollectionId: collectionId,
     authPending: false, authRevision: 0, authUpdate: null, isExecuting: false, activeExecutionId: null,
     response: null, code: '', error: null, loading: false, loadFailed: false, closing: false, saving: false };
 }
@@ -59,10 +67,17 @@ interface RequestState extends RequestTab {
   acceptSavedRequest: (tabId: string, saved: JustRequest, submitted: JustRequest, authRevision: number, collectionId: string) => void;
   setBodyType: (type: BodyType) => void;
   setBodyContent: (content: string) => void;
+  setBodyFiles: (files: MultipartFile[]) => void;
+  setFileContentType: (contentType: string) => void;
+  beginFileSelection: (tabId: string, operationId: string, fieldId?: string) => void;
+  acceptFileSelection: (operationId: string, requestId: string, file: RequestFile, fieldId?: string) => void;
+  endFileSelection: (operationId: string, error?: string) => void;
   setFormData: (formData: KeyValuePair[]) => void;
   setRequest: (request: JustRequest) => void;
   beginExecution: (executionId: string, tabId?: string) => void;
   setExecutionState: (executionId: string, executing: boolean) => void;
+  releaseResponseBodies: (responseIds: string[]) => void;
+  setResponseDownloadState: (tabId: string, download: ResponseDownloadState) => void;
   setResponse: (executionId: string, response: JustResponse) => void;
 }
 
@@ -79,7 +94,7 @@ export const useRequestStore = create<RequestState>((set, get) => {
       ...(state.tabId === tabId ? next : {}) };
   });
   const editRequest = (change: (request: JustRequest) => JustRequest) => updateTab(get().tabId, tab => ({
-    ...tab, currentRequest: { ...change(tab.currentRequest), updated: Date.now() }, error: null,
+    ...tab, fileSelections: {}, currentRequest: { ...change(tab.currentRequest), updated: Date.now() }, error: null,
   }));
   return {
     ...initialTab, tabs: [initialTab],
@@ -135,18 +150,48 @@ export const useRequestStore = create<RequestState>((set, get) => {
       return { ...tab, currentRequest: current, baselineRequest: saved, baselineCollectionId: collectionId,
         authPending: tab.authRevision === revision ? false : tab.authPending, error: null };
     }),
-    setBodyType: type => editRequest(request => ({ ...request, body: { ...request.body, type,
+    setBodyType: type => editRequest(request => ({ ...request, body: { ...request.body, type, ...(type === 'binary' && request.body.type !== 'binary' ? { binarySource: 'file' as const } : {}),
       ...(type === 'x-www-form-urlencoded' && request.body.type !== type ? { formData: request.body.formData ?? [] } : {}) } })),
     setBodyContent: content => editRequest(request => ({ ...request, body: { ...request.body, content } })),
+    setBodyFiles: files => editRequest(request => ({ ...request, body: { ...request.body, files } })),
+    setFileContentType: contentType => editRequest(request => ({ ...request, body: { ...request.body, contentType } })),
+    beginFileSelection: (tabId, operationId, fieldId) => updateTab(tabId, tab => ({ ...tab, fileSelectionError: null, fileSelections: { ...tab.fileSelections, [fieldId ?? 'binary']: operationId } })),
+    acceptFileSelection: (operationId, requestId, file, fieldId) => {
+      const tab = get().tabs.find(candidate => candidate.currentRequest.id === requestId && candidate.fileSelections[fieldId ?? 'binary'] === operationId);
+      if (!tab) { return; }
+      updateTab(tab.tabId, current => {
+        const body = current.currentRequest.body;
+        if (fieldId ? body.type !== 'form-data' || !body.files?.some(field => field.id === fieldId) : body.type !== 'binary') { return current; }
+        const next = fieldId ? { ...body, files: body.files!.map(field => field.id === fieldId ? { ...field, file } : field) }
+          : { ...body, binarySource: 'file' as const, file, content: '' };
+        return { ...current, currentRequest: { ...current.currentRequest, body: next, updated: Date.now() } };
+      });
+    },
+    endFileSelection: (operationId, error) => {
+      for (const tab of get().tabs) {
+        if (Object.values(tab.fileSelections).includes(operationId)) { updateTab(tab.tabId, current => ({ ...current,
+          fileSelections: Object.fromEntries(Object.entries(current.fileSelections).filter(([, value]) => value !== operationId)), fileSelectionError: error ?? null })); }
+      }
+    },
     setFormData: formData => editRequest(request => ({ ...request, body: { ...request.body, formData } })),
     setRequest: request => editRequest(() => request),
     beginExecution: (executionId, tabId = get().tabId) => updateTab(tabId, tab => ({
-      ...tab, activeExecutionId: executionId, isExecuting: true, response: null, error: null,
+      ...tab, activeExecutionId: executionId, isExecuting: true, response: null, downloadState: undefined, error: null,
     })),
     setExecutionState: (executionId, executing) => {
       const tab = get().tabs.find(candidate => candidate.activeExecutionId === executionId);
       if (tab) { updateTab(tab.tabId, current => ({ ...current, isExecuting: executing, activeExecutionId: executing ? executionId : null })); }
     },
+    setResponseDownloadState: (tabId, download) => updateTab(tabId, tab => {
+      if (tab.response?.download?.responseId !== download.responseId
+        || (download.status !== 'saving' && tab.downloadState?.operationId !== download.operationId)) { return tab; }
+      return { ...tab, downloadState: download };
+    }),
+    releaseResponseBodies: responseIds => set(state => {
+      const tabs = state.tabs.map(tab => tab.response?.download && responseIds.includes(tab.response.download.responseId)
+        ? { ...tab, response: { ...tab.response, download: { ...tab.response.download, available: false } } } : tab);
+      return { tabs, ...tabs.find(tab => tab.tabId === state.tabId)! };
+    }),
     setResponse: (executionId, response) => {
       const tab = get().tabs.find(candidate => candidate.activeExecutionId === executionId);
       if (tab) { updateTab(tab.tabId, current => ({ ...current, response })); }

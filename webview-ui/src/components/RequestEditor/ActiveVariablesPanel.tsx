@@ -11,7 +11,7 @@ interface VarEntry {
   name: string;
   value: string;
   enabled: boolean;
-  scope: 'global' | 'collection' | 'set' | 'request';
+  scope: 'global' | 'collection' | 'set' | 'environment' | 'request';
   sourceName?: string;
 }
 
@@ -27,6 +27,7 @@ interface PreviewResult {
 export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Promise<void>; onError: (message: string) => void }) {
   const globalVars = useVariableStore((s) => s.globalVariables);
   const variableSets = useVariableStore((s) => s.variableSets);
+  const environment = variableSets.find(set => set.kind === 'environment' && set.active);
   const activeCollectionId = useRequestStore((s) => s.collectionId);
   const collections = useCollectionStore((s) => s.collections);
   const selectedCol = collections.find(c => c.id === activeCollectionId);
@@ -64,7 +65,7 @@ export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Prom
   // Collect linked sets for this collection
   const linkedSets = useMemo(() => {
     if (!activeCollectionId) { return []; }
-    return variableSets.filter(s => s.linkedCollectionIds.includes(activeCollectionId));
+    return variableSets.filter(s => s.kind !== 'environment' && s.linkedCollectionIds.includes(activeCollectionId));
   }, [variableSets, activeCollectionId]);
 
   // Build flat list of all variables by precedence (highest priority last = request wins)
@@ -83,6 +84,10 @@ export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Prom
       }
     }
 
+    for (const v of environment?.variables ?? []) {
+      entries.push({ id: v.id, name: v.key, value: v.value, enabled: v.enabled, scope: 'environment', sourceName: environment?.name });
+    }
+
     // 3. Collection vars
     if (selectedCol?.variables) {
       for (const v of selectedCol.variables) {
@@ -98,7 +103,7 @@ export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Prom
     }
 
     return entries;
-  }, [selectedCol, linkedSets, globalVars, currentRequest]);
+  }, [selectedCol, linkedSets, globalVars, currentRequest, environment]);
 
   // Cross-scope matches are intentional precedence. Only duplicates within one scope conflict.
   const conflicts = useMemo(() => {
@@ -205,6 +210,8 @@ export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Prom
           conflicts={conflicts}
         />
       ))}
+
+      {environment && <VarGroup title={`Environment: ${environment.name}`} badge="E" color="#ca9ee6" vars={environment.variables} conflicts={conflicts} />}
 
       {selectedCol && selectedCol.variables.length > 0 && (
         <VarGroup

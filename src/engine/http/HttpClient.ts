@@ -1,3 +1,4 @@
+import { FILE_UPLOAD_LIMITS, type RequestFile } from '../../models/RequestFile';
 import { randomUUID } from 'node:crypto';
 import * as http from 'node:http';
 import * as https from 'node:https';
@@ -46,6 +47,7 @@ export interface HttpClientOptions {
   maxRedirects?: number;
   boundaryFactory?: () => string;
   lookup?: LookupFunction;
+  readFile?: (requestId: string, file: RequestFile) => Promise<Buffer>;
 }
 
 interface BodyPayload {
@@ -110,10 +112,12 @@ function boundedDecompress(
 }
 
 export class HttpClient {
+  private responseBody: Buffer | undefined;
   private activeExecution: ExecutionState | null = null;
   private readonly maxRedirects: number;
   private readonly boundaryFactory: () => string;
   private readonly lookup?: LookupFunction;
+  private readonly readFile?: (requestId: string, file: RequestFile) => Promise<Buffer>;
 
   constructor(options: HttpClientOptions = {}) {
     const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
@@ -123,7 +127,12 @@ export class HttpClient {
     this.maxRedirects = maxRedirects;
     this.boundaryFactory = options.boundaryFactory
       ?? (() => `----JustAPIBoundary${randomUUID().replace(/-/g, '')}`);
-    this.lookup = options.lookup;
+    this.lookup = options.lookup; this.readFile = options.readFile;
+  }
+
+  /** Transfers the complete decompressed bytes before text/charset decoding; never reconstruct from displayed text. */
+  takeResponseBody(): Buffer | undefined {
+    const bytes = this.responseBody; this.responseBody = undefined; return bytes;
   }
 
   cancel(): void {
@@ -143,6 +152,7 @@ export class HttpClient {
       });
     }
 
+    this.responseBody = undefined;
     const state = this.createExecutionState();
     this.activeExecution = state;
     const settings = normalizeRequestSettings(request.settings);
@@ -159,7 +169,8 @@ export class HttpClient {
         credentialRepresentation: request.auth.type === 'none' ? 'none' : 'resolved',
       });
       currentUrl = new URL(effectiveRequest.url);
-      const payload = this.buildBody(effectiveRequest.body);
+      const payload = await this.buildBody(effectiveRequest.body, request.id, state);
+      if (state.controller.signal.aborted) { throw new TransportFailure(this.classifyNodeError(undefined, state)); }
       let method = effectiveRequest.method;
       let body = payload.bytes;
       let headers = this.buildHeaders(effectiveRequest.headers, payload);
@@ -272,10 +283,14 @@ export class HttpClient {
     }
   }
 
-  private buildBody(requestBody: EffectiveRequestBody): BodyPayload {
+  private async buildBody(requestBody: EffectiveRequestBody, requestId: string, state: ExecutionState): Promise<BodyPayload> {
     switch (requestBody.type) {
       case 'none':
         return {};
+      case 'file': {
+        const bytes = await this.fileBytes(requestId, requestBody.file, state);
+        return { bytes, contentType: requestBody.contentType };
+      }
       case 'form-data': {
         const boundary = this.boundaryFactory();
         if (!/^[A-Za-z0-9'()+_,./:=?-]{1,70}$/.test(boundary)) {
@@ -286,6 +301,7 @@ export class HttpClient {
         }
         const chunks: Buffer[] = [];
         for (const field of requestBody.fields) {
+          if (field.value.includes(boundary)) { throw new TransportFailure({ type: 'invalid-response', message: 'The multipart boundary conflicts with a field. Send again.' }); }
           const name = field.name
             .replace(/\r|\n/g, ' ')
             .replace(/\\/g, '\\\\')
@@ -295,10 +311,19 @@ export class HttpClient {
             'utf8'
           ));
         }
+        for (const field of requestBody.files ?? []) {
+          const bytes = await this.fileBytes(requestId, field.file, state);
+          if (bytes.includes(Buffer.from(boundary))) { throw new TransportFailure({ type: 'invalid-response', message: 'The multipart boundary conflicts with a file. Send again.' }); }
+          const name = field.name.replace(/[\r\n]/g, ' ').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const filename = field.file.name.replace(/[\r\n]/g, ' ').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename="${filename}"\r\nContent-Type: ${field.contentType}\r\n\r\n`, 'utf8'), bytes, Buffer.from('\r\n'));
+          if (chunks.reduce((size, chunk) => size + chunk.length, 0) > FILE_UPLOAD_LIMITS.maximumBodyBytes) { throw new TransportFailure({ type: 'invalid-response', message: 'The multipart body exceeds 25 MiB.' }); }
+        }
         chunks.push(Buffer.from(`--${boundary}--\r\n`, 'ascii'));
+        if (requestBody.files?.length && chunks.reduce((size, chunk) => size + chunk.length, 0) > FILE_UPLOAD_LIMITS.maximumBodyBytes) { throw new TransportFailure({ type: 'invalid-response', message: 'The multipart body exceeds 25 MiB.' }); }
         return {
           bytes: Buffer.concat(chunks),
-          contentType: `multipart/form-data; boundary=${boundary}`,
+          contentType: `multipart/form-data; boundary=${/^[A-Za-z0-9'_.-]+$/.test(boundary) ? boundary : JSON.stringify(boundary)}`,
           forceContentType: true,
         };
       }
@@ -318,6 +343,19 @@ export class HttpClient {
           contentType: requestBody.contentType,
         };
     }
+  }
+
+  private async fileBytes(requestId: string, file: RequestFile, state: ExecutionState): Promise<Buffer> {
+    if (state.controller.signal.aborted) { throw new TransportFailure(this.classifyNodeError(undefined, state)); }
+    if (!this.readFile) { throw new TransportFailure({ type: 'invalid-response', message: 'Select the local file again before sending.' }); }
+    let bytes: Buffer;
+    try { bytes = await this.readFile(requestId, file); } catch {
+      if (state.controller.signal.aborted) { throw new TransportFailure(this.classifyNodeError(undefined, state)); }
+      throw new TransportFailure({ type: 'invalid-response', message: 'The selected file is unavailable or changed. Select it again before sending.' });
+    }
+    if (state.controller.signal.aborted) { throw new TransportFailure(this.classifyNodeError(undefined, state)); }
+    if (bytes.length !== file.size || bytes.length > FILE_UPLOAD_LIMITS.maximumFileBytes) { throw new TransportFailure({ type: 'invalid-response', message: 'The selected file changed or exceeds 10 MiB.' }); }
+    return bytes;
   }
 
   private buildHeaders(headers: EffectiveRequestHeader[], payload: BodyPayload): Record<string, string> {
@@ -470,10 +508,11 @@ export class HttpClient {
                   hasNoContent ? this.withoutHeaders(responseHeaders, ['content-encoding']) : responseHeaders,
                   settings.maxResponseBytes
                 );
-                if (state.controller.signal.aborted) {
+                if (settled || state.controller.signal.aborted) {
                   finish({ kind: 'error', error: this.classifyNodeError(undefined, state) });
                   return;
                 }
+                this.responseBody = decoded.bytes;
                 const total = performance.now() - state.startedAt;
                 const timings = this.responseTimings(state, total);
                 finish({

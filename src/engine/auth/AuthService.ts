@@ -223,7 +223,7 @@ export class AuthService {
     request: JustRequest,
     existing?: PersistedJustRequest,
     configuredAuth: AuthConfig = request.auth,
-    options: { usePending?: boolean } = {}
+    options: { usePending?: boolean; resolveValue?: (value: string) => string } = {}
   ): Promise<JustRequest> {
     const persisted = this.resolveConfig(request.id, request.auth, configuredAuth, existing, options.usePending ?? true);
     if (persisted.type === 'none') {
@@ -233,6 +233,11 @@ export class AuthService {
       throw new AuthServiceError('AUTH_SECRET_NOT_FOUND');
     }
     const secret = await this.readSecret(persisted);
+    if (options.resolveValue) {
+      if (secret.type === 'bearer') { secret.token = options.resolveValue(secret.token); }
+      else if (secret.type === 'basic') { secret.username = options.resolveValue(secret.username); secret.password = options.resolveValue(secret.password); }
+      else { secret.value = options.resolveValue(secret.value); }
+    }
     return this.injectCredential(request, request.auth, persisted, secret);
   }
 
@@ -270,13 +275,16 @@ export class AuthService {
 
   async importRequests(
     requests: readonly JustRequest[],
-    persist: (requests: PersistedJustRequest[]) => Promise<void>
+    persist: (requests: PersistedJustRequest[]) => Promise<void>,
+    authInputs?: ReadonlyMap<string, AuthInput>
   ): Promise<void> {
     const prepared: PersistedJustRequest[] = [];
     try {
       for (const source of requests) {
         let request: JustRequest = this.toPublicRequest(this.prepareForImport(source));
-        if (source.auth.type === 'apiKey') {
+        const supplied = authInputs?.get(source.id);
+        if (supplied) { request.auth = await this.configure(request.id, supplied); }
+        if (!supplied && source.auth.type === 'apiKey') {
           const { name, in: location } = source.auth;
           const pairs = location === 'header' ? request.headers : request.queryParams;
           const matches = pairs.filter(pair => pair.enabled && (location === 'query' ? pair.key === name : pair.key.toLowerCase() === name.toLowerCase()));

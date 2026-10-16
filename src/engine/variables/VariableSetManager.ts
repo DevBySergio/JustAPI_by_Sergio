@@ -1,7 +1,10 @@
 import { VariableSet, createDefaultVariableSet } from '../../models/VariableSet';
+import { randomUUID } from 'node:crypto';
 import { Variable } from '../../models/Variable';
 import { DataStore } from '../../services/DataStore';
 import { SerialQueue } from '../../utils/SerialQueue';
+import { validateExtensionMessage } from '../../protocol/MessageValidator';
+import { ApplicationError } from '../../services/ApplicationError';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 
@@ -18,7 +21,8 @@ export class VariableSetManager {
 
   async load(): Promise<void> {
     return this.operations.run(async () => {
-      this.sets = clone(await this.store.read<VariableSet[]>('variableSets') ?? []);
+      const sets = clone(await this.store.read<VariableSet[]>('variableSets') ?? []);
+      this.validate(sets); this.sets = sets;
     });
   }
 
@@ -38,12 +42,25 @@ export class VariableSetManager {
   }
 
   getVariablesForCollection(collectionId: string): Variable[] {
-    return this.getByCollectionId(collectionId).flatMap(set => set.variables);
+    return this.getByCollectionId(collectionId).filter(set => set.kind !== 'environment').flatMap(set => set.variables);
   }
 
-  async create(name: string): Promise<VariableSet> {
+  getActiveEnvironment(): VariableSet | undefined { return this.getAll().find(set => set.kind === 'environment' && set.active); }
+
+  async selectEnvironment(id: string | null): Promise<void> {
     return this.operations.run(async () => {
-      const set = createDefaultVariableSet(name);
+      const sets = this.getAll();
+      if (id !== null && !sets.some(set => set.id === id && set.kind === 'environment')) { throw new Error('Environment not found.'); }
+      for (const set of sets.filter(value => value.kind === 'environment')) {
+        if (Boolean(set.active) !== (set.id === id)) { set.active = set.id === id; set.updated = Math.max(Date.now(), set.updated + 1); }
+      }
+      await this.commit(sets);
+    });
+  }
+
+  async create(name: string, kind?: 'environment', variables: Variable[] = []): Promise<VariableSet> {
+    return this.operations.run(async () => {
+      const set = { ...createDefaultVariableSet(name, randomUUID()), variables: clone(variables), ...(kind ? { kind, active: false } : {}) };
       await this.commit([...this.getAll(), set]);
       return clone(set);
     });
@@ -51,7 +68,10 @@ export class VariableSetManager {
 
   async update(updated: VariableSet): Promise<void> {
     const snapshot = clone(updated);
-    return this.mutate(snapshot.id, set => Object.assign(set, snapshot));
+    return this.mutate(snapshot.id, set => {
+      if (set.kind === 'environment' && set.updated !== snapshot.updated) { throw new ApplicationError('OPERATION_FAILED', ['The environment changed. Reopen it before saving your edits.']); }
+      Object.assign(set, { name: snapshot.name, variables: snapshot.variables, linkedCollectionIds: set.kind === 'environment' ? [] : snapshot.linkedCollectionIds });
+    });
   }
 
   async delete(id: string): Promise<void> {
@@ -78,14 +98,23 @@ export class VariableSetManager {
       const set = sets.find(value => value.id === id);
       if (!set) { throw new Error('Variable set not found'); }
       change(set);
-      set.updated = Date.now();
+      set.updated = Math.max(Date.now(), set.updated + 1);
       await this.commit(sets);
     });
   }
 
   private async commit(sets: VariableSet[]): Promise<void> {
+    this.validate(sets);
     await this.store.write('variableSets', sets);
     this.sets = sets;
     this.onDidChange?.();
+  }
+
+  private validate(sets: VariableSet[]): void {
+    if (!validateExtensionMessage({ type: 'variableSets', operationId: 'validate-variable-sets', sets }).ok
+      || new Set(sets.map(set => set.id)).size !== sets.length
+      || sets.filter(set => set.kind === 'environment' && set.active).length > 1) {
+      throw new Error('Invalid variable sets or environment selection.');
+    }
   }
 }

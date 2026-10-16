@@ -14,6 +14,7 @@ const MUTATION_GROUPS: Partial<Record<WebviewMessageType, string>> = {
   setGlobalVariables: 'variables', setSettings: 'settings', createVariableSet: 'variableSets',
   updateVariableSet: 'variableSets', deleteVariableSet: 'variableSets', linkVariableSet: 'variableSets',
   unlinkVariableSet: 'variableSets',
+  selectEnvironment: 'variableSets', confirmEnvImport: 'variableSets',
 };
 
 export class OperationCorrelationTracker {
@@ -26,6 +27,9 @@ export class OperationCorrelationTracker {
     const baseGroup = READ_GROUPS[action];
     const readGroup = baseGroup && requestScope ? `${baseGroup}:${requestScope}` : baseGroup;
     const invalidatedGroup = MUTATION_GROUPS[action];
+    if (action === 'confirmPostmanImport') {
+      this.latestOperationByGroup.set('collections', operationId); this.latestOperationByGroup.set('variableSets', operationId);
+    }
     if (invalidatedGroup) { this.latestOperationByGroup.set(invalidatedGroup, operationId); }
     // A mutation always owns its acknowledgement and errors. Only queries supersede queries.
     if (readGroup) {

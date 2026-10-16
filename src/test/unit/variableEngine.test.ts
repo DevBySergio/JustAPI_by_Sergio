@@ -227,7 +227,7 @@ describe('VariableEngine', () => {
       id: 'query', key: 'acme', value: 'hello', enabled: true,
     });
     assert.deepEqual(result.request.pathParams[0], { id: 'path', name: 'acme', value: 'hello' });
-    assert.equal(result.request.body.content, 'hello');
+    assert.equal(result.request.body.content, '{{payload}}', 'multipart does not resolve dormant raw content');
     assert.deepEqual(result.request.body.formData?.[0], {
       id: 'form', key: 'acme', value: 'hello', enabled: true,
     });

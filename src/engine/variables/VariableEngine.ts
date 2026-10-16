@@ -10,6 +10,7 @@ export interface ResolutionContext {
   requestVars: Variable[];
   collectionVars: Variable[];
   setsVars?: Variable[];
+  environmentVars?: Variable[];
   globalVars: Variable[];
 }
 
@@ -105,9 +106,15 @@ export class VariableEngine {
       param.value = apply(param.value, `pathParams[${index}].value`);
     });
     if (resolved.body.type !== 'none') {
-      resolved.body.content = apply(resolved.body.content, 'body.content');
+      if (resolved.body.type !== 'form-data' && (resolved.body.type !== 'x-www-form-urlencoded' || resolved.body.formData === undefined) && !(resolved.body.type === 'binary' && resolved.body.binarySource === 'file')) { resolved.body.content = apply(resolved.body.content, 'body.content'); }
+      resolved.body.files?.forEach((file, index) => {
+        if (resolved.body.type !== 'form-data' || !file.enabled || !file.key) { return; }
+        file.key = apply(file.key, `body.files[${index}].key`);
+        if (file.contentType) { file.contentType = apply(file.contentType, `body.files[${index}].contentType`); }
+      });
+      if (resolved.body.type === 'binary' && resolved.body.binarySource === 'file' && resolved.body.contentType) { resolved.body.contentType = apply(resolved.body.contentType, 'body.contentType'); }
       resolved.body.formData?.forEach((field, index) => {
-        if (!field.enabled) { return; }
+        if ((resolved.body.type !== 'form-data' && resolved.body.type !== 'x-www-form-urlencoded') || !field.enabled) { return; }
         field.key = apply(field.key, `body.formData[${index}].key`);
         field.value = apply(field.value, `body.formData[${index}].value`);
       });
@@ -157,6 +164,7 @@ export class VariableEngine {
     const scopes = [
       context.requestVars,
       context.collectionVars,
+      context.environmentVars || [],
       context.setsVars || [],
       context.globalVars,
     ];
@@ -188,6 +196,7 @@ export class VariableEngine {
     const scopes = [
       context.globalVars,
       context.setsVars || [],
+      context.environmentVars || [],
       context.collectionVars,
       context.requestVars,
     ];

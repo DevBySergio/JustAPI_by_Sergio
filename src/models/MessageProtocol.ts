@@ -1,3 +1,5 @@
+import type { RequestFile } from './RequestFile';
+import type { PostmanImportPreview } from './PostmanImport';
 import { JustRequest } from './Request';
 import { JustResponse } from './Response';
 import { Collection } from './Collection';
@@ -7,6 +9,7 @@ import { HistoryEntry } from './HistoryEntry';
 import { AuthConfig, AuthInput } from './Auth';
 import { VariableDiagnostic } from './VariableResolution';
 import { CurlImportWarning } from './CurlImport';
+import type { EnvImportPreview, EnvWatch } from './Environment';
 
 export type CodeTargetLanguage =
   | 'javascript'
@@ -41,6 +44,7 @@ export type ProtocolErrorCode =
   | 'DUPLICATE_OPERATION'
   | 'DUPLICATE_EXECUTION'
   | 'EXECUTION_NOT_FOUND'
+  | 'RESPONSE_BODY_UNAVAILABLE'
   | 'IMPORT_ERROR'
   | 'CURL_PARSE_ERROR'
   | 'AUTH_CONFLICT'
@@ -61,6 +65,10 @@ interface ExecutionMessage extends OperationMessage {
 // Messages from Webview → Extension Host. Every message is one correlated operation.
 export type WebviewMessage =
   | ({ type: 'executeRequest'; request: JustRequest; collectionId?: string } & ExecutionMessage)
+  | ({ type: 'selectRequestFile'; requestId: string; fieldId?: string } & OperationMessage)
+  | ({ type: 'releaseRequestFiles'; requestId: string } & OperationMessage)
+  | ({ type: 'saveResponseBody'; responseId: string } & OperationMessage)
+  | ({ type: 'releaseResponseBody'; responseId: string } & OperationMessage)
   | ({ type: 'cancelRequest' } & ExecutionMessage)
   | ({ type: 'saveRequest'; request: JustRequest; collectionId: string; parentId?: string } & OperationMessage)
   | ({ type: 'deleteRequest'; requestId: string; collectionId: string } & OperationMessage)
@@ -108,7 +116,15 @@ export type WebviewMessage =
   | ({ type: 'startupActionHandled'; action: StartupActionName } & OperationMessage)
   | ({ type: 'previewResolution'; request: JustRequest | null; collectionId?: string } & OperationMessage)
   | ({ type: 'getVariableSets' } & OperationMessage)
-  | ({ type: 'createVariableSet'; name: string } & OperationMessage)
+  | ({ type: 'createVariableSet'; name: string; kind?: 'environment' } & OperationMessage)
+  | ({ type: 'selectEnvironment'; setId: string | null } & OperationMessage)
+  | ({ type: 'previewPostmanImport' } & OperationMessage)
+  | ({ type: 'confirmPostmanImport'; previewId: string; name: string; acceptWarnings: boolean } & OperationMessage)
+  | ({ type: 'cancelPostmanImport'; previewId: string } & OperationMessage)
+  | ({ type: 'previewEnvFile'; setId?: string } & OperationMessage)
+  | ({ type: 'confirmEnvImport'; previewId: string; name: string; watch: boolean } & OperationMessage)
+  | ({ type: 'cancelEnvImport'; previewId: string } & OperationMessage)
+  | ({ type: 'stopEnvWatch'; setId: string } & OperationMessage)
   | ({ type: 'updateVariableSet'; set: VariableSet } & OperationMessage)
   | ({ type: 'deleteVariableSet'; setId: string } & OperationMessage)
   | ({ type: 'linkVariableSet'; setId: string; collectionId: string } & OperationMessage)
@@ -125,6 +141,9 @@ export type ExtensionMessage =
   | ({ type: 'requestAuthUpdated'; requestId: string; auth: AuthConfig; pending: boolean } & OperationMessage)
   | ({ type: 'history'; entries: HistoryEntry[] } & OperationMessage)
   | ({ type: 'historyEntry'; entry: HistoryEntry } & ExecutionMessage)
+  | ({ type: 'requestFileSelected'; requestId: string; fieldId?: string; file: RequestFile } & OperationMessage)
+  | ({ type: 'responseBodiesReleased'; responseIds: string[] } & OperationMessage)
+  | ({ type: 'responseDownloadResult'; responseId: string; status: 'saved' | 'cancelled'; fileName?: string; bytes?: number } & OperationMessage)
   | ({ type: 'response'; response: JustResponse } & ExecutionMessage)
   | ({ type: 'variables'; variables: Variable[] } & OperationMessage)
   | ({ type: 'settings'; settings: Record<string, unknown> } & OperationMessage)
@@ -145,6 +164,9 @@ export type ExtensionMessage =
   | ({ type: 'requestExecuting'; executing: boolean } & ExecutionMessage)
   | ({ type: 'initialState'; state: InitialState } & OperationMessage)
   | ({ type: 'variableSets'; sets: VariableSet[] } & OperationMessage)
+  | ({ type: 'postmanImportPreview'; preview: PostmanImportPreview } & OperationMessage)
+  | ({ type: 'envImportPreview'; preview: EnvImportPreview } & OperationMessage)
+  | ({ type: 'envWatches'; watches: EnvWatch[] } & OperationMessage)
   | ({
       type: 'resolutionPreview';
       resolvedUrl: string;

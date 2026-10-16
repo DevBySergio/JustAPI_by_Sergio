@@ -1,3 +1,6 @@
+import { RequestFileService } from '../services/RequestFileService';
+import { ResponseDownloadService } from '../services/ResponseDownloadService';
+import { PostmanImportService } from '../services/PostmanImportService';
 import { CurlParseError, CurlParser } from '../engine/http/CurlParser';
 import { VariableSetManager } from '../engine/variables/VariableSetManager';
 import {
@@ -14,6 +17,7 @@ import { HistoryService } from '../services/HistoryService';
 import { PersistenceService } from '../services/PersistenceService';
 import { RequestPreparation } from '../services/RequestPreparationService';
 import { RequestService } from '../services/RequestService';
+import { EnvironmentFileService } from '../services/EnvironmentFileService';
 import { buildSearchResults } from './SearchIndex';
 
 export interface WebviewMessageHandlerOptions {
@@ -29,12 +33,19 @@ export interface WebviewMessageHandlerOptions {
   startupActions: StartupActionQueue<StartupAction>;
   confirmDisclosure: (destination: string) => Promise<boolean>;
   showJsonDocument: (json: string) => Promise<void>;
+  requestFiles?: RequestFileService;
+  responseDownloads?: ResponseDownloadService;
+  postmanImports?: PostmanImportService;
+  environmentFiles?: EnvironmentFileService;
 }
 
 export class WebviewMessageHandler {
   constructor(private readonly options: WebviewMessageHandlerOptions) {}
 
   async resetForNewView(): Promise<void> {
+    this.options.requestFiles?.reset();
+    this.options.postmanImports?.reset();
+    this.options.environmentFiles?.reset();
     this.options.requests.dispose();
     await this.options.collections.discardAllPendingAuth();
   }
@@ -61,6 +72,22 @@ export class WebviewMessageHandler {
         await this.options.requests.execute(message, event => this.options.protocol.post(event));
         return;
 
+      case 'selectRequestFile': {
+        if (!this.options.requestFiles) { throw new ApplicationError('OPERATION_FAILED'); }
+        const file = await this.options.requestFiles.select(message.requestId, message.fieldId);
+        if (file) { this.options.protocol.post({ type: 'requestFileSelected', operationId: message.operationId, requestId: message.requestId, ...(message.fieldId ? { fieldId: message.fieldId } : {}), file }); } return;
+      }
+      case 'releaseRequestFiles': this.options.requestFiles?.releaseRequest(message.requestId); return;
+      case 'saveResponseBody': {
+        if (!this.options.responseDownloads) { throw new ApplicationError('RESPONSE_BODY_UNAVAILABLE'); }
+        const result = await this.options.responseDownloads.save(message.responseId);
+        this.options.protocol.post({ type: 'responseDownloadResult', operationId: message.operationId, ...result }); return;
+      }
+      case 'releaseResponseBody': {
+        const responseIds = this.options.responseDownloads?.release(message.responseId) ?? [];
+        if (responseIds.length) { this.options.protocol.post({ type: 'responseBodiesReleased', operationId: message.operationId, responseIds }); }
+        return;
+      }
       case 'cancelRequest':
         this.options.requests.cancel(
           message.operationId,
@@ -308,9 +335,37 @@ export class WebviewMessageHandler {
         return;
 
       case 'createVariableSet':
-        await this.options.variableSets.create(message.name);
+        await this.options.variableSets.create(message.name, message.kind);
         this.postVariableSets(message.operationId);
         return;
+
+      case 'selectEnvironment':
+        await this.options.variableSets.selectEnvironment(message.setId);
+        this.postVariableSets(message.operationId);
+        return;
+      case 'previewPostmanImport': {
+        const preview = await this.options.postmanImports?.preview();
+        if (preview) { this.options.protocol.post({ type: 'postmanImportPreview', operationId: message.operationId, preview }); }
+        return;
+      }
+      case 'confirmPostmanImport':
+        if (!this.options.postmanImports) { throw new ApplicationError('IMPORT_ERROR'); }
+        await this.options.postmanImports.confirm(message.previewId, message.name, message.acceptWarnings);
+        this.postCollections(message.operationId); this.postVariableSets(message.operationId); return;
+      case 'cancelPostmanImport': this.options.postmanImports?.cancel(message.previewId); return;
+      case 'previewEnvFile': {
+        const preview = await this.options.environmentFiles?.preview(message.setId);
+        if (preview) { this.options.protocol.post({ type: 'envImportPreview', operationId: message.operationId, preview }); }
+        return;
+      }
+      case 'confirmEnvImport':
+        if (!this.options.environmentFiles) { throw new ApplicationError('IMPORT_ERROR'); }
+        await this.options.environmentFiles.confirm(message.previewId, message.name, message.watch);
+        this.postVariableSets(message.operationId); this.postEnvWatches(message.operationId);
+        return;
+      case 'cancelEnvImport': this.options.environmentFiles?.cancel(message.previewId); return;
+      case 'stopEnvWatch':
+        this.options.environmentFiles?.stop(message.setId); this.postEnvWatches(message.operationId); return;
 
       case 'updateVariableSet':
         await this.options.variableSets.update(message.set);
@@ -319,6 +374,7 @@ export class WebviewMessageHandler {
 
       case 'deleteVariableSet':
         await this.options.variableSets.delete(message.setId);
+        this.options.environmentFiles?.stop(message.setId); this.postEnvWatches(message.operationId);
         this.postVariableSets(message.operationId);
         return;
 
@@ -402,6 +458,9 @@ export class WebviewMessageHandler {
   }
 
   async dispose(): Promise<void> {
+    this.options.requestFiles?.reset();
+    this.options.postmanImports?.reset();
+    this.options.environmentFiles?.reset();
     this.options.requests.dispose();
     this.options.startupActions.dispose();
     await Promise.all([
@@ -420,6 +479,7 @@ export class WebviewMessageHandler {
       { type: 'variableSets', operationId, sets: this.options.variableSets.getAll() },
       { type: 'settings', operationId, settings: await this.options.persistence.loadSettings() },
     ];
+    if (this.options.environmentFiles) { domains.push({ type: 'envWatches', operationId, watches: this.options.environmentFiles.getWatches() }); }
     for (const domain of domains) {
       if (!this.options.protocol.post(domain)) { throw new ApplicationError('OUTBOUND_MESSAGE_INVALID'); }
     }
@@ -432,6 +492,10 @@ export class WebviewMessageHandler {
       operationId,
       collections: this.options.collections.getCollections(),
     });
+  }
+
+  private postEnvWatches(operationId: string): void {
+    if (this.options.environmentFiles) { this.options.protocol.post({ type: 'envWatches', operationId, watches: this.options.environmentFiles.getWatches() }); }
   }
 
   private postVariableSets(operationId: string): void {

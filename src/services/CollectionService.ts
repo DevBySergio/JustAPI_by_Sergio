@@ -1,3 +1,4 @@
+import { RequestFileService, withoutRequestFiles } from './RequestFileService';
 import { SerialQueue } from '../utils/SerialQueue';
 import { assertCollectionGraph } from '../engine/collection/CollectionGraph';
 import { AuthInput } from '../models/Auth';
@@ -31,7 +32,8 @@ export class CollectionService {
   private readonly operations = new SerialQueue();
   constructor(
     private readonly manager: CollectionManager,
-    private readonly auth: AuthService
+    private readonly auth: AuthService,
+    private readonly files?: RequestFileService
   ) {}
 
   async dispose(): Promise<void> { await this.operations.close(); }
@@ -60,7 +62,7 @@ export class CollectionService {
 
   getRequest(requestId: string): JustRequest | undefined {
     const request = this.manager.getRequest(requestId);
-    return request ? this.auth.toPublicRequest(request) : undefined;
+    return request ? (this.files?.forEditor(this.auth.toPublicRequest(request)) ?? this.auth.toPublicRequest(request)) : undefined;
   }
 
   getRequestsForCollection(collectionId: string): PersistedJustRequest[] {
@@ -199,9 +201,9 @@ export class CollectionService {
       const requests: JustRequest[] = [];
       for (const persisted of this.manager.getRequestsForCollection(collection.id)) {
         const request = this.auth.toPublicRequest(persisted);
-        requests.push(disclose
+        requests.push(withoutRequestFiles(disclose
           ? await this.auth.resolveForTransport(request, persisted, request.auth, { usePending: false })
-          : this.auth.redactForDerivative(request));
+          : this.auth.redactForDerivative(request)));
       }
       const json = JSON.stringify({
         schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
@@ -219,7 +221,7 @@ export class CollectionService {
     });
   }
 
-  async importDocument(json: string): Promise<{ collectionId: string }> {
+  async importDocument(json: string, authInputs?: ReadonlyMap<string, AuthInput>): Promise<{ collectionId: string }> {
     return this.operations.run(async () => {
       const validation = validateCollectionImportDocument(json);
       if (!validation.ok) {
@@ -232,9 +234,9 @@ export class CollectionService {
         [...this.manager.getCollections(), validation.value.collection],
         [...this.manager.getRequests(), ...validation.value.requests]
       );
-      await this.auth.importRequests(validation.value.requests, async requests => {
+      await this.auth.importRequests(validation.value.requests.map(withoutRequestFiles), async requests => {
         await this.manager.importCollection(validation.value.collection, requests);
-      });
+      }, authInputs);
       return { collectionId: validation.value.collection.id };
     });
   }

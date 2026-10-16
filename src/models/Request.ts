@@ -1,3 +1,4 @@
+import type { RequestFile, MultipartFile } from './RequestFile';
 import { KeyValuePair, PathParam } from './KeyValuePair';
 import { Variable } from './Variable';
 import { AuthConfig, PersistedAuthConfig } from './Auth';
@@ -10,6 +11,10 @@ export interface RequestBody {
   type: BodyType;
   content: string;
   formData?: KeyValuePair[];
+  files?: MultipartFile[];
+  file?: RequestFile;
+  binarySource?: 'file';
+  contentType?: string;
 }
 
 export interface RequestSettings {
@@ -67,10 +72,10 @@ export type PersistedJustRequest = Omit<JustRequest, 'auth'> & {
   auth: PersistedAuthConfig;
 };
 
-export function createDefaultRequest(): JustRequest {
+export function createDefaultRequest(id: string = crypto.randomUUID()): JustRequest {
   const now = Date.now();
   return {
-    id: crypto.randomUUID(),
+    id,
     name: 'New Request',
     method: 'GET',
     url: '',

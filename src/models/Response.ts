@@ -51,4 +51,5 @@ export interface JustResponse {
   redirected: boolean;
   finalUrl?: string;
   mimeType?: string;
+  download?: { responseId: string; available: boolean };
 }

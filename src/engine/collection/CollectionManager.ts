@@ -127,7 +127,7 @@ export class CollectionManager {
   async createCollection(name: string): Promise<Collection> {
     return this.operations.run(async () => {
       const collections = clone(this.collections);
-      const collection = createDefaultCollection(name);
+      const collection = createDefaultCollection(name, randomUUID());
       collections.push(collection);
       await this.commit(collections, this.getRequests());
       return clone(collection);

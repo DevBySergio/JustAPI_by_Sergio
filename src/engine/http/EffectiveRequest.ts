@@ -1,3 +1,4 @@
+import { FILE_UPLOAD_LIMITS, type RequestFile } from '../../models/RequestFile';
 import { validateHeaderName, validateHeaderValue } from 'node:http';
 import type { AuthConfig } from '../../models/Auth';
 import type { HttpMethod, JustRequest, RequestSettings } from '../../models/Request';
@@ -16,13 +17,17 @@ export interface EffectiveRequestField {
 
 export interface EffectiveRequestHeader extends EffectiveRequestField {}
 
+export interface EffectiveFileField { name: string; file: RequestFile; contentType: string; }
+
 export type EffectiveRequestBody =
+  | { type: 'file'; content: ''; fields: []; file: RequestFile; contentType: string }
   | { type: 'none'; content: ''; fields: []; contentType?: undefined }
   | {
       type: 'form-data';
       content: '';
       fields: EffectiveRequestField[];
       contentType: 'multipart/form-data';
+      files?: EffectiveFileField[];
     }
   | {
       type: 'x-www-form-urlencoded';
@@ -51,7 +56,7 @@ export interface EffectiveRequest {
   auth: EffectiveRequestAuth;
 }
 
-export type EffectiveRequestErrorCode = 'INVALID_URL' | 'INVALID_HEADER' | 'INVALID_PATH_PARAMETER';
+export type EffectiveRequestErrorCode = 'INVALID_URL' | 'INVALID_HEADER' | 'INVALID_PATH_PARAMETER' | 'INVALID_BODY';
 
 export class EffectiveRequestError extends Error {
   constructor(readonly code: EffectiveRequestErrorCode, message: string) {
@@ -137,8 +142,15 @@ function normalizeBody(request: JustRequest): EffectiveRequestBody {
   switch (request.body.type) {
     case 'none':
       return { type: 'none', content: '', fields: [] };
-    case 'form-data':
-      return { type: 'form-data', content: '', fields, contentType: 'multipart/form-data' };
+    case 'form-data': {
+      const files = (request.body.files ?? []).filter(field => field.enabled && field.key).map(field => {
+        return { name: field.key, file: uploadFile(field.file), contentType: uploadContentType(field.contentType) };
+      });
+      if (files.length > FILE_UPLOAD_LIMITS.maximumFiles || files.reduce((size, field) => size + field.file.size, 0) > FILE_UPLOAD_LIMITS.maximumBodyBytes) {
+        throw new EffectiveRequestError('INVALID_BODY', 'The selected files exceed the upload limits.');
+      }
+      return { type: 'form-data', content: '', fields, contentType: 'multipart/form-data', ...(files.length ? { files } : {}) };
+    }
     case 'x-www-form-urlencoded':
       // Imported cURL can carry already encoded bytes rather than editable fields.
       // Represent that as a raw body so transport and all snippet targets preserve it.
@@ -173,6 +185,9 @@ function normalizeBody(request: JustRequest): EffectiveRequestBody {
         contentType: 'text/plain; charset=utf-8',
       };
     case 'binary':
+      if (request.body.binarySource === 'file') {
+        return { type: 'file', content: '', fields: [], file: uploadFile(request.body.file), contentType: uploadContentType(request.body.contentType) };
+      }
       return {
         type: 'binary',
         content: request.body.content,
@@ -210,4 +225,18 @@ function normalizeHeaders(
     headers.set('content-type', { name: 'Content-Type', value: body.contentType });
   }
   return Array.from(headers.values());
+}
+
+function uploadContentType(value?: string): string {
+  const type = value || 'application/octet-stream';
+  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(type)) { throw new EffectiveRequestError('INVALID_BODY', 'Use a valid MIME type for each file.'); }
+  return type;
+}
+
+function uploadFile(file?: RequestFile): RequestFile {
+  if (!file) { throw new EffectiveRequestError('INVALID_BODY', 'Choose a local file for every enabled file body or field.'); }
+  if (!Number.isInteger(file.size) || file.size < 0 || file.size > FILE_UPLOAD_LIMITS.maximumFileBytes) {
+    throw new EffectiveRequestError('INVALID_BODY', 'Each selected file must be at most 10 MiB.');
+  }
+  return file;
 }

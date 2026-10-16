@@ -9,7 +9,7 @@ JustAPI is a local-first HTTP client for VS Code. Its editor, collections, setti
 IPv4 and IPv6 literal destinations are supported. HEAD and bodyless status responses retain their metadata without attempting to decompress nonexistent content or imposing a body limit on metadata-only Content-Length values.
 
 - Methods: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, and `HEAD` over HTTP or HTTPS.
-- Body modes: JSON, text, XML, literal binary text, URL-encoded fields, and text-only multipart form fields.
+- Body modes: JSON, text, XML, local binary files, URL-encoded fields, and multipart text/file fields (existing literal binary bodies remain compatible).
 - Per-request redirect following, TLS verification, timeout, and response-size settings.
 - Method-aware redirects (10 hops maximum), with credentials and cookies stripped on cross-origin redirects.
 - gzip, deflate, and Brotli decoding; declared text charsets; exact base64 transport for binary and allowlisted raster-image responses.
@@ -43,13 +43,37 @@ Shell expansion is never evaluated. `@file`, cookie-file, and file-valued form r
 
 ### Variables
 
-Interpolation uses deterministic precedence: Global < Variable Set < Collection < Request. It covers URLs, header/query/path names and values, body content and fields, and API-key names. Disabled, missing, duplicate, cyclic, oversized, or excessively nested variables produce preflight diagnostics; invalid required values block execution and code generation. Use `\{{name}}` for a literal `{{name}}`.
+Interpolation uses deterministic precedence: Global < linked shared Variable Sets < active Environment < Collection < Request. It covers URLs, header/query/path names and values, body content and fields, and API-key names. Disabled, missing, duplicate, cyclic, oversized, or excessively nested variables produce preflight diagnostics; invalid required values block execution and code generation. Use `\{{name}}` for a literal `{{name}}`.
 
 Global variables, collection variables, and reusable variable sets are editable in the UI. Global/collection autosaves are scheduled only by local edits, survive panel changes, and wait for host acknowledgement before navigation, execution, or code generation; failed saves remain pending for retry. The request **Vars** tab edits request-scoped variables as draft changes; **Save** persists them with the request. Request values override lower scopes; disabling an override allows lower scopes to apply. Resolved previews wait for pending scope/authentication changes and clear when inputs change. See the [variable engine](src/engine/variables/VariableEngine.ts) and [variable tests](src/test/unit/variableEngine.test.ts).
 
 The request **Params** tab also edits path parameters. A URL such as `https://example.test/users/:id` uses the parameter `id`; its value can contain `{{variables}}`. Substitution applies only to a complete `/:name` path segment, never to the host, port, query or fragment. Names use letters/underscores followed by letters, digits, underscores or hyphens (128 characters maximum). Values are encoded as one segment, so `/`, `?`, `#`, `%` and Unicode cannot change URL structure. Missing/empty values, duplicate or invalid names, malformed Unicode, and dot-only `.`/`..` values block preflight. Use `%3Aname` for a literal colon-prefixed segment. Unused valid parameters are retained in the editor.
 
-### Authentication and derivative data
+### Environments and `.env` import
+
+The **Environment** selector applies to all request tabs in the current VS Code profile. **No environment** keeps global, linked shared sets, collection and request variables active. Environments use the existing `variableSets.json` domain with additive metadata; existing sets are not automatically converted or disabled. Selection commits locally before dependent sending, previews or code generation continue. A rejected selection keeps the previous environment; requests already preparing or running keep their captured values.
+
+Use **Manage** or **Variables → Environments** to create, edit, rename or delete environments. **Save environment** commits name/variable changes; **Discard edits** restores saved values. Unsaved drafts survive panel navigation within the session, are excluded from the webview cache, and trigger a warning after reload. Concurrent changes reject stale saves instead of overwriting them. Deleting the active environment selects no environment.
+
+**Import .env…** opens the native local file picker and shows a masked preview. Show values explicitly, choose a name, then confirm or cancel. Imports create an inactive environment; **Replace from .env…** explicitly replaces a saved environment's entire variable list, retaining its name by default. The reviewed file must remain unchanged until confirmation. Empty files can be explicitly confirmed as empty environments. Files are never modified, and environment values or source paths are not automatically added to native collection exports.
+
+Supported syntax: UTF-8/BOM, LF/CRLF, comments, `NAME=value`, optional `export`, empty values and single/double-quoted multiline values. Double quotes decode `\n`, `\r`, `\"` and `\\`; unquoted `#` starts a comment. Names use letters/underscores followed by letters/digits/underscores (128 characters maximum). Duplicate names, malformed assignments and unclosed quotes block confirmation with line/code diagnostics that omit values. Files are limited to 1 MiB, 1,000 variables and 65,536 characters per value. Shell commands, `$VAR` and `${VAR}` are literal text; the importer never evaluates them or reads process environment variables. Normal JustAPI `{{variable}}` resolution still applies when requests run.
+
+**Watch this file during this session** is opt-in. File changes, including atomic replacements, produce a fresh preview and require confirmation. They never apply values, write files or execute requests automatically. **Stop watching**, environment deletion or webview recreation releases the watcher and staged previews. To watch again after reload, use **Replace from .env…** and enable watching again. Errors retain saved values; unsaved environment edits must be saved/discarded before replacing them from a file.
+
+Environment values are ordinary local JSON data, including imported values. Masking is a display choice; it does not move values into SecretStorage. Use Auth Builder for securely stored credentials. Code samples and previews resolve ordinary environment data using the same rules as other variables, with the existing recognized-credential redaction.
+
+### Import from Postman
+
+Choose **Collections → Import Postman…** or **Variables → Environments → Import Postman…**, then select a local Postman v2.1 collection JSON or environment JSON export. Review the counts and limitations, choose a name and confirm. If anything is omitted or behaves differently, acknowledgement is required. This creates a new collection/environment; existing requests, drafts and environment selection are preserved. Imported environments start inactive.
+
+Nested folder order, collection/folder variables, supported HTTP methods, raw text/JSON/XML, URL-encoded fields and text-only multipart bodies are supported. Disabled fields, query lists, path variables and inherited Bearer/Basic/API key authentication are preserved. Recognized authentication headers and URL user information move to SecretStorage; credential templates such as `{{TOKEN}}` resolve when sending. Source values remain in the extension host during preview, and the file must still match the reviewed bytes at confirmation.
+
+Scripts, response examples, request descriptions and Postman-specific settings are reported as omissions. Requests containing unsupported auth, methods, file uploads, GraphQL bodies, invalid data or ambiguous credentials are excluded as a whole. Environment variables marked `secret` are excluded and reported; configure those credentials in Auth Builder. Other variables/body values remain ordinary local JSON. JustAPI collection/request variables take priority over the environment, unlike Postman collection variables; review overlapping names. No scripts, linked files or remote references are executed or fetched.
+
+Imports are limited to UTF-8 regular files of 10 MiB, 10,000 collection items, 50 folder levels and 10,000 expanded variable entries. Converted request/credential data also has a 10 MiB budget, alongside the existing structural, field and storage limits. Confirmation is single-use; changed files require a new preview. Cancel or webview recreation drops staged data. The existing **JustAPI: Import Collection** command still handles the native JustAPI format. See the [migration evidence and limitations](docs/audits/2026-10-16-postman-import.md).
+
+## Authentication and derivative data
 
 The Auth Builder supports Bearer, Basic, and API-key credentials in headers or query parameters. **Apply** stages credentials for trying the current draft; **Save** commits them with the request. Replacing a token marks the request dirty even if its public metadata is unchanged. Discard restores saved authentication; recreating the webview drops pending credentials and warns before they must be re-entered. Saved collection exports always use saved credentials, including while another credential is staged for that request. Recognized Auth Builder secrets are stored in VS Code `SecretStorage`; ordinary JSON stores retain only public auth metadata and an opaque secret reference. Existing recognized literal credentials migrate conservatively on load.
 
@@ -61,7 +85,27 @@ History is newest-first, filterable, and limited to 200 summary entries and a 2 
 
 Text previews are capped at 200,000 characters and JSON parsing at 500,000 characters. JSON tree depth is limited to 24 and each node to 500 children. Inline image previews accept canonical base64 AVIF, GIF, JPEG, PNG, or WebP data up to 25 MiB. See the [webview resilience tests](src/test/unit/webviewResilience.test.ts).
 
-### Code generation
+### Save response bodies
+
+After receiving a complete response, choose **Save response body…** and a local destination. This saves the full body already received; it does not resend the request. Text formatting, JSON pretty-printing and the 200,000-character preview limit do not change the file. Binary/image bytes, BOM, line endings and the original text encoding are preserved. HTTP gzip/deflate/Brotli compression is decoded first; this saves the entity body, not the compressed wire stream, headers or cookies. Binary previews are explicitly labelled as base64.
+
+Complete 4xx/5xx and empty/HEAD/no-content responses can also be saved. Failed, cancelled, incomplete, over-limit or invalid compressed responses cannot be downloaded as if they were complete. The configured response limit still applies (10 MiB by default, up to 100 MiB); this is not a streaming/unlimited download feature.
+
+The native dialog suggests a MIME-based `response.ext` name, which you can change. Server-provided filenames and URL paths are not used as destinations. Cancel writes nothing; the interface confirms success only after the file is saved. Writes use a private sibling temporary file and atomic replacement so a failed write preserves an existing destination. Failed saves can be retried. The chosen file contains the actual API response, including any sensitive data returned by that API; it is ordinary local file content.
+
+Original bytes are kept only in memory, up to 100 MiB across 20 responses. Older bodies may expire when the budget is reached; closing/resending a request or recreating the view also releases them. An expired response shows a notice and cannot be downloaded until you explicitly send again. Navigation preserves an ongoing save's ownership and result. Closing/replacing a response while its dialog is open prevents the old body from being written. Bodies, save paths and download state are excluded from history, collection exports and restored drafts. See the [response download evidence](docs/audits/2026-10-16-response-downloads.md).
+
+### Upload local files
+
+In **Body → Binary**, choose a local file to send its original bytes. In **Body → Form Data**, keep the existing text fields and use **+ Add file** for file fields, including repeated field names. Each file has an enable switch, a field name and an optional MIME type (type/subtype, without parameters; default `application/octet-stream`). Multipart text fields precede file fields; JustAPI creates the boundary and Content-Type. An explicit request Content-Type still overrides the binary body's default.
+
+Files are limited to 10 MiB each, 20 file rows and a 25 MiB complete multipart body. They are read into bounded memory before connecting; streaming is not included. Missing, deleted, changed or expired selections block the upload. Canceling while files are being prepared prevents a connection. Choosing another file is required after changing its contents.
+
+Only the native local file chooser can grant access. Paths and file bytes never enter the webview, saved collections, exports or generated examples. A saved request can reuse its selection while its tab/session remains open; closing/reloading the view, importing a collection or duplicating a request requires choosing files again. Draft restoration also removes selection metadata and explains the need to reselect. Exported file fields retain their names, switches and MIME settings, with the file choice cleared.
+
+All seven snippet targets provide file recipes: browser JavaScript/TypeScript ask for files through inputs; other targets use `<LOCAL_FILE_n>` placeholders you replace explicitly. They do not embed local paths, selection IDs or file contents. Existing binary bodies imported as literal text keep their UTF-8 behavior until a file is chosen. See the [upload implementation and evidence](docs/audits/2026-10-16-file-uploads.md).
+
+## Code generation
 
 JustAPI generates reviewed starter snippets for:
 
@@ -97,7 +141,7 @@ Production wiring uses VS Code's extension-global storage directory. It does not
 | Domain | Local data |
 | --- | --- |
 | `collections.json` | Collection trees and saved requests with public auth metadata. |
-| `variableSets.json` | Reusable variable sets and collection links. |
+| `variableSets.json` | Reusable shared sets, collection links, environments and the active environment selection. |
 | `history.json` | Bounded, redacted execution summaries. |
 | `globalVariables.json` | Global variables. |
 | `settings.json` | JustAPI settings. |
@@ -114,11 +158,11 @@ The current release does not provide:
 - workspace-scoped storage or multi-workspace synchronization;
 - a persistent cookie jar (response `Set-Cookie` values are inspection-only);
 - proxy configuration, client certificates, or OAuth flows;
-- local-file, file-valued multipart, or streaming upload bodies;
+- streaming/unlimited uploads (selected files currently have bounded sizes);
 - shell-compatible cURL execution or automatic `@file` expansion;
 - pre-request scripts, post-response tests, runners, scheduling, or collaboration.
 
-These are explicit product gaps, not implicit promises. The ordered proposal for adding them is in [the local-client roadmap](docs/roadmap.md). Folder organization and request variables/path parameters ship in 1.2.0; request tabs are prepared for 1.3.0. The remaining rows are proposed. The complete stabilization rationale is in the [audit remediation ledger](docs/audits/remediation-plan.md).
+These are explicit product gaps, not implicit promises. The ordered proposal for adding them is in [the local-client roadmap](docs/roadmap.md). Folder organization and request variables/path parameters ship in 1.2.0; request tabs, environments, `.env` import, offline Postman migration, response downloads and local file uploads are prepared for 1.3.0. The remaining roadmap rows are proposed. The complete stabilization rationale is in the [audit remediation ledger](docs/audits/remediation-plan.md).
 
 ## Development and verification
 
@@ -146,3 +190,5 @@ Control protocol messages remain limited to 1 MiB. Request-bearing messages and 
 Version 1.2.0 completes folder organization and request variables/path parameters, and loads secondary panels on demand. See the [daily-workflow validation report](docs/audits/2026-10-16-daily-workflows.md). No account, backend, telemetry or cloud service was added.
 
 Version 1.3.0 adds independent request tabs and loads the request editor on demand. Its source validation is recorded in the [request-tab report](docs/audits/2026-10-16-request-tabs.md); installable packaging remains deferred.
+
+The 1.3.0 candidate also includes environments, local `.env` import, offline Postman migration, complete response downloads and local file uploads. The latest source validation is in the [file upload report](docs/audits/2026-10-16-file-uploads.md); earlier audit reports preserve their implementation snapshots.

@@ -23,7 +23,7 @@ interface TriggerProps extends AutocompleteTriggerProps {}
 
 interface VarMatch {
   name: string;
-  scope: 'request' | 'collection' | 'set' | 'global';
+  scope: 'request' | 'collection' | 'set' | 'environment' | 'global';
   value?: string;
 }
 
@@ -46,12 +46,14 @@ export function VariableAutocomplete({ value, onChange, children, onKeyDown: ext
   const currentRequest = useRequestStore((s) => s.currentRequest);
   const activeCollection = collections.find(c => c.id === activeCollectionId);
   const collectionVars = activeCollection?.variables || [];
-  const linkedSets = variableSets.filter(s => activeCollectionId && s.linkedCollectionIds.includes(activeCollectionId));
+  const environment = variableSets.find(set => set.kind === 'environment' && set.active);
+  const linkedSets = variableSets.filter(s => s.kind !== 'environment' && activeCollectionId && s.linkedCollectionIds.includes(activeCollectionId));
 
   // Build matches from all variable scopes
   const allMatches: VarMatch[] = [
     ...(currentRequest.variables || []).filter(v => v.enabled && v.key).map(v => ({ name: v.key, scope: 'request' as const, value: v.value })),
     ...collectionVars.filter(v => v.enabled && v.key).map(v => ({ name: v.key, scope: 'collection' as const, value: v.value })),
+    ...(environment?.variables ?? []).filter(v => v.enabled && v.key).map(v => ({ name: v.key, scope: 'environment' as const, value: v.value })),
     ...linkedSets.flatMap(set =>
       set.variables.filter(v => v.enabled && v.key).map(v => ({ name: v.key, scope: 'set' as const, value: v.value }))
     ),
@@ -187,6 +189,7 @@ export function VariableAutocomplete({ value, onChange, children, onKeyDown: ext
   const scopeConfig: Record<string, { badge: string; color: string }> = {
     'request': { badge: 'R', color: '#4ec9b0' },
     'collection': { badge: 'C', color: 'var(--vscode-textLink-foreground)' },
+    'environment': { badge: 'E', color: '#ca9ee6' },
     'set': { badge: 'S', color: '#ca9ee6' },
     'global': { badge: 'G', color: '#dcdcaa' },
   };

@@ -1,3 +1,9 @@
+import { RequestFileService } from '../services/RequestFileService';
+import { HttpClient } from '../engine/http/HttpClient';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { ResponseDownloadService } from '../services/ResponseDownloadService';
+import { PostmanImportService } from '../services/PostmanImportService';
 import * as vscode from 'vscode';
 import { CodeGenerator } from '../commands/CodeGenerator';
 import {
@@ -24,6 +30,8 @@ import { HistoryService } from '../services/HistoryService';
 import { PersistenceService } from '../services/PersistenceService';
 import { RequestPreparationService } from '../services/RequestPreparationService';
 import { RequestService } from '../services/RequestService';
+import { EnvironmentFileService } from '../services/EnvironmentFileService';
+import { randomUUID } from 'node:crypto';
 import { JsonFileStore, StorageFailure } from '../storage/JsonFileStore';
 import { normalizeHistoryData } from '../storage/HistorySummary';
 import { renderWebviewDocument } from './WebviewDocument';
@@ -67,7 +75,13 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       afterRemove: (removed, remaining) =>
         this.authService.cleanupRemovedRequests(removed, remaining),
     });
-    const collections = new CollectionService(collectionManager, this.authService);
+    const requestFiles = new RequestFileService(async () => {
+      const files = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, openLabel: 'Select upload file', title: 'Choose a local file to send with this request' });
+      const file = files?.[0];
+      if (file && file.scheme !== 'file') { throw new Error('Select a local upload file.'); }
+      return file?.fsPath;
+    });
+    const collections = new CollectionService(collectionManager, this.authService, requestFiles);
     const variableSets = new VariableSetManager(collectionStore);
     const persistence = new PersistenceService(globalStore, globalStore);
     const history = new HistoryService(historyStore);
@@ -76,7 +90,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       collections,
       variableSets,
       persistence,
-      this.authService
+      this.authService, undefined, requestFiles
     );
     const protocol = new WebviewProtocol(message => {
       void this.view?.webview.postMessage(message);
@@ -84,7 +98,26 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     const confirmDisclosure = async (destination: string): Promise<boolean> => (
       await this.confirmCredentialDisclosure(destination)
     );
-    const requests = new RequestService(preparation, collections, history);
+    const responseDownloads = new ResponseDownloadService(async suggestedName => {
+      const file = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(join(homedir(), suggestedName)), saveLabel: 'Save response body', title: 'Save the complete response body' });
+      if (file && file.scheme !== 'file') { throw new Error('Select a local response destination.'); }
+      return file?.fsPath;
+    });
+    const requests = new RequestService(preparation, collections, history, undefined, () => new HttpClient({ readFile: (requestId, file) => requestFiles.bytes(requestId, file) }), responseDownloads);
+    const environmentFiles = new EnvironmentFileService(variableSets, async () => {
+      const files = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, openLabel: 'Preview environment file', title: 'Import a local .env file' });
+      const file = files?.[0];
+      if (file && file.scheme !== 'file') { throw new Error('Select a local environment file.'); }
+      return file?.fsPath;
+    }, preview => protocol.post({ type: 'envImportPreview', operationId: `operation-env-${randomUUID()}`, preview }),
+    () => protocol.error(`operation-env-${randomUUID()}`, 'IMPORT_ERROR', undefined, ['The watched file could not be read or watching could not start. Stored variables were retained.']));
+    const postmanImports = new PostmanImportService(collections, variableSets, async () => {
+      const files = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, filters: { 'Postman JSON': ['json'] },
+        openLabel: 'Preview Postman export', title: 'Import a local Postman v2.1 collection or environment' });
+      const file = files?.[0];
+      if (file && file.scheme !== 'file') { throw new Error('Select a local Postman export.'); }
+      return file?.fsPath;
+    });
     const codeGeneration = new CodeGenerationService(
       new CodeGenerator(),
       preparation,
@@ -104,6 +137,10 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
       requests,
       codeGeneration,
       variableSets,
+      environmentFiles,
+      postmanImports,
+      responseDownloads,
+      requestFiles,
       curlParser: new CurlParser(),
       startupActions: this.startupActions,
       confirmDisclosure,

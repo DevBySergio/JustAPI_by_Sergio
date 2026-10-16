@@ -1,3 +1,4 @@
+import { generateFileUploadCode } from './FileUploadCodeGenerator';
 import type { JustRequest } from '../models/Request';
 import { redactRecognizedCredentials } from '../engine/auth/CredentialRedaction';
 import {
@@ -34,6 +35,8 @@ export class CodeGenerator {
     const effective = normalizeEffectiveRequest(safeRequest, {
       credentialRepresentation: representation,
     });
+
+    if (effective.body.type === 'file' || (effective.body.type === 'form-data' && effective.body.files?.length)) { return generateFileUploadCode(effective, language); }
 
     switch (language) {
       case 'javascript': return this.generateJavaScript(effective, false);

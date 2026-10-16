@@ -1,6 +1,7 @@
 import type { JustRequest } from './Request';
 
 export type VariableDiagnosticCode =
+  | 'INVALID_BODY' | 'FILE_NOT_SELECTED' | 'FILE_CHANGED' | 'FILE_UNAVAILABLE'
   | 'AUTH_CONFLICT'
   | 'INVALID_URL'
   | 'INVALID_HEADER'

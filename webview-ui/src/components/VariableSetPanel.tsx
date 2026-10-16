@@ -143,7 +143,7 @@ export function VariableSetPanel() {
     postMessage({ type: 'getVariableSets' });
     return onMessage((message) => {
       if (message.type === 'variableSets') {
-        setSets(message.sets);
+        setSets(message.sets.filter(set => set.kind !== 'environment'));
       }
     });
   }, []);

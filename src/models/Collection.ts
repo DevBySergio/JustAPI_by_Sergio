@@ -18,10 +18,10 @@ export interface Collection {
   updated: number;
 }
 
-export function createDefaultCollection(name: string): Collection {
+export function createDefaultCollection(name: string, id: string = crypto.randomUUID()): Collection {
   const now = Date.now();
   return {
-    id: crypto.randomUUID(),
+    id,
     name,
     items: [],
     variables: [],

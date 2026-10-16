@@ -1,3 +1,4 @@
+import { ResponseDownload } from './ResponseDownload';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRequestStore } from '../../stores/useRequestStore';
 import { BodyType, ResponseCookie } from '../../../../src/models/Response';
@@ -324,6 +325,7 @@ export function ResponseViewer() {
         )}
       </div>
 
+      <ResponseDownload />
       <div
         role="tablist"
         aria-label="Response sections"
@@ -619,6 +621,10 @@ function ResponseBody({ body, bodyType, mimeType, isPretty, jsonViewMode, search
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-all',
   };
+
+  if (bodyType === 'binary') {
+    return <><p style={{ padding: '0 8px', fontSize: '10px' }}>Binary body shown as base64. Save response body to keep the original bytes.</p>{truncation}<pre style={preStyle}>{boundedBody}</pre></>;
+  }
 
   if (bodyType === 'json' && jsonViewMode === 'tree') {
     if (body.length > RESPONSE_RENDER_LIMITS.maximumJsonCharacters) {

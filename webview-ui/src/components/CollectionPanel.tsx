@@ -1,3 +1,4 @@
+import { LocalButton } from './Common/LocalButton';
 import { useState } from 'react';
 import { useCollectionStore } from '../stores/useCollectionStore';
 import { useVariableStore } from '../stores/useVariableStore';
@@ -56,6 +57,7 @@ export function CollectionPanel({ onOpenRequest, onRemove }: CollectionPanelProp
 
   return (
     <div style={{ padding: '8px' }}>
+      <LocalButton type="button" onClick={() => postMessage({ type: 'previewPostmanImport' })} style={{ width: '100%', marginBottom: '8px' }}>Import Postman…</LocalButton>
       {!isCreating && (
         <button
           onClick={() => setIsCreating(true)}

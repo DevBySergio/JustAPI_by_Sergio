@@ -1,3 +1,4 @@
+import type { PostmanImportPreview as PostmanPreview } from '../../src/models/PostmanImport';
 import { lazy, useEffect, useState, useCallback, useRef } from 'react';
 import {
   createExecutionId,
@@ -21,6 +22,8 @@ import { SearchResults } from './components/Common/SearchResults';
 import { ConfirmDialog } from './components/Common/ConfirmDialog';
 import { DeferredPanel } from './components/Common/DeferredPanel';
 import { RequestTabs } from './components/RequestTabs';
+import { EnvironmentSelector } from './components/EnvironmentSelector';
+import type { EnvImportPreview } from '../../src/models/Environment';
 import { SearchResult } from '../../src/models/MessageProtocol';
 import type { CurlImportParseResult } from '../../src/models/CurlImport';
 import type { HistoryEntry } from '../../src/models/HistoryEntry';
@@ -34,6 +37,8 @@ import {
 
 const CollectionPanel = lazy(() => import(/* webpackChunkName: "collectionpanel" */ './components/CollectionPanel').then(module => ({ default: module.CollectionPanel })));
 const RequestEditor = lazy(() => import(/* webpackChunkName: "request-editor" */ './components/RequestEditor/RequestEditor').then(module => ({ default: module.RequestEditor })));
+const PostmanImportPreview = lazy(() => import(/* webpackChunkName: "postman-import" */ './components/PostmanImportPreview').then(module => ({ default: module.PostmanImportPreview })));
+const EnvironmentPanel = lazy(() => import(/* webpackChunkName: "environments" */ './components/EnvironmentPanel').then(module => ({ default: module.EnvironmentPanel })));
 
 const HistoryPanel = lazy(() => import(/* webpackChunkName: "historypanel" */ './components/HistoryPanel').then(module => ({ default: module.HistoryPanel })));
 
@@ -78,7 +83,11 @@ export function App() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'info' | 'error' | 'success' } | null>(null);
-  const [varSubTab, setVarSubTab] = useState<'vars' | 'sets'>(restoredState?.variableSubTab ?? 'vars');
+  const [varSubTab, setVarSubTab] = useState<'vars' | 'sets' | 'environments'>(restoredState?.variableSubTab ?? 'vars');
+  const [postmanPreview, setPostmanPreview] = useState<PostmanPreview | null>(null);
+  const postmanPreviewRef = useRef<PostmanPreview | null>(null);
+  const [envPreview, setEnvPreview] = useState<EnvImportPreview | null>(null);
+  const envPreviewRef = useRef<EnvImportPreview | null>(null);
   const [curlImportPreview, setCurlImportPreview] = useState<CurlImportParseResult | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [stateRestored, setStateRestored] = useState(restoredState === null);
@@ -95,6 +104,7 @@ export function App() {
   const current = useRequestStore();
   const currentRequest = current.currentRequest;
   const collections = useCollectionStore(state => state.collections);
+  const environmentDrafts = useVariableStore(state => state.environmentDrafts);
 
   const showNotification = useCallback((text: string, type: 'info' | 'error' | 'success' = 'info') => {
     setNotification({ text, type });
@@ -105,6 +115,12 @@ export function App() {
   const [autosave] = useState(() => new VariableAutosave(postMessageWithAck, () => {
     showNotification('Variables could not be saved. Your pending edits are retained; retry before sending.', 'error');
   }));
+  const prepareVariables = useCallback(async () => {
+    const pendingEnvironment = useVariableStore.getState().environmentUpdate;
+    await autosave.flush();
+    await pendingEnvironment;
+    await useVariableStore.getState().environmentUpdate;
+  }, [autosave]);
   const changeTab = useCallback((tab: TabView) => {
     void autosave.flush().then(() => setActiveTab(tab)).catch(error => showNotification(String(error), 'error'));
   }, [autosave, showNotification]);
@@ -134,10 +150,11 @@ export function App() {
     if (pending) { return pending; }
     useRequestStore.getState().patchTab(tabId, { saving: true });
     const saving = (async () => {
-      await autosave.flush();
+      await prepareVariables();
       await useRequestStore.getState().getTab(tabId)?.authUpdate;
       const tab = useRequestStore.getState().getTab(tabId);
       if (!tab) { throw new Error('The request tab was closed.'); }
+      if (Object.keys(tab.fileSelections).length) { throw new Error('Finish selecting local files before saving or sending.'); }
       if (tab.loading || tab.loadFailed) { throw new Error('Wait for the request to load before saving.'); }
       if (!tab.collectionId) { throw new Error('Select a collection before saving this request.'); }
       const request = tab.currentRequest;
@@ -151,7 +168,7 @@ export function App() {
       useRequestStore.getState().patchTab(tabId, { saving: false });
     }).catch(() => undefined);
     return saving;
-  }, [autosave]);
+  }, [prepareVariables]);
 
   const cancelTabExecution = useCallback((tabId: string) => {
     const state = useRequestStore.getState();
@@ -174,6 +191,9 @@ export function App() {
       state.patchTab(tabId, { currentRequest: { ...latest.currentRequest, auth: { ...latest.baselineRequest.auth } }, authPending: false });
     }
     cancelTabExecution(tabId);
+    const bodyId = useRequestStore.getState().getTab(tabId)?.response?.download?.responseId;
+    if (bodyId) { await postMessageWithAck({ type: 'releaseResponseBody', responseId: bodyId }); }
+    await postMessageWithAck({ type: 'releaseRequestFiles', requestId: tab.currentRequest.id });
     for (const [operationId, owner] of loadOperations.current) { if (owner === tabId) { loadOperations.current.delete(operationId); } }
     for (const [operationId, owner] of codeOperations.current) { if (owner === tabId) { codeOperations.current.delete(operationId); } }
   }, [cancelTabExecution]);
@@ -277,7 +297,7 @@ export function App() {
     selectCollection(useRequestStore.getState().collectionId);
     setStateRestored(true);
     if (restoredState.redactedValues) {
-      showNotification('Sensitive, oversized, or unsaved authentication values were not restored. Review the request before sending.', 'info');
+      showNotification('Local file selections, sensitive, oversized, unsaved environment or authentication values were not restored. Review the request before sending.', 'info');
     }
   }, []);
 
@@ -286,15 +306,16 @@ export function App() {
     const tabs = current.tabs.filter(tab => !tab.loading && !tab.loadFailed);
     if (!tabs.length) { return; }
     getVscodeApi().setState(createPersistedRequestWorkspace({ activeTab, variableSubTab: varSubTab,
+      pendingEnvironmentEdits: Object.keys(environmentDrafts).length > 0,
       activeRequestTabId: tabs.some(tab => tab.tabId === current.tabId) ? current.tabId : tabs[0].tabId,
       tabs: tabs.map(tab => ({ tabId: tab.tabId, currentRequest: tab.currentRequest, baselineRequest: tab.baselineRequest,
         collectionId: tab.collectionId, baselineCollectionId: tab.baselineCollectionId, pendingAuth: tab.authPending || tab.authUpdate !== null })) }));
-  }, [activeTab, current.tabs, current.tabId, stateRestored, varSubTab]);
+  }, [activeTab, current.tabs, current.tabId, stateRestored, varSubTab, environmentDrafts]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       void autosave.flush().catch(() => undefined);
-      if (useRequestStore.getState().tabs.some(isRequestTabDirty)) { event.preventDefault(); event.returnValue = ''; }
+      if (useRequestStore.getState().tabs.some(isRequestTabDirty) || Object.keys(useVariableStore.getState().environmentDrafts).length) { event.preventDefault(); event.returnValue = ''; }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -334,6 +355,14 @@ export function App() {
         case 'initializationComplete': setIsReady(true); break;
         case 'collections': updateCollections(message.collections, message.operationId); break;
         case 'response': state.setResponse(message.executionId, message.response); break;
+        case 'requestFileSelected': state.acceptFileSelection(message.operationId, message.requestId, message.file, message.fieldId); break;
+        case 'responseBodiesReleased': state.releaseResponseBodies(message.responseIds); break;
+        case 'responseDownloadResult': {
+          const owner = state.tabs.find(tab => tab.downloadState?.operationId === message.operationId);
+          if (owner) { state.setResponseDownloadState(owner.tabId, { responseId: message.responseId, operationId: message.operationId,
+            status: message.status, message: message.status === 'saved' ? `Saved ${message.bytes} bytes to ${message.fileName}` : 'Save cancelled. No file was written.' }); }
+          break;
+        }
         case 'history': useHistoryStore.getState().setEntries(message.entries); break;
         case 'historyEntry':
           if (state.tabs.some(tab => tab.activeExecutionId === message.executionId)) { useHistoryStore.getState().addEntry(message.entry); }
@@ -369,6 +398,14 @@ export function App() {
           break;
         }
         case 'error': {
+          if (state.tabs.some(tab => Object.values(tab.fileSelections).includes(message.operationId))) { state.endFileSelection(message.operationId, [message.message, message.details?.join('; ')].filter(Boolean).join(' ')); break; }
+          const downloadOwner = state.tabs.find(tab => tab.downloadState?.operationId === message.operationId);
+          if (downloadOwner?.downloadState) {
+            state.setResponseDownloadState(downloadOwner.tabId, { ...downloadOwner.downloadState, status: 'error',
+              message: [message.message, message.details?.join('; ')].filter(Boolean).join(' ') });
+            if (message.code === 'RESPONSE_BODY_UNAVAILABLE') { state.releaseResponseBodies([downloadOwner.downloadState.responseId]); }
+            break;
+          }
           const owner = saveSnapshots.current.get(message.operationId)?.tabId
             ?? loadOperations.current.get(message.operationId) ?? codeOperations.current.get(message.operationId)
             ?? state.tabs.find(tab => tab.activeExecutionId === message.executionId)?.tabId;
@@ -394,6 +431,19 @@ export function App() {
           break;
         }
         case 'variableSets': useVariableStore.getState().setVariableSets(message.sets); break;
+        case 'envWatches': useVariableStore.getState().setEnvWatches(message.watches); break;
+        case 'postmanImportPreview':
+          if (postmanPreviewRef.current && postmanPreviewRef.current.previewId !== message.preview.previewId) {
+            postMessage({ type: 'cancelPostmanImport', previewId: postmanPreviewRef.current.previewId });
+          }
+          postmanPreviewRef.current = message.preview; setPostmanPreview(message.preview); break;
+        case 'envImportPreview':
+          if (envPreviewRef.current && envPreviewRef.current.previewId !== message.preview.previewId) {
+            postMessage({ type: 'cancelEnvImport', previewId: envPreviewRef.current.previewId });
+          }
+          envPreviewRef.current = message.preview; setEnvPreview(message.preview);
+          if (message.preview.targetSetId) { showNotification('Environment file changed. Review its preview in Variables → Environments.', 'info'); }
+          break;
         case 'resolutionPreview': emit('resolutionPreview', message); break;
         case 'startupAction':
           switch (message.action.type) {
@@ -414,6 +464,7 @@ export function App() {
           completeStartupAction(message.operationId, message.action.type);
           break;
         case 'acknowledgement': {
+          if (message.action === 'selectRequestFile') { state.endFileSelection(message.operationId); }
           const acknowledgement = acknowledgementNotifications.current.get(message.operationId);
           if (acknowledgement) {
             acknowledgementNotifications.current.delete(message.operationId); acknowledgement.onSuccess?.();
@@ -430,9 +481,10 @@ export function App() {
   const handleSend = useCallback(() => {
     const tabId = useRequestStore.getState().tabId;
     void (async () => {
-      await autosave.flush();
+      await prepareVariables();
       await useRequestStore.getState().getTab(tabId)?.authUpdate;
       const tab = useRequestStore.getState().getTab(tabId);
+      if (tab && Object.keys(tab.fileSelections).length) { throw new Error('Finish selecting local files before saving or sending.'); }
       if (!tab || tab.isExecuting || tab.loading || tab.loadFailed || tab.closing) { return; }
       if (!tab.currentRequest.url) { showNotification('Please enter a URL', 'error'); return; }
       const executionId = createExecutionId();
@@ -440,7 +492,7 @@ export function App() {
       try { postMessage({ type: 'executeRequest', executionId, request: tab.currentRequest, collectionId: tab.collectionId ?? undefined }); }
       catch (error) { useRequestStore.getState().setExecutionState(executionId, false); throw error; }
     })().catch(error => showNotification(String(error), 'error'));
-  }, [autosave, showNotification]);
+  }, [prepareVariables, showNotification]);
 
   const handleSave = useCallback(() => {
     const tabId = useRequestStore.getState().tabId;
@@ -511,6 +563,9 @@ export function App() {
         </div>
       )}
 
+      {postmanPreview && <DeferredPanel panelKey="postman-import"><PostmanImportPreview key={postmanPreview.previewId} preview={postmanPreview}
+        onClose={id => { if (postmanPreviewRef.current?.previewId === id) { postmanPreviewRef.current = null; setPostmanPreview(null); } }}
+        onError={error => showNotification(error, 'error')} onImported={() => showNotification('Postman export imported locally', 'success')} /></DeferredPanel>}
       {curlImportPreview && (
         <DeferredPanel panelKey="curl-import"><CurlImportPreview
           request={curlImportPreview.request}
@@ -644,6 +699,7 @@ export function App() {
         ))}
       </div>
 
+      <EnvironmentSelector onManage={() => { void autosave.flush().then(() => { setActiveTab('variables'); setVarSubTab('environments'); }).catch(error => showNotification(String(error), 'error')); }} onError={error => showNotification(error, 'error')} />
       <RequestTabs tabs={current.tabs} activeTabId={current.tabId} onSelect={activateRequestTab} onClose={closeRequestTab} onNew={handleNewRequest} />
 
       <div id="request-workspace-panel" role="tabpanel" aria-labelledby={`request-session-${current.tabId}`}
@@ -665,7 +721,7 @@ export function App() {
             onSend={handleSend}
             onSave={handleSave}
             onNew={handleNewRequest}
-            onPrepare={async () => { await autosave.flush(); await useRequestStore.getState().getTab(current.tabId)?.authUpdate; }}
+            onPrepare={async () => { await prepareVariables(); const tab = useRequestStore.getState().getTab(current.tabId); if (tab && Object.keys(tab.fileSelections).length) { throw new Error('Finish selecting local files first.'); } await tab?.authUpdate; }}
             isDirty={isRequestTabDirty(current)}
             isSaved={collections.some(collection => hasSavedRequest(collection.items, currentRequest.id))}
             onNotification={showNotification}
@@ -686,7 +742,7 @@ export function App() {
               aria-label="Variable sections"
               style={{ display: 'flex', gap: '2px', borderBottom: '1px solid var(--vscode-panel-border)', padding: '0 8px' }}
             >
-              {(['vars', 'sets'] as const).map((st, index, subTabs) => (
+              {(['vars', 'sets', 'environments'] as const).map((st, index, subTabs) => (
                 <button
                   key={st}
                   ref={(element) => { variableTabRefs.current[index] = element; }}
@@ -717,7 +773,7 @@ export function App() {
                     letterSpacing: '0.3px',
                   }}
                 >
-                  {st === 'vars' ? 'Variables' : 'Sets'}
+                  {st === 'vars' ? 'Variables' : st === 'sets' ? 'Sets' : 'Environments'}
                 </button>
               ))}
             </div>
@@ -727,7 +783,8 @@ export function App() {
               aria-labelledby={`variables-tab-${varSubTab}`}
               tabIndex={0}
             >
-              {varSubTab === 'vars' ? <VariableEditor autosave={autosave} /> : <VariableSetPanel />}
+              {varSubTab === 'vars' ? <VariableEditor autosave={autosave} /> : varSubTab === 'sets' ? <VariableSetPanel /> : <EnvironmentPanel preview={envPreview}
+                onClosePreview={id => { if (envPreviewRef.current?.previewId === id) { envPreviewRef.current = null; setEnvPreview(null); } }} onError={error => showNotification(error, 'error')} />}
             </div>
           </div>
         )}
@@ -735,7 +792,7 @@ export function App() {
           key={current.tabId}
           code={current.code}
           onOperation={(operationId, tabId) => codeOperations.current.set(operationId, tabId)}
-          prepare={async () => { await autosave.flush(); await useRequestStore.getState().getTab(current.tabId)?.authUpdate; }}
+          prepare={async () => { await prepareVariables(); const tab = useRequestStore.getState().getTab(current.tabId); if (tab && Object.keys(tab.fileSelections).length) { throw new Error('Finish selecting local files first.'); } await tab?.authUpdate; }}
           onError={message => showNotification(message, 'error')}
         />}
         </DeferredPanel>

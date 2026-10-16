@@ -52,9 +52,10 @@ export function RequestEditor({ onSend, onSave, onNew, onPrepare, isDirty, isSav
   const activeGlobal = globalVars.filter(v => v.enabled).length;
   const selectedCol = collections.find(c => c.id === activeCollectionId);
   const activeColl = selectedCol?.variables.filter(v => v.enabled).length || 0;
-  const linkedSets = variableSets.filter(s => activeCollectionId && s.linkedCollectionIds.includes(activeCollectionId));
+  const environment = variableSets.find(set => set.kind === 'environment' && set.active);
+  const linkedSets = variableSets.filter(s => s.kind !== 'environment' && activeCollectionId && s.linkedCollectionIds.includes(activeCollectionId));
   const activeSetVars = linkedSets.reduce((sum, s) => sum + s.variables.filter(v => v.enabled).length, 0);
-  const totalActiveVars = activeGlobal + activeColl + activeSetVars + currentRequest.variables.filter(variable => variable.enabled && variable.key).length;
+  const totalActiveVars = activeGlobal + activeColl + activeSetVars + (environment?.variables.filter(v => v.enabled && v.key).length ?? 0) + currentRequest.variables.filter(variable => variable.enabled && variable.key).length;
 
   const handleSendClick = () => {
     if (isExecuting && activeExecutionId) {

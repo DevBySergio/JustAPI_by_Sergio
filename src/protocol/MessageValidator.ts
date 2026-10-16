@@ -1,3 +1,5 @@
+import { FILE_UPLOAD_LIMITS, type RequestFile } from '../models/RequestFile';
+import { POSTMAN_DIAGNOSTIC_CODES, type PostmanImportPreview } from '../models/PostmanImport';
 import type { Collection, CollectionItemRef } from '../models/Collection';
 import type { HistoryEntry } from '../models/HistoryEntry';
 import type {
@@ -17,6 +19,7 @@ import type { AuthConfig, AuthInput } from '../models/Auth';
 import type { JustResponse } from '../models/Response';
 import type { Variable } from '../models/Variable';
 import type { VariableSet } from '../models/VariableSet';
+import type { EnvImportPreview } from '../models/Environment';
 import type { VariableDiagnostic } from '../models/VariableResolution';
 import type { CurlImportWarning } from '../models/CurlImport';
 import {
@@ -60,7 +63,8 @@ export type ValidationResult<T> =
 export type CollectionImportDocument = CollectionTransferDocument;
 
 const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
-  'executeRequest',
+  'selectRequestFile', 'releaseRequestFiles',
+  'executeRequest', 'saveResponseBody', 'releaseResponseBody',
   'cancelRequest',
   'saveRequest',
   'deleteRequest',
@@ -95,6 +99,8 @@ const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
   'startupActionHandled',
   'previewResolution',
   'getVariableSets',
+  'previewPostmanImport', 'confirmPostmanImport', 'cancelPostmanImport',
+  'selectEnvironment', 'previewEnvFile', 'confirmEnvImport', 'cancelEnvImport', 'stopEnvWatch',
   'createVariableSet',
   'updateVariableSet',
   'deleteVariableSet',
@@ -147,6 +153,7 @@ const PROTOCOL_ERROR_CODES = new Set<ProtocolErrorCode>([
   'DUPLICATE_EXECUTION',
   'EXECUTION_NOT_FOUND',
   'IMPORT_ERROR',
+  'RESPONSE_BODY_UNAVAILABLE',
   'CURL_PARSE_ERROR',
   'AUTH_CONFLICT',
   'AUTH_SECRET_NOT_FOUND',
@@ -165,6 +172,7 @@ function failure<T>(code: ProtocolErrorCode, details?: string[]): ValidationResu
     DUPLICATE_OPERATION: 'The operation identifier has already been used.',
     DUPLICATE_EXECUTION: 'The execution identifier has already been used.',
     EXECUTION_NOT_FOUND: 'The requested execution is not active.',
+    RESPONSE_BODY_UNAVAILABLE: 'The original response body is no longer available. Send the request again to download it.',
     IMPORT_ERROR: 'The import document is invalid.',
     CURL_PARSE_ERROR: 'The cURL command could not be parsed.',
     AUTH_CONFLICT: 'Authentication conflicts with an enabled request field.',
@@ -375,6 +383,7 @@ function isVariableArray(value: unknown): value is Variable[] {
 
 const VARIABLE_DIAGNOSTIC_CODES = new Set([
   'AUTH_CONFLICT',
+  'INVALID_BODY', 'FILE_NOT_SELECTED', 'FILE_CHANGED', 'FILE_UNAVAILABLE',
   'INVALID_URL',
   'INVALID_PATH_PARAMETER',
   'INVALID_HEADER',
@@ -469,6 +478,12 @@ function isAuthInput(value: unknown): value is AuthInput {
   }
 }
 
+function isRequestFile(value: unknown): value is RequestFile {
+  return isRecord(value) && hasOnlyKeys(value, ['id', 'name', 'size', 'lastModified']) && isProtocolIdentifier(value.id)
+    && isString(value.name, 255, false) && !/[\\/\u0000-\u001f\u007f]/.test(value.name)
+    && isBoundedInteger(value.size, 0, FILE_UPLOAD_LIMITS.maximumFileBytes) && isTimestamp(value.lastModified);
+}
+
 export function isJustRequest(value: unknown): value is JustRequest {
   if (!isRecord(value) || !hasOnlyKeys(value, [
     'id',
@@ -511,7 +526,7 @@ export function isJustRequest(value: unknown): value is JustRequest {
 
   const body = value.body;
   if (!isRecord(body)
-    || !hasOnlyKeys(body, ['type', 'content'], ['formData'])
+    || !hasOnlyKeys(body, ['type', 'content'], ['formData', 'files', 'file', 'binarySource', 'contentType'])
     || typeof body.type !== 'string'
     || !REQUEST_BODY_TYPES.has(body.type)
     || !isString(body.content, PROTOCOL_LIMITS.maximumBodyLength)
@@ -522,6 +537,12 @@ export function isJustRequest(value: unknown): value is JustRequest {
     return false;
   }
 
+  if ((body.file !== undefined && !isRequestFile(body.file)) || (body.binarySource !== undefined && body.binarySource !== 'file')
+    || (body.contentType !== undefined && !isString(body.contentType, 256))
+    || (body.files !== undefined && (!Array.isArray(body.files) || body.files.length > FILE_UPLOAD_LIMITS.maximumFiles || !body.files.every(field =>
+      isRecord(field) && hasOnlyKeys(field, ['id', 'key', 'enabled'], ['file', 'contentType']) && isProtocolIdentifier(field.id)
+      && isString(field.key, 1024) && typeof field.enabled === 'boolean' && (field.file === undefined || isRequestFile(field.file))
+      && (field.contentType === undefined || isString(field.contentType, 256)))))) { return false; }
   const settings = value.settings;
   return isRecord(settings)
     && hasOnlyKeys(settings, ['timeout', 'followRedirects', 'verifySSL'], ['maxResponseBytes'])
@@ -576,15 +597,37 @@ export function isCollection(value: unknown): value is Collection {
 
 function isVariableSet(value: unknown): value is VariableSet {
   return isRecord(value)
-    && hasOnlyKeys(value, ['id', 'name', 'variables', 'linkedCollectionIds', 'created', 'updated'])
+    && hasOnlyKeys(value, ['id', 'name', 'variables', 'linkedCollectionIds', 'created', 'updated'], ['kind', 'active'])
+    && (value.kind === undefined || value.kind === 'environment')
+    && (value.active === undefined || (value.kind === 'environment' && typeof value.active === 'boolean'))
     && isProtocolIdentifier(value.id)
     && isString(value.name, PROTOCOL_LIMITS.maximumNameLength, false)
     && isVariableArray(value.variables)
     && Array.isArray(value.linkedCollectionIds)
     && value.linkedCollectionIds.length <= PROTOCOL_LIMITS.maximumCollections
     && value.linkedCollectionIds.every(isProtocolIdentifier)
+    && (value.kind !== 'environment' || value.linkedCollectionIds.length === 0)
     && isTimestamp(value.created)
     && isTimestamp(value.updated);
+}
+
+function isPostmanPreview(value: unknown): value is PostmanImportPreview {
+  return isRecord(value) && hasOnlyKeys(value, ['previewId', 'fileName', 'name', 'kind', 'requests', 'folders', 'variables', 'credentials', 'skippedRequests', 'skippedVariables', 'diagnosticCount', 'diagnostics'])
+    && isProtocolIdentifier(value.previewId) && isString(value.fileName, 1024, false) && isString(value.name, 1024, false)
+    && (value.kind === 'collection' || value.kind === 'environment')
+    && ['requests', 'folders', 'variables', 'credentials', 'skippedRequests', 'skippedVariables', 'diagnosticCount'].every(key => isBoundedInteger(value[key], 0, 10_000_000))
+    && Array.isArray(value.diagnostics) && value.diagnostics.length <= 200 && value.diagnostics.every(item =>
+      isRecord(item) && hasOnlyKeys(item, ['code', 'location']) && typeof item.code === 'string'
+      && POSTMAN_DIAGNOSTIC_CODES.some(code => code === item.code) && isString(item.location, 1024, false));
+}
+
+function isEnvPreview(value: unknown): value is EnvImportPreview {
+  return isRecord(value) && hasOnlyKeys(value, ['previewId', 'fileName', 'variables', 'diagnostics'], ['targetSetId'])
+    && isProtocolIdentifier(value.previewId) && isString(value.fileName, 1024, false) && isVariableArray(value.variables)
+    && (value.targetSetId === undefined || isProtocolIdentifier(value.targetSetId))
+    && Array.isArray(value.diagnostics) && value.diagnostics.length <= 200 && value.diagnostics.every(item =>
+      isRecord(item) && hasOnlyKeys(item, ['line', 'code']) && isBoundedInteger(item.line, 1, 1024 * 1024)
+      && typeof item.code === 'string' && ['INVALID_ASSIGNMENT', 'INVALID_NAME', 'UNTERMINATED_QUOTE', 'TRAILING_CONTENT', 'DUPLICATE_NAME', 'VALUE_TOO_LARGE', 'TOO_MANY_VARIABLES'].includes(item.code));
 }
 
 function isJustResponse(value: unknown): value is JustResponse {
@@ -601,7 +644,7 @@ function isJustResponse(value: unknown): value is JustResponse {
       'timings',
       'cookies',
       'redirected',
-    ], ['error', 'finalUrl', 'mimeType'])
+    ], ['error', 'finalUrl', 'mimeType', 'download'])
     || !isBoundedInteger(value.statusCode, 0, 999)
     || !isString(value.statusText, PROTOCOL_LIMITS.maximumNameLength)
     || !isString(value.httpVersion, 64)
@@ -628,6 +671,9 @@ function isJustResponse(value: unknown): value is JustResponse {
     || (value.mimeType !== undefined && !isString(value.mimeType, 256, false))) {
     return false;
   }
+
+  if (value.download !== undefined && (!isRecord(value.download) || !hasOnlyKeys(value.download, ['responseId', 'available'])
+    || !isProtocolIdentifier(value.download.responseId) || typeof value.download.available !== 'boolean')) { return false; }
 
   for (const cookie of value.cookies) {
     if (!isRecord(cookie)
@@ -773,12 +819,38 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'action'])
         && typeof value.action === 'string'
         && STARTUP_ACTION_TYPES.has(value.action as StartupActionName);
+    case 'selectRequestFile':
+      return hasOnlyKeys(value, ['type', 'operationId', 'requestId'], ['fieldId']) && isProtocolIdentifier(value.requestId) && (value.fieldId === undefined || isProtocolIdentifier(value.fieldId));
+    case 'releaseRequestFiles': return hasOnlyKeys(value, ['type', 'operationId', 'requestId']) && isProtocolIdentifier(value.requestId);
+    case 'saveResponseBody':
+    case 'releaseResponseBody':
+      return hasOnlyKeys(value, ['type', 'operationId', 'responseId']) && isProtocolIdentifier(value.responseId);
     case 'getRequest':
       return hasOnlyKeys(value, ['type', 'operationId', 'requestId']) && isProtocolIdentifier(value.requestId);
     case 'createCollection':
-    case 'createVariableSet':
       return hasOnlyKeys(value, ['type', 'operationId', 'name'])
         && isString(value.name, PROTOCOL_LIMITS.maximumNameLength, false);
+    case 'createVariableSet':
+      return hasOnlyKeys(value, ['type', 'operationId', 'name'], ['kind'])
+        && isString(value.name, PROTOCOL_LIMITS.maximumNameLength, false) && value.name.trim().length > 0
+        && (value.kind === undefined || value.kind === 'environment');
+    case 'selectEnvironment':
+      return hasOnlyKeys(value, ['type', 'operationId', 'setId']) && (value.setId === null || isProtocolIdentifier(value.setId));
+    case 'previewEnvFile':
+      return hasOnlyKeys(value, ['type', 'operationId'], ['setId']) && (value.setId === undefined || isProtocolIdentifier(value.setId));
+    case 'previewPostmanImport': return hasOnlyKeys(value, ['type', 'operationId']);
+    case 'confirmPostmanImport':
+      return hasOnlyKeys(value, ['type', 'operationId', 'previewId', 'name', 'acceptWarnings'])
+        && isProtocolIdentifier(value.previewId) && isString(value.name, 1024, false) && typeof value.acceptWarnings === 'boolean';
+    case 'cancelPostmanImport':
+      return hasOnlyKeys(value, ['type', 'operationId', 'previewId']) && isProtocolIdentifier(value.previewId);
+    case 'confirmEnvImport':
+      return hasOnlyKeys(value, ['type', 'operationId', 'previewId', 'name', 'watch']) && isProtocolIdentifier(value.previewId)
+        && isString(value.name, 1024, false) && value.name.trim().length > 0 && typeof value.watch === 'boolean';
+    case 'cancelEnvImport':
+      return hasOnlyKeys(value, ['type', 'operationId', 'previewId']) && isProtocolIdentifier(value.previewId);
+    case 'stopEnvWatch':
+      return hasOnlyKeys(value, ['type', 'operationId', 'setId']) && isProtocolIdentifier(value.setId);
     case 'updateCollection':
       return hasOnlyKeys(value, ['type', 'operationId', 'collection']) && isCollection(value.collection);
     case 'deleteCollection':
@@ -870,7 +942,7 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
 }
 
 const DATA_INPUT_MESSAGES = new Set(['executeRequest', 'saveRequest', 'generateCode', 'previewResolution', 'updateCollection', 'setCollectionVariables', 'setGlobalVariables', 'updateVariableSet', 'setSettings']);
-const DATA_OUTPUT_MESSAGES = new Set(['collections', 'requestLoaded', 'requestSaved', 'variables', 'variableSets', 'settings', 'resolutionPreview', 'codeGenerationResult', 'history', 'startupAction', 'curlImportResult']);
+const DATA_OUTPUT_MESSAGES = new Set(['collections', 'requestLoaded', 'requestSaved', 'variables', 'variableSets', 'settings', 'resolutionPreview', 'codeGenerationResult', 'history', 'startupAction', 'curlImportResult', 'envImportPreview']);
 
 export function validateWebviewMessage(value: unknown): ValidationResult<WebviewMessage> {
   if (!isRecord(value) || typeof value.type !== 'string') {
@@ -899,6 +971,16 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
     return false;
   }
   switch (value.type) {
+    case 'requestFileSelected':
+      return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'file'], ['fieldId']) && isProtocolIdentifier(value.requestId) && isRequestFile(value.file)
+        && (value.fieldId === undefined || isProtocolIdentifier(value.fieldId));
+    case 'responseBodiesReleased':
+      return hasOnlyKeys(value, ['type', 'operationId', 'responseIds']) && Array.isArray(value.responseIds)
+        && value.responseIds.length <= 20 && value.responseIds.every(isProtocolIdentifier);
+    case 'responseDownloadResult':
+      return hasOnlyKeys(value, ['type', 'operationId', 'responseId', 'status'], ['fileName', 'bytes']) && isProtocolIdentifier(value.responseId)
+        && (value.status === 'cancelled' ? value.fileName === undefined && value.bytes === undefined
+          : value.status === 'saved' && isString(value.fileName, 1024, false) && isBoundedInteger(value.bytes, 0, RESPONSE_SIZE_LIMITS.maximum));
     case 'collections':
       return hasOnlyKeys(value, ['type', 'operationId', 'collections'])
         && Array.isArray(value.collections)
@@ -968,6 +1050,13 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
         && Array.isArray(value.sets)
         && value.sets.length <= PROTOCOL_LIMITS.maximumVariables
         && value.sets.every(isVariableSet);
+    case 'postmanImportPreview':
+      return hasOnlyKeys(value, ['type', 'operationId', 'preview']) && isPostmanPreview(value.preview);
+    case 'envImportPreview':
+      return hasOnlyKeys(value, ['type', 'operationId', 'preview']) && isEnvPreview(value.preview);
+    case 'envWatches':
+      return hasOnlyKeys(value, ['type', 'operationId', 'watches']) && Array.isArray(value.watches) && value.watches.length <= 1000
+        && value.watches.every(item => isRecord(item) && hasOnlyKeys(item, ['setId', 'fileName']) && isProtocolIdentifier(item.setId) && isString(item.fileName, 1024, false));
     case 'resolutionPreview':
       return hasOnlyKeys(value, [
         'type',

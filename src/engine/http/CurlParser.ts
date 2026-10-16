@@ -145,7 +145,7 @@ export class CurlParser {
       throw new CurlParseError('NOT_CURL_COMMAND', 0);
     }
 
-    const request = createDefaultRequest();
+    const request = createDefaultRequest(randomUUID());
     request.name = 'Imported cURL';
     request.settings.followRedirects = false;
     const headers: OrderedHeader[] = [];

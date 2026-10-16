@@ -26,19 +26,16 @@ export class CodeGenerationService {
     collectionId?: string,
     includeCredentials = false
   ): Promise<CodeGenerationResult> {
-    const preflight = await this.preparation.resolve(request, collectionId);
+    const preparation = this.preparation.capture?.() ?? this.preparation;
+    const preflight = await preparation.resolve(request, collectionId);
     if (!preflight.ok) {
       throw preflightError(preflight.diagnostics);
     }
     const disclose = includeCredentials
       && await this.confirmDisclosure(`${language} code sample`);
     const prepared = disclose
-      ? await this.auth.resolveForTransport(
-          preflight.request,
-          this.collections.getPersistedRequest(request.id),
-          request.auth
-        )
-      : this.preparation.redactForDerivative(preflight.request);
+      ? await preparation.resolveForTransport(request, collectionId)
+      : preparation.redactForDerivative(preflight.request);
     return {
       code: this.generator.generate(prepared, language, {
         credentialRepresentation: disclose ? 'resolved' : 'placeholder',

@@ -64,13 +64,13 @@ export function postMessage(message: WebviewMessageInput, onPrepared?: (message:
   return prepared;
 }
 
-export function postMessageWithAck(message: WebviewMessageInput, onPrepared?: (message: WebviewMessage) => void): Promise<void> {
+export function postMessageWithAck(message: WebviewMessageInput, onPrepared?: (message: WebviewMessage) => void, options: { timeoutMs?: number } = {}): Promise<void> {
   return new Promise((resolve, reject) => {
     const prepared = prepareMessage(message);
-    const timeout = setTimeout(() => {
+    const timeout = options.timeoutMs === 0 ? undefined : setTimeout(() => {
       acknowledgements.delete(prepared.operationId);
       reject(new Error('The operation was not confirmed. Your pending changes have been retained.'));
-    }, 30_000);
+    }, options.timeoutMs ?? 30_000);
     acknowledgements.set(prepared.operationId, {
       resolve: () => { clearTimeout(timeout); resolve(); },
       reject: error => { clearTimeout(timeout); reject(error); },

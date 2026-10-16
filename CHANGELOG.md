@@ -10,6 +10,15 @@ Prepared release; the installable VSIX and its isolated installation checks are 
 
 ### Added
 
+- Local binary file bodies and mixed multipart text/file uploads through the native chooser, preserving exact bytes, repeated file fields and per-file MIME types. Limits: 10 MiB/file, 20 file fields and 25 MiB/multipart body, checked before connection.
+- Request-bound session file grants with unchanged-file verification, pending picker ownership across tabs, cancellation, stale result protection and reselection after close/reload/import. File paths/bytes never enter collections, drafts, exports or code examples; all seven snippet targets provide explicit replacement-file recipes.
+- Save complete HTTP response bodies through a local save dialog, preserving the original decompressed bytes, BOM and text encoding independently of preview truncation/formatting. Includes binary/image and empty/non-2xx bodies, cancellation and atomic overwrite with failed-write retry.
+- Bounded session-only download retention (100 MiB across up to 20 bodies), response IDs instead of body/path messages, explicit expiration notices and cleanup on resend, tab close and view recreation. Pending/results remain attached to the originating response across tab navigation.
+- Offline Postman v2.1 collection and environment migration from local JSON exports, with a value-free preview, import counts, explicit acknowledgement of omissions, unchanged-file verification, one-shot confirmation and cancellation. Folder order, supported bodies, disabled pairs, URL/path variables and inherited authentication are preserved. Imports create new data and keep environments inactive.
+- Recognized imported Bearer/Basic/API key and URL/header credentials enter SecretStorage with rollback on failed persistence. Credential templates resolve against the captured variable context at send time; default snippets stay redacted. Unsupported requests and secret environment variables are explicitly excluded before import.
+- Profile-wide environment selection, backed by existing local variable sets. Only the selected environment contributes values; linked shared sets retain their behavior. Running requests pin their environment through preparation and transport.
+- Environment creation/editing/deletion with explicit Save/Discard, session-retained drafts and reload warnings without persisting unsaved values in the webview cache.
+- Local UTF-8 `.env` import with a masked preview, strict diagnostics, explicit confirmation, unchanged-file verification and optional session-only file watching. Watched changes require a new confirmation and never send requests automatically.
 - Independent request tabs with separate drafts, collection scopes, pending authentication, responses, generated code and execution/error state. New requests/imports/history skeletons open new tabs; reopening a saved request selects its existing draft.
 - Keyboard tab navigation and close protection with Keep editing, Discard and close, and Save and close. Failed saves retain the tab; closing/deleting cancels only affected executions and discards their pending credentials.
 - Restore up to 20 sanitized request drafts through a bounded 4 MiB webview-state cache, migrating the previous single-editor cache. Responses, connections and pending authentication secrets are never restored.
@@ -17,6 +26,8 @@ Prepared release; the installable VSIX and its isolated installation checks are 
 
 ### Fixed
 
+- Clear transient download state when switching to a request tab with no download, and ignore old save results after replacing or closing its response.
+- Generate host-side request, collection and variable-set IDs through Node crypto, preserving operation on VS Code 1.80 where the browser `crypto` global is unavailable. Added actual-runtime environment/file/import/selection/restoration coverage alongside collection creation and cURL parsing.
 - Correlate loads/previews/code generation per request so another tab cannot supersede them; route delayed replies and save acknowledgements to their originating tab.
 - Protect dirty inactive tabs during collection/folder deletion and follow request moves in every open tab.
 - Cancel old executions before recreating the webview, and preserve ordinary URL spelling and JSON whitespace when restoring drafts.

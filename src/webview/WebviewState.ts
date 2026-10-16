@@ -4,7 +4,7 @@ import { validateWebviewMessage } from '../protocol/MessageValidator';
 import { redactUrlQueryValues, redactUrlUserInfo } from '../engine/auth/UrlRedaction';
 
 export type WebviewTab = 'editor' | 'collections' | 'history' | 'variables' | 'codegen';
-export type VariableSubTab = 'vars' | 'sets';
+export type VariableSubTab = 'vars' | 'sets' | 'environments';
 
 export interface PersistedWebviewState {
   schemaVersion: 1;
@@ -35,6 +35,7 @@ export interface PersistedRequestWorkspace {
   activeRequestTabId: string;
   tabs: PersistedRequestTab[];
   redactedValues: boolean;
+  pendingEnvironmentEdits?: boolean;
 }
 
 const WEBVIEW_TABS = new Set<WebviewTab>([
@@ -102,6 +103,14 @@ function sanitizeUrl(value: string, request: JustRequest): { value: string; reda
 }
 
 function sanitizeBody(request: JustRequest): { body: JustRequest['body']; redacted: boolean } {
+  const sanitized = sanitizeBodyValues(request);
+  const redacted = Boolean(sanitized.body.file || sanitized.body.files?.some(field => field.file));
+  const body = { ...sanitized.body }; delete body.file;
+  if (body.files) { body.files = body.files.map(field => { const copy = { ...field }; delete copy.file; return copy; }); }
+  return { body, redacted: sanitized.redacted || redacted };
+}
+
+function sanitizeBodyValues(request: JustRequest): { body: JustRequest['body']; redacted: boolean } {
   if (request.body.content.length > MAXIMUM_PERSISTED_BODY_CHARACTERS) {
     return { body: { ...request.body, content: '' }, redacted: true };
   }
@@ -210,7 +219,7 @@ export function restorePersistedWebviewState(value: unknown): PersistedWebviewSt
   if (candidate.schemaVersion !== 1
     || typeof candidate.activeTab !== 'string'
     || !WEBVIEW_TABS.has(candidate.activeTab as WebviewTab)
-    || (candidate.variableSubTab !== 'vars' && candidate.variableSubTab !== 'sets')
+    || (candidate.variableSubTab !== 'vars' && candidate.variableSubTab !== 'sets' && candidate.variableSubTab !== 'environments')
     || (candidate.activeCollectionId !== null && typeof candidate.activeCollectionId !== 'string')
     || !isValidRequest(candidate.currentRequest)
     || !isValidRequest(candidate.baselineRequest)
@@ -242,7 +251,7 @@ export function createPersistedRequestWorkspace(input: Omit<PersistedRequestWork
       collectionId: tab.collectionId, baselineCollectionId: tab.baselineCollectionId, pendingAuth: tab.pendingAuth };
   });
   const result: PersistedRequestWorkspace = { schemaVersion: 2, activeTab: input.activeTab, variableSubTab: input.variableSubTab,
-    activeRequestTabId: input.activeRequestTabId, tabs, redactedValues };
+    activeRequestTabId: input.activeRequestTabId, tabs, redactedValues, pendingEnvironmentEdits: input.pendingEnvironmentEdits ?? false };
   // Keep tab identity and navigation even when a large draft cannot be restored safely.
   const bytes = () => new TextEncoder().encode(JSON.stringify(result)).length;
   for (const tab of [...tabs].sort((left, right) => Number(left.tabId === input.activeRequestTabId) - Number(right.tabId === input.activeRequestTabId))) {
@@ -267,7 +276,8 @@ export function restoreRequestWorkspace(value: unknown): PersistedRequestWorkspa
   if (!value || typeof value !== 'object' || Array.isArray(value)) { return null; }
   const candidate = value as Partial<PersistedRequestWorkspace>;
   if (candidate.schemaVersion !== 2 || !WEBVIEW_TABS.has(candidate.activeTab as WebviewTab)
-    || (candidate.variableSubTab !== 'vars' && candidate.variableSubTab !== 'sets')
+    || (candidate.pendingEnvironmentEdits !== undefined && typeof candidate.pendingEnvironmentEdits !== 'boolean')
+    || (candidate.variableSubTab !== 'vars' && candidate.variableSubTab !== 'sets' && candidate.variableSubTab !== 'environments')
     || typeof candidate.activeRequestTabId !== 'string' || typeof candidate.redactedValues !== 'boolean'
     || !Array.isArray(candidate.tabs) || candidate.tabs.length < 1 || candidate.tabs.length > REQUEST_WORKSPACE_LIMITS.maximumTabs) { return null; }
   const ids = new Set<string>();
@@ -283,7 +293,8 @@ export function restoreRequestWorkspace(value: unknown): PersistedRequestWorkspa
   }
   if (!ids.has(candidate.activeRequestTabId)) { return null; }
   const result = createPersistedRequestWorkspace(candidate as PersistedRequestWorkspace);
-  result.redactedValues ||= candidate.redactedValues;
+  result.redactedValues ||= candidate.redactedValues || candidate.pendingEnvironmentEdits === true;
+  result.pendingEnvironmentEdits = false;
   for (const tab of result.tabs) {
     if (tab.pendingAuth) { tab.currentRequest.auth = { ...tab.baselineRequest.auth }; result.redactedValues = true; }
     tab.pendingAuth = false;

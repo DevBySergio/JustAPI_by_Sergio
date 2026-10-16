@@ -7,12 +7,14 @@ export interface VariableSet {
   linkedCollectionIds: string[];
   created: number;
   updated: number;
+  kind?: 'environment';
+  active?: boolean;
 }
 
-export function createDefaultVariableSet(name: string): VariableSet {
+export function createDefaultVariableSet(name: string, id: string = crypto.randomUUID()): VariableSet {
   const now = Date.now();
   return {
-    id: crypto.randomUUID(),
+    id,
     name,
     variables: [],
     linkedCollectionIds: [],
