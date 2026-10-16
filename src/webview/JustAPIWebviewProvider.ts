@@ -123,6 +123,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
     this.disposeViewListeners();
+    await this.messageHandler.resetForNewView();
     this.view = webviewView;
     this.startupActions.resetForNewTarget();
 
@@ -210,7 +211,7 @@ export class JustAPIWebviewProvider implements vscode.WebviewViewProvider {
 
   async dispose(): Promise<void> {
     this.disposeViewListeners();
-    this.messageHandler.dispose();
+    await this.messageHandler.dispose();
     await Promise.all([
       this.authService.dispose(),
       ...this.stores.map(async store => await store.dispose()),

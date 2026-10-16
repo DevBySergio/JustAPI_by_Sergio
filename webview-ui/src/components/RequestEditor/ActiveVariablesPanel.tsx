@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useVariableStore } from '../../stores/useVariableStore';
 import { useCollectionStore } from '../../stores/useCollectionStore';
 import { useRequestStore } from '../../stores/useRequestStore';
@@ -24,7 +24,7 @@ interface PreviewResult {
   canExecute: boolean;
 }
 
-export function ActiveVariablesPanel() {
+export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Promise<void>; onError: (message: string) => void }) {
   const globalVars = useVariableStore((s) => s.globalVariables);
   const variableSets = useVariableStore((s) => s.variableSets);
   const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
@@ -34,10 +34,25 @@ export function ActiveVariablesPanel() {
 
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const pendingPreview = useRef<string | null>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    pendingPreview.current = null;
+    setPreviewResult(null);
+    setPreviewLoading(false);
+    clearTimeout(previewTimer.current);
+  }, [currentRequest, activeCollectionId, collections, globalVars, variableSets]);
+
+  useEffect(() => () => { clearTimeout(previewTimer.current); }, []);
 
   useEffect(() => {
     return on('resolutionPreview', (msg: unknown) => {
-      setPreviewResult(msg as PreviewResult);
+      const result = msg as PreviewResult & { operationId: string };
+      if (result.operationId !== pendingPreview.current) { return; }
+      clearTimeout(previewTimer.current);
+      pendingPreview.current = null;
+      setPreviewResult(result);
       setPreviewLoading(false);
     });
   }, []);
@@ -105,15 +120,18 @@ export function ActiveVariablesPanel() {
   const requestCount = currentRequest?.variables?.filter(v => v.enabled && v.key).length || 0;
 
   const handlePreview = () => {
-    setPreviewLoading(true);
-    setPreviewResult(null);
-    postMessage({
-      type: 'previewResolution',
-      request: currentRequest,
-      collectionId: activeCollectionId ?? undefined,
-    });
-    // Response handled via event bus
-    setTimeout(() => setPreviewLoading(false), 8000);
+    void prepare().then(() => {
+      setPreviewLoading(true);
+      setPreviewResult(null);
+      pendingPreview.current = postMessage({
+        type: 'previewResolution', request: useRequestStore.getState().currentRequest,
+        collectionId: useCollectionStore.getState().activeCollectionId ?? undefined,
+      }).operationId;
+      clearTimeout(previewTimer.current);
+      previewTimer.current = setTimeout(() => {
+        pendingPreview.current = null; setPreviewLoading(false);
+      }, 8000);
+    }).catch(reason => onError(String(reason)));
   };
 
   return (

@@ -3,7 +3,7 @@ import { ExtensionMessage, WebviewMessage } from '../models/MessageProtocol';
 import { JustRequest } from '../models/Request';
 import { JustResponse } from '../models/Response';
 import { ExecutionRegistry } from '../protocol/OperationRegistry';
-import { ApplicationError } from './ApplicationError';
+import { ApplicationError, preflightError } from './ApplicationError';
 import { CollectionService } from './CollectionService';
 import { HistoryService } from './HistoryService';
 import { RequestPreparation } from './RequestPreparationService';
@@ -46,17 +46,15 @@ export class RequestService {
 
     try {
       const preflight = await this.preparation.resolve(message.request, message.collectionId);
+      if (execution.cancelled) { return; }
       if (!preflight.ok) {
-        throw new ApplicationError(
-          'VARIABLE_RESOLUTION_FAILED',
-          undefined,
-          message.executionId
-        );
+        throw preflightError(preflight.diagnostics, message.executionId);
       }
       const request = await this.preparation.resolveForTransport(
         message.request,
         message.collectionId
       );
+      if (execution.cancelled) { return; }
       const response = await client.execute(request);
       if (execution.cancelled) {
         return;

@@ -3,6 +3,7 @@
 .vscode-test/**
 .DS_Store
 out/**
+out-webview/**
 node_modules/**
 src/**
 .gitignore

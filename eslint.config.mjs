@@ -2,10 +2,10 @@ import typescriptEslint from 'typescript-eslint';
 
 export default [
   {
-    ignores: ['node_modules/**', 'dist/**', 'out/**', 'coverage/**'],
+    ignores: ['node_modules/**', 'dist/**', 'out/**', 'coverage/**', 'out-webview/**'],
   },
   {
-    files: ['src/**/*.ts', 'webview-ui/src/**/*.{ts,tsx}'],
+    files: ['src/**/*.ts', 'webview-ui/src/**/*.{ts,tsx}', 'webview-ui/test/**/*.{ts,tsx}'],
     plugins: {
       '@typescript-eslint': typescriptEslint.plugin,
     },

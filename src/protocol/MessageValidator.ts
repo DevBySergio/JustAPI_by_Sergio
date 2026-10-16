@@ -30,8 +30,10 @@ import {
 
 export const PROTOCOL_LIMITS = {
   generalMessageBytes: 1024 * 1024,
+  dataMessageBytes: 16 * 1024 * 1024 + 64 * 1024,
+  initialStateMessageBytes: 67 * 1024 * 1024,
   importMessageBytes: 10 * 1024 * 1024,
-  maximumDepth: 50,
+  maximumDepth: 110,
   maximumNodes: 100_000,
   maximumCollections: 1_000,
   maximumRequests: 10_000,
@@ -63,6 +65,8 @@ const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
   'saveRequest',
   'deleteRequest',
   'configureAuth',
+  'discardRequestChanges',
+  'setCollectionVariables',
   'getCollections',
   'getRequest',
   'createCollection',
@@ -70,6 +74,9 @@ const WEBVIEW_MESSAGE_TYPES: readonly WebviewMessageType[] = [
   'deleteCollection',
   'duplicateCollection',
   'renameCollection',
+  'createFolder',
+  'renameFolder',
+  'deleteFolder',
   'moveItem',
   'getHistory',
   'clearHistory',
@@ -144,6 +151,7 @@ const PROTOCOL_ERROR_CODES = new Set<ProtocolErrorCode>([
   'AUTH_CONFLICT',
   'AUTH_SECRET_NOT_FOUND',
   'VARIABLE_RESOLUTION_FAILED',
+  'REQUEST_VALIDATION_FAILED',
   'OPERATION_FAILED',
   'OUTBOUND_MESSAGE_INVALID',
 ]);
@@ -161,6 +169,7 @@ function failure<T>(code: ProtocolErrorCode, details?: string[]): ValidationResu
     CURL_PARSE_ERROR: 'The cURL command could not be parsed.',
     AUTH_CONFLICT: 'Authentication conflicts with an enabled request field.',
     AUTH_SECRET_NOT_FOUND: 'The configured authentication secret is unavailable.',
+    REQUEST_VALIDATION_FAILED: 'Correct the request URL, headers, or variables before continuing.',
     VARIABLE_RESOLUTION_FAILED: 'The request contains invalid or unresolved variables.',
     OPERATION_FAILED: 'The requested operation could not be completed.',
     OUTBOUND_MESSAGE_INVALID: 'The extension produced an invalid protocol response.',
@@ -365,6 +374,10 @@ function isVariableArray(value: unknown): value is Variable[] {
 }
 
 const VARIABLE_DIAGNOSTIC_CODES = new Set([
+  'AUTH_CONFLICT',
+  'INVALID_URL',
+  'INVALID_PATH_PARAMETER',
+  'INVALID_HEADER',
   'MISSING_VARIABLE',
   'DISABLED_VARIABLE',
   'DUPLICATE_VARIABLE',
@@ -740,6 +753,11 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'collectionId'])
         && isProtocolIdentifier(value.requestId)
         && isProtocolIdentifier(value.collectionId);
+    case 'setCollectionVariables':
+      return hasOnlyKeys(value, ['type', 'operationId', 'collectionId', 'variables'])
+        && isProtocolIdentifier(value.collectionId) && isVariableArray(value.variables);
+    case 'discardRequestChanges':
+      return hasOnlyKeys(value, ['type', 'operationId', 'requestId']) && isProtocolIdentifier(value.requestId);
     case 'configureAuth':
       return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'auth'])
         && isProtocolIdentifier(value.requestId)
@@ -775,6 +793,18 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'collectionId', 'name'])
         && isProtocolIdentifier(value.collectionId)
         && isString(value.name, PROTOCOL_LIMITS.maximumNameLength, false);
+    case 'createFolder':
+      return hasOnlyKeys(value, ['type', 'operationId', 'collectionId', 'name'], ['parentId'])
+        && isProtocolIdentifier(value.collectionId)
+        && isString(value.name, PROTOCOL_LIMITS.maximumNameLength, false) && value.name.trim().length > 0
+        && (value.parentId === undefined || isProtocolIdentifier(value.parentId));
+    case 'renameFolder':
+      return hasOnlyKeys(value, ['type', 'operationId', 'collectionId', 'folderId', 'name'])
+        && isProtocolIdentifier(value.collectionId) && isProtocolIdentifier(value.folderId)
+        && isString(value.name, PROTOCOL_LIMITS.maximumNameLength, false) && value.name.trim().length > 0;
+    case 'deleteFolder':
+      return hasOnlyKeys(value, ['type', 'operationId', 'collectionId', 'folderId'])
+        && isProtocolIdentifier(value.collectionId) && isProtocolIdentifier(value.folderId);
     case 'moveItem':
       return hasOnlyKeys(value, [
         'type',
@@ -839,6 +869,9 @@ function validateWebviewPayload(value: Record<string, unknown>): boolean {
   }
 }
 
+const DATA_INPUT_MESSAGES = new Set(['executeRequest', 'saveRequest', 'generateCode', 'previewResolution', 'updateCollection', 'setCollectionVariables', 'setGlobalVariables', 'updateVariableSet', 'setSettings']);
+const DATA_OUTPUT_MESSAGES = new Set(['collections', 'requestLoaded', 'requestSaved', 'variables', 'variableSets', 'settings', 'resolutionPreview', 'codeGenerationResult', 'history', 'startupAction', 'curlImportResult']);
+
 export function validateWebviewMessage(value: unknown): ValidationResult<WebviewMessage> {
   if (!isRecord(value) || typeof value.type !== 'string') {
     return failure('INVALID_MESSAGE');
@@ -847,8 +880,10 @@ export function validateWebviewMessage(value: unknown): ValidationResult<Webview
     return failure('UNKNOWN_MESSAGE');
   }
   const maximumBytes = value.type === 'importCollection'
-    ? PROTOCOL_LIMITS.importMessageBytes
-    : PROTOCOL_LIMITS.generalMessageBytes;
+    ? 6 * PROTOCOL_LIMITS.importMessageBytes + 64 * 1024
+    : DATA_INPUT_MESSAGES.has(value.type)
+      ? PROTOCOL_LIMITS.dataMessageBytes
+      : PROTOCOL_LIMITS.generalMessageBytes;
   const structure = inspectStructure(value, maximumBytes);
   if (!structure.ok) {
     return structure;
@@ -869,6 +904,7 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
         && Array.isArray(value.collections)
         && value.collections.length <= PROTOCOL_LIMITS.maximumCollections
         && value.collections.every(isCollection);
+    case 'requestSaved':
     case 'requestLoaded':
       return hasOnlyKeys(value, ['type', 'operationId', 'request']) && isJustRequest(value.request);
     case 'curlImportResult':
@@ -878,8 +914,9 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
         && value.warnings.length <= PROTOCOL_LIMITS.maximumDiagnostics
         && value.warnings.every(isCurlImportWarning);
     case 'requestAuthUpdated':
-      return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'auth'])
+      return hasOnlyKeys(value, ['type', 'operationId', 'requestId', 'auth', 'pending'])
         && isProtocolIdentifier(value.requestId)
+        && typeof value.pending === 'boolean'
         && isAuthConfig(value.auth);
     case 'history':
       return hasOnlyKeys(value, ['type', 'operationId', 'entries'])
@@ -922,6 +959,8 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
       return hasOnlyKeys(value, ['type', 'operationId', 'executionId', 'executing'])
         && hasExecutionId(value)
         && typeof value.executing === 'boolean';
+    case 'initializationComplete':
+      return validNoPayloadMessage(value);
     case 'initialState':
       return hasOnlyKeys(value, ['type', 'operationId', 'state']) && isInitialState(value.state);
     case 'variableSets':
@@ -965,7 +1004,11 @@ function validateExtensionPayload(value: Record<string, unknown>): boolean {
 export function validateExtensionMessage(value: unknown): ValidationResult<ExtensionMessage> {
   const maximumBytes = isRecord(value) && value.type === 'response'
     ? PROTOCOL_LIMITS.responseMessageBytes
-    : PROTOCOL_LIMITS.generalMessageBytes;
+    : isRecord(value) && value.type === 'initialState'
+      ? PROTOCOL_LIMITS.initialStateMessageBytes
+      : isRecord(value) && typeof value.type === 'string' && DATA_OUTPUT_MESSAGES.has(value.type)
+        ? PROTOCOL_LIMITS.dataMessageBytes
+        : PROTOCOL_LIMITS.generalMessageBytes;
   const structure = inspectStructure(value, maximumBytes);
   if (!structure.ok) {
     return structure;

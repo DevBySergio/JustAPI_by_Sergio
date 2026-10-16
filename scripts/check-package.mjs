@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 
 const result = spawnSync('npm', ['exec', '--', 'vsce', 'ls', '--no-dependencies'], {
   encoding: 'utf8',
@@ -25,6 +26,7 @@ const required = [
   'dist/webview/bundle.js.LICENSE.txt',
   'media/activity-icon.svg',
   'media/icon.png',
+  ...readdirSync('dist/webview').filter(file => /\.js(?:\.LICENSE\.txt)?$/.test(file)).map(file => `dist/webview/${file}`),
 ];
 
 const forbidden = /(^|\/)(?:node_modules|src|test|tests|out|coverage|docs|scripts|\.github|\.vscode|\.git|\.env)(?:\/|$)|\.map$|\.DS_Store$/i;

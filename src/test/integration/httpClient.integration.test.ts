@@ -2,6 +2,8 @@ import * as assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { AuthService, SecretStorageLike } from '../../engine/auth/AuthService';
 import { HttpClient } from '../../engine/http/HttpClient';
+import { CurlParser } from '../../engine/http/CurlParser';
+import { VariableEngine } from '../../engine/variables/VariableEngine';
 import {
   HttpMethod,
   RequestSettings,
@@ -87,6 +89,64 @@ describe('HttpClient with deterministic localhost servers', () => {
     ]);
     assert.equal(echo.query.empty, '');
     assert.doesNotMatch(response.finalUrl ?? '', /#ignored/);
+  });
+
+  test('delivers request-scoped path values as exactly one encoded segment', async () => {
+    const request = createRequestFixture({
+      url: `${fixtureServer.baseUrl}/users/:id?literal=:id`,
+      pathParams: [{ id: 'path-id', name: 'id', value: '{{user}}' }],
+      variables: [{ id: 'user', key: 'user', value: 'local/ñ ?#%', enabled: true, scope: 'request' }],
+    });
+    const resolved = new VariableEngine().resolveRequest(request, {
+      requestVars: request.variables, collectionVars: [], globalVars: [],
+    });
+    assert.equal(resolved.ok, true);
+    const response = await new HttpClient().execute(resolved.request);
+    assert.equal(response.error, undefined);
+    const echo = JSON.parse(response.body) as EchoBody;
+    assert.equal(echo.path, '/users/local%2F%C3%B1%20%3F%23%25');
+    assert.equal(echo.query.literal, ':id');
+  });
+
+  test('accepts HEAD and bodyless status metadata without decompressing or imposing body length', async () => {
+    for (const [method, status] of [['HEAD', 200], ['GET', 204], ['GET', 205], ['GET', 304]] as const) {
+      const result = await new HttpClient().execute(createRequestFixture({
+        method, url: `${fixtureServer.baseUrl}/no-content?status=${status}`,
+      }));
+      assert.equal(result.error, undefined);
+      assert.equal(result.statusCode, status);
+      assert.equal(result.size, 0);
+      assert.equal(result.body, '');
+      assert.equal(result.headers['content-encoding'], 'gzip');
+    }
+  });
+
+  test('connects to an IPv6 literal', async context => {
+    const ipv6 = await startHttpFixtureServer('::1');
+    context.after(() => ipv6.close());
+    const result = await new HttpClient().execute(createRequestFixture({ url: `${ipv6.baseUrl}/echo` }));
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.error, undefined);
+  });
+
+  test('sends imported cURL data with original encoded bytes, content type, and redirect behavior', async () => {
+    for (const [options, body, contentType] of [
+      ["--data-urlencode 'name=hello world'", 'name=hello%20world', 'application/x-www-form-urlencoded'],
+      ["-H 'Content-Type: application/x-www-form-urlencoded' -d 'a=b&c=d'", 'a=b&c=d', 'application/x-www-form-urlencoded'],
+      ["-d '{\"ok\":true}'", '{"ok":true}', 'application/x-www-form-urlencoded'],
+      ["-H 'Content-Type: application/json' --data-raw '{\"ok\":true}'", '{"ok":true}', 'application/json'],
+    ]) {
+      const request = new CurlParser().parse(`curl '${fixtureServer.baseUrl}/echo' ${options}`);
+      const result = await new HttpClient().execute(request);
+      assert.equal(result.statusCode, 200);
+      const echo = JSON.parse(result.body) as EchoBody;
+      assert.equal(echo.body, body);
+      assert.equal(echo.headers['content-type'], contentType);
+    }
+    const parser = new CurlParser();
+    const redirectUrl = `${fixtureServer.baseUrl}/redirect`;
+    assert.equal((await new HttpClient().execute(parser.parse(`curl '${redirectUrl}'`))).statusCode, 302);
+    assert.equal((await new HttpClient().execute(parser.parse(`curl -L '${redirectUrl}'`))).statusCode, 200);
   });
 
   test('encodes raw, empty, URL-encoded, multipart, and binary request bodies correctly', async () => {

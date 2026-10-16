@@ -1,10 +1,23 @@
 import * as assert from 'node:assert/strict';
+import { existsSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { CommandResult } from '../../commands/CommandController';
 import { COMMANDS } from '../../constants';
 import { regressionFixtures } from '../fixtures/regressionFixtures';
 
 suite('JustAPI extension host', () => {
+  test('loads the expected built artifact with packaged payload boundaries', () => {
+    const extension = vscode.extensions.all.find(candidate => candidate.id.toLowerCase() === 'devbysergio.justapi');
+    assert.ok(extension);
+    assert.ok(existsSync(join(extension.extensionPath, 'dist', 'extension.js')));
+    if (process.env.JUSTAPI_PACKAGED_EXTENSION) {
+      assert.equal(realpathSync(extension.extensionPath), realpathSync(process.env.JUSTAPI_PACKAGED_EXTENSION));
+      for (const excluded of ['src', 'node_modules', 'out-webview', 'webview-ui']) {
+        assert.equal(existsSync(join(extension.extensionPath, excluded)), false, excluded);
+      }
+    }
+  });
   test('activates at the declared VS Code engine floor', async () => {
     const extension = vscode.extensions.all.find(candidate => (
       candidate.packageJSON.name === 'justapi' && candidate.packageJSON.publisher === 'DevBySergio'

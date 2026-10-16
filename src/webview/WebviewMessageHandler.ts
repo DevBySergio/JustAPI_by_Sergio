@@ -5,7 +5,7 @@ import {
   CommandStartupAction,
 } from '../commands/CommandController';
 import { StartupActionQueue } from '../commands/StartupActionQueue';
-import { InitialState, StartupAction, WebviewMessage } from '../models/MessageProtocol';
+import { ExtensionMessage, StartupAction, WebviewMessage } from '../models/MessageProtocol';
 import { WebviewProtocol } from '../protocol/WebviewProtocol';
 import { ApplicationError } from '../services/ApplicationError';
 import { CodeGenerationService } from '../services/CodeGenerationService';
@@ -33,6 +33,10 @@ export interface WebviewMessageHandlerOptions {
 
 export class WebviewMessageHandler {
   constructor(private readonly options: WebviewMessageHandlerOptions) {}
+
+  async resetForNewView(): Promise<void> {
+    await this.options.collections.discardAllPendingAuth();
+  }
 
   async initialize(): Promise<void> {
     await this.options.collections.load();
@@ -73,7 +77,7 @@ export class WebviewMessageHandler {
         this.postCollections(message.operationId);
         if (saved) {
           this.options.protocol.post({
-            type: 'requestLoaded',
+            type: 'requestSaved',
             operationId: message.operationId,
             request: saved,
           });
@@ -93,9 +97,19 @@ export class WebviewMessageHandler {
           operationId: message.operationId,
           requestId: message.requestId,
           auth,
+          pending: this.options.collections.hasPendingAuth(message.requestId),
         });
         return;
       }
+
+      case 'discardRequestChanges':
+        await this.options.collections.discardRequestChanges(message.requestId);
+        return;
+
+      case 'setCollectionVariables':
+        await this.options.collections.updateCollectionVariables(message.collectionId, message.variables);
+        this.postCollections(message.operationId);
+        return;
 
       case 'getCollections':
         this.postCollections(message.operationId);
@@ -147,6 +161,21 @@ export class WebviewMessageHandler {
           message.targetParentId,
           message.targetIndex
         );
+        this.postCollections(message.operationId);
+        return;
+
+      case 'createFolder':
+        await this.options.collections.createFolder(message.collectionId, message.name, message.parentId);
+        this.postCollections(message.operationId);
+        return;
+
+      case 'renameFolder':
+        await this.options.collections.renameFolder(message.collectionId, message.folderId, message.name);
+        this.postCollections(message.operationId);
+        return;
+
+      case 'deleteFolder':
+        await this.options.collections.deleteFolder(message.collectionId, message.folderId);
         this.postCollections(message.operationId);
         return;
 
@@ -371,21 +400,29 @@ export class WebviewMessageHandler {
     return await this.options.collections.importDocument(json);
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.options.requests.dispose();
     this.options.startupActions.dispose();
+    await Promise.all([
+      this.options.collections.dispose(),
+      this.options.history.dispose(),
+      this.options.variableSets.dispose(),
+    ]);
   }
 
   private async sendInitialState(operationId: string): Promise<void> {
     await this.initialize();
-    const state: InitialState = {
-      collections: this.options.collections.getCollections(),
-      history: await this.options.history.list(),
-      variables: await this.options.persistence.loadVariables(),
-      variableSets: this.options.variableSets.getAll(),
-      settings: await this.options.persistence.loadSettings(),
-    };
-    this.options.protocol.post({ type: 'initialState', operationId, state });
+    const domains: ExtensionMessage[] = [
+      { type: 'collections', operationId, collections: this.options.collections.getCollections() },
+      { type: 'history', operationId, entries: await this.options.history.list() },
+      { type: 'variables', operationId, variables: await this.options.persistence.loadVariables() },
+      { type: 'variableSets', operationId, sets: this.options.variableSets.getAll() },
+      { type: 'settings', operationId, settings: await this.options.persistence.loadSettings() },
+    ];
+    for (const domain of domains) {
+      if (!this.options.protocol.post(domain)) { throw new ApplicationError('OUTBOUND_MESSAGE_INVALID'); }
+    }
+    this.options.protocol.post({ type: 'initializationComplete', operationId });
   }
 
   private postCollections(operationId: string): void {

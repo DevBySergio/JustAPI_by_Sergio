@@ -2,6 +2,7 @@ import { validateHeaderName, validateHeaderValue } from 'node:http';
 import type { AuthConfig } from '../../models/Auth';
 import type { HttpMethod, JustRequest, RequestSettings } from '../../models/Request';
 import { normalizeRequestSettings } from '../../models/Request';
+import { PathParameterError, substitutePathParameters } from './PathParameters';
 
 const MAX_URL_LENGTH = 16 * 1024;
 const BODY_MANAGED_HEADERS = new Set(['content-length', 'transfer-encoding']);
@@ -50,7 +51,7 @@ export interface EffectiveRequest {
   auth: EffectiveRequestAuth;
 }
 
-export type EffectiveRequestErrorCode = 'INVALID_URL' | 'INVALID_HEADER';
+export type EffectiveRequestErrorCode = 'INVALID_URL' | 'INVALID_HEADER' | 'INVALID_PATH_PARAMETER';
 
 export class EffectiveRequestError extends Error {
   constructor(readonly code: EffectiveRequestErrorCode, message: string) {
@@ -105,6 +106,11 @@ function normalizeUrl(request: JustRequest): string {
       'The request URL must use the HTTP or HTTPS protocol.'
     );
   }
+  try { substitutePathParameters(url, request.pathParams); }
+  catch (error) {
+    if (!(error instanceof PathParameterError)) { throw error; }
+    throw new EffectiveRequestError('INVALID_PATH_PARAMETER', error.message);
+  }
   for (const parameter of request.queryParams) {
     if (parameter.enabled && parameter.key) {
       url.searchParams.append(parameter.key, parameter.value);
@@ -134,6 +140,11 @@ function normalizeBody(request: JustRequest): EffectiveRequestBody {
     case 'form-data':
       return { type: 'form-data', content: '', fields, contentType: 'multipart/form-data' };
     case 'x-www-form-urlencoded':
+      // Imported cURL can carry already encoded bytes rather than editable fields.
+      // Represent that as a raw body so transport and all snippet targets preserve it.
+      if (request.body.formData === undefined) {
+        return { type: 'text', content: request.body.content, fields: [], contentType: 'application/x-www-form-urlencoded' };
+      }
       return {
         type: 'x-www-form-urlencoded',
         content: '',

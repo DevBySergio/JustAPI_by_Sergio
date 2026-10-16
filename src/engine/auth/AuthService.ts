@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { TextDecoder } from 'node:util';
 import { AuthConfig, AuthInput, PersistedAuthConfig, toPublicAuth } from '../../models/Auth';
 import { JustRequest, normalizeRequestSettings, PersistedJustRequest } from '../../models/Request';
+import { isCredentialHeader, isCredentialPlaceholder, redactRecognizedCredentials } from './CredentialRedaction';
 
 export interface SecretStorageLike {
   get(key: string): PromiseLike<string | undefined>;
@@ -21,6 +22,19 @@ export class AuthServiceError extends Error {
     super(code);
     this.name = 'AuthServiceError';
   }
+}
+
+export function assertNoAuthConflict(request: JustRequest): void {
+  if (request.auth.type === 'none') { return; }
+  const query = request.auth.type === 'apiKey' && request.auth.in === 'query';
+  const name = request.auth.type === 'apiKey' ? request.auth.name : 'Authorization';
+  const pairs = query ? request.queryParams : request.headers;
+  if (pairs.some(pair => pair.enabled && (query ? pair.key === name : pair.key.toLowerCase() === name.toLowerCase()))) {
+    throw new AuthServiceError('AUTH_CONFLICT');
+  }
+  let url: URL | undefined;
+  try { url = new URL(request.url); } catch { /* Exported drafts may contain unresolved URLs. */ }
+  if (query && url?.searchParams.has(name)) { throw new AuthServiceError('AUTH_CONFLICT'); }
 }
 
 type StoredSecret =
@@ -112,6 +126,8 @@ export class AuthService {
     const copy = cloneRequest(request);
     return { ...copy, auth: toPublicAuth(request.auth) };
   }
+
+  hasPendingChanges(requestId: string): boolean { return this.staged.has(requestId); }
 
   async configure(
     requestId: string,
@@ -206,9 +222,10 @@ export class AuthService {
   async resolveForTransport(
     request: JustRequest,
     existing?: PersistedJustRequest,
-    configuredAuth: AuthConfig = request.auth
+    configuredAuth: AuthConfig = request.auth,
+    options: { usePending?: boolean } = {}
   ): Promise<JustRequest> {
-    const persisted = this.resolveConfig(request.id, request.auth, configuredAuth, existing);
+    const persisted = this.resolveConfig(request.id, request.auth, configuredAuth, existing, options.usePending ?? true);
     if (persisted.type === 'none') {
       return cloneRequest(request);
     }
@@ -220,14 +237,7 @@ export class AuthService {
   }
 
   redactForDerivative(request: JustRequest): JustRequest {
-    const copy = cloneRequest(request);
-    for (const header of copy.headers) {
-      const key = header.key.toLowerCase();
-      if (key === 'x-api-key'
-        || (key === 'authorization' && /^(?:bearer|basic)\s+/i.test(header.value))) {
-        header.value = PLACEHOLDERS.redacted;
-      }
-    }
+    const copy = redactRecognizedCredentials(request);
 
     switch (copy.auth.type) {
       case 'none':
@@ -250,23 +260,43 @@ export class AuthService {
 
   prepareForImport(request: JustRequest): PersistedJustRequest {
     const copy = cloneRequest(request);
-    if (copy.auth.type === 'bearer' || copy.auth.type === 'basic') {
-      copy.headers = copy.headers.filter(
-        pair => !(pair.enabled && pair.key.toLowerCase() === 'authorization')
-      );
-    } else if (copy.auth.type === 'apiKey') {
-      const { name, in: location } = copy.auth;
-      const pairs = location === 'header' ? copy.headers : copy.queryParams;
-      const filtered = pairs.filter(
-        pair => !(pair.enabled && pair.key.toLowerCase() === name.toLowerCase())
-      );
-      if (location === 'header') {
-        copy.headers = filtered;
-      } else {
-        copy.queryParams = filtered;
-      }
-    }
+    const auth = copy.auth;
+    copy.headers = copy.headers.filter(pair => !(isCredentialPlaceholder(pair.value)
+      && (isCredentialHeader(pair.key) || (auth.type === 'apiKey' && auth.in === 'header' && pair.key.toLowerCase() === auth.name.toLowerCase()))));
+    copy.queryParams = copy.queryParams.filter(pair => !(isCredentialPlaceholder(pair.value)
+      && auth.type === 'apiKey' && auth.in === 'query' && pair.key === auth.name));
     return { ...copy, auth: { type: 'none' } };
+  }
+
+  async importRequests(
+    requests: readonly JustRequest[],
+    persist: (requests: PersistedJustRequest[]) => Promise<void>
+  ): Promise<void> {
+    const prepared: PersistedJustRequest[] = [];
+    try {
+      for (const source of requests) {
+        let request: JustRequest = this.toPublicRequest(this.prepareForImport(source));
+        if (source.auth.type === 'apiKey') {
+          const { name, in: location } = source.auth;
+          const pairs = location === 'header' ? request.headers : request.queryParams;
+          const matches = pairs.filter(pair => pair.enabled && (location === 'query' ? pair.key === name : pair.key.toLowerCase() === name.toLowerCase()));
+          if (matches.length > 1) { throw new AuthServiceError('AUTH_CONFLICT'); }
+          if (matches[0]) {
+            request.auth = await this.configure(request.id, { type: 'apiKey', name, in: location, value: matches[0].value });
+            pairs.splice(pairs.indexOf(matches[0]), 1);
+          }
+        }
+        if (request.auth.type === 'none') {
+          request = (await this.stageRecognizedLegacyAuth(request)).request;
+        }
+        prepared.push(this.prepareForSave(request));
+      }
+      await persist(prepared);
+    } catch (error) {
+      await Promise.all(requests.map(request => this.rollbackSave(request.id)));
+      throw error;
+    }
+    for (const request of requests) { await this.commitSave(request.id, prepared); }
   }
 
   async confirmDisclosure(
@@ -339,6 +369,7 @@ export class AuthService {
     removed: readonly PersistedJustRequest[],
     remaining: readonly PersistedJustRequest[]
   ): Promise<void> {
+    await Promise.all(removed.map(request => this.rollbackSave(request.id)));
     const refs = new Set(removed.map(request => secretRefOf(request.auth)).filter(Boolean) as string[]);
     await Promise.all(Array.from(refs, ref => this.deleteIfUnreferenced(ref, remaining)));
   }
@@ -355,12 +386,13 @@ export class AuthService {
     requestId: string,
     resolvedAuth: AuthConfig,
     configuredAuth: AuthConfig,
-    existing?: PersistedJustRequest
+    existing?: PersistedJustRequest,
+    usePending = true
   ): PersistedAuthConfig {
     if (!this.authShapeMatches(resolvedAuth, configuredAuth)) {
       throw new AuthServiceError('AUTH_SECRET_NOT_FOUND');
     }
-    const staged = this.staged.get(requestId)?.config;
+    const staged = usePending ? this.staged.get(requestId)?.config : undefined;
     if (configuredAuth.type === 'none') {
       return { type: 'none' };
     }
@@ -405,6 +437,7 @@ export class AuthService {
     persisted: Exclude<PersistedAuthConfig, { type: 'none' }>,
     secret: StoredSecret
   ): JustRequest {
+    assertNoAuthConflict(request);
     const copy = cloneRequest(request);
     if (persisted.type === 'bearer' && resolvedAuth.type === 'bearer' && secret.type === 'bearer') {
       this.injectTransportValue(copy.headers, 'Authorization', `Bearer ${secret.token}`);
@@ -415,7 +448,8 @@ export class AuthService {
       this.injectTransportValue(
         resolvedAuth.in === 'header' ? copy.headers : copy.queryParams,
         resolvedAuth.name,
-        secret.value
+        secret.value,
+        resolvedAuth.in === 'query'
       );
     } else {
       throw new AuthServiceError('AUTH_SECRET_NOT_FOUND');
@@ -426,9 +460,10 @@ export class AuthService {
   private injectTransportValue(
     pairs: JustRequest['headers'],
     key: string,
-    value: string
+    value: string,
+    caseSensitive = false
   ): void {
-    if (pairs.some(pair => pair.enabled && pair.key.toLowerCase() === key.toLowerCase())) {
+    if (pairs.some(pair => pair.enabled && (caseSensitive ? pair.key === key : pair.key.toLowerCase() === key.toLowerCase()))) {
       throw new AuthServiceError('AUTH_CONFLICT');
     }
     pairs.push({ id: `auth-${randomUUID()}`, key, value, enabled: true });

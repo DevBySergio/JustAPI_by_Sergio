@@ -1,12 +1,12 @@
-import { AuthService } from '../engine/auth/AuthService';
-import { normalizeEffectiveRequest } from '../engine/http/EffectiveRequest';
+import { assertNoAuthConflict, AuthService, AuthServiceError } from '../engine/auth/AuthService';
+import { EffectiveRequestError, normalizeEffectiveRequest } from '../engine/http/EffectiveRequest';
 import { ResolutionContext, VariableEngine } from '../engine/variables/VariableEngine';
 import { VariableSetManager } from '../engine/variables/VariableSetManager';
 import { JustRequest } from '../models/Request';
 import { RequestResolutionResult, VariableDiagnostic } from '../models/VariableResolution';
 import { CollectionService } from './CollectionService';
 import { PersistenceService } from './PersistenceService';
-import { ApplicationError } from './ApplicationError';
+import { preflightError } from './ApplicationError';
 
 export interface ResolutionPreview {
   resolvedUrl: string;
@@ -34,22 +34,33 @@ export class RequestPreparationService implements RequestPreparation {
   ) {}
 
   async resolve(request: JustRequest, collectionId?: string): Promise<RequestResolutionResult> {
-    return this.variableEngine.resolveRequest(
+    const result = this.variableEngine.resolveRequest(
       request,
       await this.buildResolutionContext(request, collectionId)
     );
+    if (result.ok) {
+      try { normalizeEffectiveRequest(result.request); assertNoAuthConflict(result.request); }
+      catch (error) {
+        if (!(error instanceof EffectiveRequestError) && !(error instanceof AuthServiceError)) { throw error; }
+        result.ok = false;
+        result.diagnostics.push({ code: error instanceof AuthServiceError ? 'AUTH_CONFLICT' : error.code, location: error instanceof AuthServiceError ? 'auth' : error.code === 'INVALID_URL' ? 'url' : error.code === 'INVALID_PATH_PARAMETER' ? 'pathParams' : 'headers' });
+      }
+    }
+    return result;
   }
 
   async resolveForTransport(request: JustRequest, collectionId?: string): Promise<JustRequest> {
     const preflight = await this.resolve(request, collectionId);
     if (!preflight.ok) {
-      throw new ApplicationError('VARIABLE_RESOLUTION_FAILED');
+      throw preflightError(preflight.diagnostics);
     }
-    return await this.auth.resolveForTransport(
+    const prepared = await this.auth.resolveForTransport(
       preflight.request,
       this.collections.getPersistedRequest(request.id),
       request.auth
     );
+    normalizeEffectiveRequest(prepared);
+    return prepared;
   }
 
   redactForDerivative(request: JustRequest): JustRequest {
@@ -57,9 +68,9 @@ export class RequestPreparationService implements RequestPreparation {
   }
 
   async preview(request: JustRequest | null, collectionId?: string): Promise<ResolutionPreview> {
-    const source = request ? this.auth.redactForDerivative(request) : null;
+    const source = request;
     const preflight = source ? await this.resolve(source, collectionId) : null;
-    const resolvedRequest = preflight?.request;
+    const resolvedRequest = preflight ? this.auth.redactForDerivative(preflight.request) : undefined;
     let effectiveRequest: ReturnType<typeof normalizeEffectiveRequest> | undefined;
     if (resolvedRequest) {
       try {
@@ -93,7 +104,7 @@ export class RequestPreparationService implements RequestPreparation {
       resolvedQueryParams: JSON.stringify(resolvedQueryParams, null, 2),
       resolvedBody,
       diagnostics: preflight?.diagnostics ?? [],
-      canExecute: preflight?.ok ?? true,
+      canExecute: Boolean(preflight?.ok && effectiveRequest),
     };
   }
 

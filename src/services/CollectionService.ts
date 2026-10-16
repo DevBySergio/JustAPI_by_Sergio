@@ -1,3 +1,5 @@
+import { SerialQueue } from '../utils/SerialQueue';
+import { assertCollectionGraph } from '../engine/collection/CollectionGraph';
 import { AuthInput } from '../models/Auth';
 import { Collection } from '../models/Collection';
 import { COLLECTION_TRANSFER_SCHEMA_VERSION } from '../models/CollectionTransfer';
@@ -26,17 +28,22 @@ export interface CollectionExport {
 }
 
 export class CollectionService {
+  private readonly operations = new SerialQueue();
   constructor(
     private readonly manager: CollectionManager,
     private readonly auth: AuthService
   ) {}
 
+  async dispose(): Promise<void> { await this.operations.close(); }
+
   async load(): Promise<void> {
-    await this.manager.load();
-    await this.auth.migrateLegacyRequests(
-      this.manager.getRequests(),
-      requests => this.manager.replaceRequests(requests)
-    );
+    return this.operations.run(async () => {
+      await this.manager.load();
+      await this.auth.migrateLegacyRequests(
+        this.manager.getRequests(),
+        requests => this.manager.replaceRequests(requests)
+      );
+    });
   }
 
   getCollections(): Collection[] {
@@ -65,50 +72,74 @@ export class CollectionService {
     collectionId: string,
     parentId?: string
   ): Promise<JustRequest | undefined> {
-    const existing = this.manager.getRequest(request.id);
-    const staged = await this.auth.stageRecognizedLegacyAuth(request, existing);
-    const persisted = this.auth.prepareForSave(staged.request, existing);
-    try {
+    return this.operations.run(async () => {
+      const existing = this.manager.getRequest(request.id);
+      const staged = await this.auth.stageRecognizedLegacyAuth(request, existing);
+      const persisted = this.auth.prepareForSave(staged.request, existing);
       await this.manager.saveRequest(persisted, collectionId, parentId);
       await this.auth.commitSave(request.id, this.manager.getRequests());
-    } catch (error) {
-      await this.auth.rollbackSave(request.id);
-      throw error;
-    }
-    return this.getRequest(request.id);
+      return this.getRequest(request.id);
+    });
   }
 
   async deleteRequest(requestId: string, collectionId: string): Promise<void> {
-    await this.manager.deleteRequest(requestId, collectionId);
+    return this.operations.run(async () => {
+      await this.manager.deleteRequest(requestId, collectionId);
+    });
   }
 
+  async discardRequestChanges(requestId: string): Promise<void> {
+    return this.operations.run(async () => {
+      await this.auth.rollbackSave(requestId);
+    });
+  }
+
+  async discardAllPendingAuth(): Promise<void> {
+    return this.operations.run(async () => { await this.auth.dispose(); });
+  }
+
+  hasPendingAuth(requestId: string): boolean { return this.auth.hasPendingChanges(requestId); }
+
   async configureAuth(requestId: string, input: AuthInput): Promise<JustRequest['auth']> {
-    return await this.auth.configure(requestId, input, this.manager.getRequest(requestId));
+    return this.operations.run(async () => {
+      return await this.auth.configure(requestId, input, this.manager.getRequest(requestId));
+    });
   }
 
   async createCollection(name: string): Promise<void> {
-    await this.manager.createCollection(name);
+    return this.operations.run(async () => {
+      await this.manager.createCollection(name);
+    });
   }
 
   async updateCollection(collection: Collection): Promise<void> {
-    await this.manager.updateCollection(collection);
+    return this.operations.run(async () => {
+      await this.manager.updateCollection(collection);
+    });
+  }
+
+  async updateCollectionVariables(collectionId: string, variables: Collection['variables']): Promise<void> {
+    return this.operations.run(async () => {
+      await this.manager.updateVariables(collectionId, variables);
+    });
   }
 
   async deleteCollection(collectionId: string): Promise<void> {
-    await this.manager.deleteCollection(collectionId);
+    return this.operations.run(async () => {
+      await this.manager.deleteCollection(collectionId);
+    });
   }
 
   async duplicateCollection(collectionId: string): Promise<void> {
-    await this.manager.duplicateCollection(collectionId);
+    return this.operations.run(async () => {
+      await this.manager.duplicateCollection(collectionId);
+    });
   }
 
   async renameCollection(collectionId: string, name: string): Promise<void> {
-    const collection = this.manager.getCollection(collectionId);
-    if (!collection) {
-      throw new Error('Collection not found');
-    }
-    collection.name = name;
-    await this.manager.updateCollection(collection);
+    return this.operations.run(async () => {
+      await this.manager.renameCollection(collectionId, name);
+    });
   }
 
   async moveItem(
@@ -118,21 +149,39 @@ export class CollectionService {
     targetParentId?: string,
     targetIndex?: number
   ): Promise<void> {
-    await this.manager.moveItem(
-      itemId,
-      sourceCollectionId,
-      targetCollectionId,
-      targetParentId,
-      targetIndex
-    );
+    return this.operations.run(async () => {
+      await this.manager.moveItem(
+        itemId,
+        sourceCollectionId,
+        targetCollectionId,
+        targetParentId,
+        targetIndex
+      );
+    });
+  }
+
+  async createFolder(collectionId: string, name: string, parentId?: string): Promise<void> {
+    return this.operations.run(async () => { await this.manager.addFolder(collectionId, name, parentId); });
+  }
+
+  async renameFolder(collectionId: string, folderId: string, name: string): Promise<void> {
+    return this.operations.run(async () => { await this.manager.renameFolder(collectionId, folderId, name); });
+  }
+
+  async deleteFolder(collectionId: string, folderId: string): Promise<void> {
+    return this.operations.run(async () => { await this.manager.deleteFolder(collectionId, folderId); });
   }
 
   async stageImportedRequest(request: JustRequest): Promise<JustRequest> {
-    return (await this.auth.stageRecognizedLegacyAuth(request)).request;
+    return this.operations.run(async () => {
+      return (await this.auth.stageRecognizedLegacyAuth(request)).request;
+    });
   }
 
   async cancelImportedRequest(requestId: string): Promise<void> {
-    await this.auth.rollbackSave(requestId);
+    return this.operations.run(async () => {
+      await this.auth.rollbackSave(requestId);
+    });
   }
 
   async exportDocument(
@@ -140,52 +189,53 @@ export class CollectionService {
     includeCredentials: boolean,
     confirmDisclosure: (destination: string) => Promise<boolean>
   ): Promise<CollectionExport> {
-    const collection = this.manager.getCollection(collectionId);
-    if (!collection) {
-      throw new Error('Collection not found');
-    }
-    const disclose = includeCredentials
-      && await confirmDisclosure(`collection “${collection.name}” export`);
-    const requests: JustRequest[] = [];
-    for (const persisted of this.manager.getRequestsForCollection(collection.id)) {
-      const request = this.auth.toPublicRequest(persisted);
-      requests.push(disclose
-        ? await this.auth.resolveForTransport(request, persisted)
-        : this.auth.redactForDerivative(request));
-    }
-    const json = JSON.stringify({
-      schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
-      collection,
-      requests,
-    }, null, 2);
-    const validation = validateCollectionImportDocument(json);
-    if (!validation.ok) {
-      throw new CollectionTransferError(
-        validation.code === 'MESSAGE_TOO_LARGE' ? 'MESSAGE_TOO_LARGE' : 'IMPORT_ERROR',
-        validation.details
-      );
-    }
-    return { collectionId: collection.id, name: collection.name, json };
+    return this.operations.run(async () => {
+      const collection = this.manager.getCollection(collectionId);
+      if (!collection) {
+        throw new Error('Collection not found');
+      }
+      const disclose = includeCredentials
+        && await confirmDisclosure(`collection “${collection.name}” export`);
+      const requests: JustRequest[] = [];
+      for (const persisted of this.manager.getRequestsForCollection(collection.id)) {
+        const request = this.auth.toPublicRequest(persisted);
+        requests.push(disclose
+          ? await this.auth.resolveForTransport(request, persisted, request.auth, { usePending: false })
+          : this.auth.redactForDerivative(request));
+      }
+      const json = JSON.stringify({
+        schemaVersion: COLLECTION_TRANSFER_SCHEMA_VERSION,
+        collection,
+        requests,
+      }, null, 2);
+      const validation = validateCollectionImportDocument(json);
+      if (!validation.ok) {
+        throw new CollectionTransferError(
+          validation.code === 'MESSAGE_TOO_LARGE' ? 'MESSAGE_TOO_LARGE' : 'IMPORT_ERROR',
+          validation.details
+        );
+      }
+      return { collectionId: collection.id, name: collection.name, json };
+    });
   }
 
   async importDocument(json: string): Promise<{ collectionId: string }> {
-    const validation = validateCollectionImportDocument(json);
-    if (!validation.ok) {
-      throw new CollectionTransferError(
-        validation.code === 'MESSAGE_TOO_LARGE' ? 'MESSAGE_TOO_LARGE' : 'IMPORT_ERROR',
-        validation.details
+    return this.operations.run(async () => {
+      const validation = validateCollectionImportDocument(json);
+      if (!validation.ok) {
+        throw new CollectionTransferError(
+          validation.code === 'MESSAGE_TOO_LARGE' ? 'MESSAGE_TOO_LARGE' : 'IMPORT_ERROR',
+          validation.details
+        );
+      }
+      assertCollectionGraph(
+        [...this.manager.getCollections(), validation.value.collection],
+        [...this.manager.getRequests(), ...validation.value.requests]
       );
-    }
-    const importedRequests = validation.value.requests
-      .map(request => this.auth.prepareForImport(request));
-    let imported = false;
-    await this.auth.migrateLegacyRequests(importedRequests, async securedRequests => {
-      await this.manager.importCollection(validation.value.collection, securedRequests);
-      imported = true;
+      await this.auth.importRequests(validation.value.requests, async requests => {
+        await this.manager.importCollection(validation.value.collection, requests);
+      });
+      return { collectionId: validation.value.collection.id };
     });
-    if (!imported) {
-      await this.manager.importCollection(validation.value.collection, importedRequests);
-    }
-    return { collectionId: validation.value.collection.id };
   }
 }

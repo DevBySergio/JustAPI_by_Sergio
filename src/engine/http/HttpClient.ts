@@ -394,7 +394,7 @@ export class HttpClient {
   ): Promise<HopResult> {
     const isHttps = url.protocol === 'https:';
     const options: https.RequestOptions = {
-      hostname: url.hostname,
+      hostname: url.hostname.replace(/^\[|\]$/g, ''),
       port: url.port || (isHttps ? 443 : 80),
       path: `${url.pathname}${url.search}`,
       method,
@@ -433,7 +433,8 @@ export class HttpClient {
           }
 
           state.timings.firstByte = responseAt - state.startedAt;
-          const declaredLength = this.declaredContentLength(response.headers['content-length']);
+          const hasNoContent = method === 'HEAD' || statusCode === 204 || statusCode === 205 || statusCode === 304;
+          const declaredLength = hasNoContent ? undefined : this.declaredContentLength(response.headers['content-length']);
           if (declaredLength !== undefined && declaredLength > settings.maxResponseBytes) {
             finish({ kind: 'error', error: this.responseTooLargeError(settings.maxResponseBytes) });
             response.destroy();
@@ -466,7 +467,7 @@ export class HttpClient {
                 const responseHeaders = this.responseHeaders(response.headers);
                 const decoded = await this.decodeBody(
                   Buffer.concat(chunks, receivedBytes),
-                  responseHeaders,
+                  hasNoContent ? this.withoutHeaders(responseHeaders, ['content-encoding']) : responseHeaders,
                   settings.maxResponseBytes
                 );
                 if (state.controller.signal.aborted) {

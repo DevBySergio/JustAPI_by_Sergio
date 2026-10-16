@@ -147,6 +147,7 @@ export class CurlParser {
 
     const request = createDefaultRequest();
     request.name = 'Imported cURL';
+    request.settings.followRedirects = false;
     const headers: OrderedHeader[] = [];
     const dataValues: DataValue[] = [];
     const formValues: FormValue[] = [];
@@ -684,7 +685,11 @@ export class CurlParser {
     }
     if (lastBodyMode === 'data') {
       const content = dataValues.map(data => data.value).join('&');
-      request.body = { type: this.detectBodyType(content, request.headers, dataValues), content };
+      const type = this.detectBodyType(content, request.headers, dataValues);
+      request.body = { type, content };
+      if (!request.headers.some(header => header.enabled && header.key.toLowerCase() === 'content-type')) {
+        request.headers.push(createPair('Content-Type', 'application/x-www-form-urlencoded'));
+      }
     }
   }
 

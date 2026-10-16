@@ -33,7 +33,7 @@ application behavior is testable without constructing a VS Code webview.
 
 Protocol size limits remain centralized in `MessageValidator`, effective-request normalization
 remains centralized in `EffectiveRequest`, and credential redaction remains centralized in
-`AuthService`. Services compose those boundaries instead of reimplementing them.
+`AuthService` and its shared `CredentialRedaction` helper. Services compose those boundaries instead of reimplementing them.
 
 ## Lifecycle ownership
 
@@ -44,7 +44,7 @@ remains centralized in `EffectiveRequest`, and credential redaction remains cent
 3. `RequestService` owns the execution registry and cancels all active transports on disposal.
 4. `WebviewMessageHandler` disposes request execution and the startup queue exactly once from
    the provider's extension-level `dispose()` path.
-5. The provider then disposes staged secrets and every distinct store, allowing queued writes
+5. Application queues close to new work and drain accepted transactions before the provider disposes staged secrets and every distinct store, allowing queued writes
    to flush before extension shutdown completes.
 
 The unit suite checks the TypeScript source dependency graph and fails with the complete cycle
@@ -60,9 +60,25 @@ path if any relative-import cycle is introduced.
   `SecretStorage`; application services receive only public auth metadata and opaque references.
 - HTTP transport accepts bounded HTTP(S) inputs only. It does not own a cookie jar, proxy
   configuration, or local-file reader. cURL import is a parser and never executes shell syntax.
-- Folder graphs and request-scoped variables are valid domain data, but the webview currently
-  exposes neither folder-management actions nor a request-variable editor.
+- Folder graphs and request-scoped variables are exposed through the webview with targeted folder creation/rename/cascade deletion and request/folder moves, plus request-variable and path-parameter editors.
 
 The exact user-facing support contract, runtime assumptions, and deferred capabilities are
 maintained in [`README.md`](../README.md). Architectural support in an engine or protocol is not
 treated as a public UI capability unless the command/webview path and regression coverage prove it.
+
+## Corrective transaction and editor contracts (1.1.1)
+
+- `SerialQueue` protects the entire read-modify-commit transaction in collections, history, and variable sets. CollectionService additionally serializes secret staging with collection mutations; variable-set getters return copies and failed commits never publish their candidate state. Disk locks and cross-window revision checks remain independent safeguards.
+- `VariableAutosave`, owned by App, schedules only user edits and retains the latest snapshot until a host acknowledgement. `setCollectionVariables` patches only that domain. Navigation, execution, and code generation await pending saves.
+- `requestSaved` acknowledges a submitted snapshot; it does not navigate or overwrite newer editor fields. Mutation acknowledgements/errors are never superseded by queries. Read operations still suppress outdated results.
+- Auth Builder changes retain a session-only dirty marker and secret reference until Save. `discardRequestChanges` rolls back staging; webview replacement clears pending staging through the same service queue. No secret value is placed in React stores or persisted webview state.
+- Initialization sends each domain followed by `initializationComplete`; readiness is withheld when a domain fails protocol validation. Data-bearing messages have a separate budget from control messages.
+- RequestPreparationService combines variable resolution, effective-request URL/header validation, and static authentication conflict checks. The same result feeds preview, execution, and generated examples.
+
+## Daily workflows and deferred panels (1.2.0)
+
+Folder mutations traverse the same queued service/manager transaction as request saving. Moves use a destination index in the array after removal of the source item. Subtree deletion commits the tree and request removals together before releasing saved and staged credentials. The webview guards the active descendant draft and cancels its execution; cross-collection moves update the current request scope without replacing editor text.
+
+Path substitution occurs in `normalizeEffectiveRequest`, after hierarchical variable resolution. Only complete `/:name` path segments are substituted and values are encoded once. Preview, transport and code generation share this operation and the `INVALID_PATH_PARAMETER` preflight diagnostic.
+
+Secondary panels use React lazy imports with loading/error boundaries. Webpack derives chunk URLs from the local entry script and applies its nonce to every injected script. The CSP remains nonce-only; no remote script source is enabled. Build cleanup removes obsolete chunks. Package validation and installed-artifact checks cover all generated JavaScript and license files. A panel load error leaves the request editor and its stored draft available.

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { lazy, useEffect, useState, useCallback, useRef } from 'react';
 import {
   createExecutionId,
   completeStartupAction,
@@ -6,7 +6,11 @@ import {
   isCurrentOperation,
   onMessage,
   postMessage,
+  postMessageWithAck,
+  invalidateEditorResults,
 } from './utils/vscodeApi';
+import { VariableAutosave } from './utils/VariableAutosave';
+import { JustRequest } from '../../src/models/Request';
 import { emit } from './utils/eventBus';
 import { useRequestStore } from './stores/useRequestStore';
 import { useResponseStore } from './stores/useResponseStore';
@@ -14,16 +18,11 @@ import { useCollectionStore } from './stores/useCollectionStore';
 import { useHistoryStore } from './stores/useHistoryStore';
 import { useVariableStore } from './stores/useVariableStore';
 import { RequestEditor } from './components/RequestEditor/RequestEditor';
-import { ResponseViewer } from './components/ResponseViewer/ResponseViewer';
-import { CollectionPanel } from './components/CollectionPanel';
-import { HistoryPanel } from './components/HistoryPanel';
-import { VariableEditor } from './components/VariableEditor';
-import { VariableSetPanel } from './components/VariableSetPanel';
+import type { RemoveCollectionItems } from './components/CollectionTree';
 import { SearchBar } from './components/Common/SearchBar';
 import { SearchResults } from './components/Common/SearchResults';
-import { CodeGenPanel } from './components/CodeGenPanel';
-import { CurlImportPreview } from './components/CurlImportPreview';
 import { ConfirmDialog } from './components/Common/ConfirmDialog';
+import { DeferredPanel } from './components/Common/DeferredPanel';
 import { SearchResult } from '../../src/models/MessageProtocol';
 import type { CurlImportParseResult } from '../../src/models/CurlImport';
 import type { HistoryEntry } from '../../src/models/HistoryEntry';
@@ -36,6 +35,19 @@ import {
   restorePersistedWebviewState,
   type WebviewTab,
 } from '../../src/webview/WebviewState';
+
+const CollectionPanel = lazy(() => import(/* webpackChunkName: "collectionpanel" */ './components/CollectionPanel').then(module => ({ default: module.CollectionPanel })));
+
+const HistoryPanel = lazy(() => import(/* webpackChunkName: "historypanel" */ './components/HistoryPanel').then(module => ({ default: module.HistoryPanel })));
+
+const VariableEditor = lazy(() => import(/* webpackChunkName: "variableeditor" */ './components/VariableEditor').then(module => ({ default: module.VariableEditor })));
+
+const VariableSetPanel = lazy(() => import(/* webpackChunkName: "variablesetpanel" */ './components/VariableSetPanel').then(module => ({ default: module.VariableSetPanel })));
+
+const CodeGenPanel = lazy(() => import(/* webpackChunkName: "codegenpanel" */ './components/CodeGenPanel').then(module => ({ default: module.CodeGenPanel })));
+
+const CurlImportPreview = lazy(() => import(/* webpackChunkName: "curlimportpreview" */ './components/CurlImportPreview').then(module => ({ default: module.CurlImportPreview })));
+const ResponseViewer = lazy(() => import(/* webpackChunkName: "response-viewer" */ './components/ResponseViewer/ResponseViewer').then(module => ({ default: module.ResponseViewer })));
 
 type TabView = WebviewTab;
 
@@ -76,6 +88,7 @@ export function App() {
     restoredState?.baselineRequest ?? useRequestStore.getState().currentRequest
   );
   const baselineRequestRef = useRef(baselineRequest);
+  const saveSnapshots = useRef(new Map<string, { request: JustRequest; authRevision: number }>());
   const [stateRestored, setStateRestored] = useState(restoredState === null);
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const acknowledgementNotifications = useRef(new Map<string, { message: string; onSuccess?: () => void }>());
@@ -96,6 +109,19 @@ export function App() {
     }
   }, []);
 
+  const [autosave] = useState(() => new VariableAutosave(postMessageWithAck, () => {
+    showNotification('Variables could not be saved. Your pending edits are retained; retry before sending.', 'error');
+  }));
+  const changeTab = useCallback((tab: TabView) => {
+    void (async () => {
+      await autosave.flush();
+      await useRequestStore.getState().authUpdate;
+      setActiveTab(tab);
+    })().catch(error => showNotification(String(error), 'error'));
+  }, [autosave, showNotification]);
+  const authPending = useRequestStore(state => state.authPending);
+  const authUpdate = useRequestStore(state => state.authUpdate);
+
   const setRequest = useRequestStore((s) => s.setRequest);
   const setAuth = useRequestStore((s) => s.setAuth);
   const resetRequest = useRequestStore((s) => s.resetRequest);
@@ -103,6 +129,7 @@ export function App() {
   const setExecutionState = useRequestStore((s) => s.setExecutionState);
   const setResponse = useResponseStore((s) => s.setResponse);
   const clearResponse = useResponseStore((s) => s.clearResponse);
+  const hasResponse = useResponseStore((s) => s.hasResponse);
   const setCollections = useCollectionStore((s) => s.setCollections);
   const setEntries = useHistoryStore((s) => s.setEntries);
   const addEntry = useHistoryStore((s) => s.addEntry);
@@ -115,29 +142,67 @@ export function App() {
 
   const markRequestClean = useCallback((request: typeof currentRequest) => {
     setRequest(request);
+    useRequestStore.getState().markAuthClean();
     baselineRequestRef.current = request;
     setBaselineRequest(request);
   }, [setRequest]);
 
   const resetCleanRequest = useCallback(() => {
     resetRequest();
+    useRequestStore.getState().markAuthClean();
     const request = useRequestStore.getState().currentRequest;
     baselineRequestRef.current = request;
     setBaselineRequest(request);
   }, [resetRequest]);
 
   const confirmDestructiveNavigation = useCallback((confirmation: PendingConfirmation) => {
-    const request = useRequestStore.getState().currentRequest;
-    if (!requestsDiffer(request, baselineRequestRef.current)) {
+    const perform = async () => {
+      await autosave.flush();
+      await useRequestStore.getState().authUpdate;
+      const state = useRequestStore.getState();
+      await postMessageWithAck({ type: 'discardRequestChanges', requestId: state.currentRequest.id });
+      if (state.activeExecutionId) {
+        postMessage({ type: 'cancelRequest', executionId: state.activeExecutionId });
+        state.setExecutionState(state.activeExecutionId, false);
+      }
+      state.markAuthClean();
+      invalidateEditorResults();
+      saveSnapshots.current.clear();
+      clearResponse();
+      setCodeGenCode('');
       confirmation.onConfirm();
+    };
+    const onConfirm = () => { void perform().catch(error => showNotification(String(error), 'error')); };
+    const state = useRequestStore.getState();
+    if (!state.authPending && !state.authUpdate && !requestsDiffer(state.currentRequest, baselineRequestRef.current)) {
+      onConfirm();
       return;
     }
-    setPendingConfirmation(confirmation);
-  }, []);
+    setPendingConfirmation({ ...confirmation, onConfirm });
+  }, [autosave, clearResponse, showNotification]);
 
   const registerAcknowledgement = useCallback((operationId: string, message: string, onSuccess?: () => void) => {
     acknowledgementNotifications.current.set(operationId, { message, onSuccess });
   }, []);
+
+  const removeCollectionItems: RemoveCollectionItems = useCallback((requestIds, remove) => {
+    const requestId = useRequestStore.getState().currentRequest.id;
+    const perform = async () => {
+      await autosave.flush();
+      await remove();
+      if (requestIds.includes(requestId) && useRequestStore.getState().currentRequest.id === requestId) {
+        resetCleanRequest();
+      }
+    };
+    if (requestIds.includes(requestId)) {
+      confirmDestructiveNavigation({
+        title: 'Discard unsaved request changes?',
+        message: 'Deleting this item also removes the current saved request and its unsaved edits.',
+        confirmLabel: 'Discard and delete',
+        onConfirm: () => { void perform().catch(error => showNotification(String(error), 'error')); },
+      });
+    } else { void perform().catch(error => showNotification(String(error), 'error')); }
+  }, [autosave, confirmDestructiveNavigation, resetCleanRequest, showNotification]);
 
   useEffect(() => {
     if (!restoredState) {
@@ -149,7 +214,7 @@ export function App() {
     setBaselineRequest(restoredState.baselineRequest);
     setStateRestored(true);
     if (restoredState.redactedValues) {
-      showNotification('Sensitive or oversized editor values were not restored. Review the request before sending.', 'info');
+      showNotification('Sensitive, oversized, or unsaved authentication values were not restored. Review the request before sending.', 'info');
     }
   }, []);
 
@@ -167,12 +232,15 @@ export function App() {
       activeCollectionId,
       currentRequest,
       baselineRequest,
+      pendingAuth: authPending || authUpdate !== null,
     }));
-  }, [activeCollectionId, activeTab, baselineRequest, currentRequest, stateRestored, varSubTab]);
+  }, [activeCollectionId, activeTab, authPending, authUpdate, baselineRequest, currentRequest, stateRestored, varSubTab]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (requestsDiffer(useRequestStore.getState().currentRequest, baselineRequestRef.current)) {
+      void autosave.flush().catch(() => undefined);
+      const state = useRequestStore.getState();
+      if (state.authPending || state.authUpdate || requestsDiffer(state.currentRequest, baselineRequestRef.current)) {
         event.preventDefault();
         event.returnValue = '';
       }
@@ -188,7 +256,7 @@ export function App() {
       }
       switch (message.type) {
         case 'initialState':
-          setCollections(message.state.collections);
+          setCollections(autosave.overlayCollections(message.state.collections));
           if (useCollectionStore.getState().activeCollectionId
             && !message.state.collections.some(collection => (
               collection.id === useCollectionStore.getState().activeCollectionId
@@ -196,13 +264,26 @@ export function App() {
             selectCollection(null);
           }
           setEntries(message.state.history);
-          setGlobalVariables(message.state.variables);
+          setGlobalVariables(autosave.overlayGlobal(message.state.variables));
           setVariableSets(message.state.variableSets || []);
           setIsReady(true);
           break;
-        case 'collections':
-          setCollections(message.collections);
+        case 'initializationComplete':
+          setIsReady(true);
           break;
+        case 'collections': {
+          const previous = useCollectionStore.getState().collections;
+          const requestId = useRequestStore.getState().currentRequest.id;
+          const previousOwner = previous.find(collection => hasSavedRequest(collection.items, requestId));
+          const nextOwner = message.collections.find(collection => hasSavedRequest(collection.items, requestId));
+          setCollections(autosave.overlayCollections(message.collections));
+          if (previousOwner && nextOwner && previousOwner.id !== nextOwner.id) {
+            selectCollection(nextOwner.id);
+          } else if (!message.collections.some(collection => collection.id === useCollectionStore.getState().activeCollectionId)) {
+            selectCollection(null);
+          }
+          break;
+        }
         case 'response':
           if (isActiveExecution(useRequestStore.getState().activeExecutionId, message.executionId)) {
             setResponse(message.response);
@@ -217,7 +298,7 @@ export function App() {
           }
           break;
         case 'variables':
-          setGlobalVariables(message.variables);
+          setGlobalVariables(autosave.overlayGlobal(message.variables));
           break;
         case 'requestExecuting':
           setExecutionState(message.executionId, message.executing);
@@ -238,18 +319,24 @@ export function App() {
           setActiveTab('editor');
           requestAnimationFrame(() => document.getElementById('request-name-input')?.focus());
           break;
+        case 'requestSaved': {
+          const submitted = saveSnapshots.current.get(message.operationId);
+          saveSnapshots.current.delete(message.operationId);
+          if (submitted && useRequestStore.getState().currentRequest.id === message.request.id) {
+            useRequestStore.getState().acceptSavedRequest(message.request, submitted.request, submitted.authRevision);
+            baselineRequestRef.current = message.request;
+            setBaselineRequest(message.request);
+          }
+          break;
+        }
         case 'requestAuthUpdated':
           if (useRequestStore.getState().currentRequest.id === message.requestId) {
-            setAuth(message.auth);
-            setBaselineRequest(previous => {
-              const baseline = { ...previous, auth: message.auth };
-              baselineRequestRef.current = baseline;
-              return baseline;
-            });
-            showNotification('Authentication updated', 'success');
+            setAuth(message.auth, message.pending);
+            showNotification('Authentication applied. Save the request to keep this change.', 'info');
           }
           break;
         case 'error':
+          saveSnapshots.current.delete(message.operationId);
           acknowledgementNotifications.current.delete(message.operationId);
           if (searchOperationIdRef.current === message.operationId) {
             searchOperationIdRef.current = null;
@@ -355,44 +442,51 @@ export function App() {
   }, [isReady]);
 
   const handleSend = useCallback(() => {
-    setSearchResults([]);
-    setSearchOpen(false);
-    const requestState = useRequestStore.getState();
-    if (requestState.isExecuting) {
-      return;
-    }
-    const request = requestState.currentRequest;
-    const collectionId = useCollectionStore.getState().activeCollectionId;
-    if (!request.url) {
-      showNotification('Please enter a URL', 'error');
-      return;
-    }
-    const executionId = createExecutionId();
-    clearResponse();
-    beginExecution(executionId);
-    try {
-      postMessage({
-        type: 'executeRequest',
-        executionId,
-        request,
-        collectionId: collectionId ?? undefined,
-      });
-    } catch {
-      setExecutionState(executionId, false);
-      showNotification('The request could not be submitted.', 'error');
-    }
-  }, []);
+    void (async () => {
+      await autosave.flush();
+      await useRequestStore.getState().authUpdate;
+      setSearchResults([]);
+      setSearchOpen(false);
+      const requestState = useRequestStore.getState();
+      if (requestState.isExecuting) {
+        return;
+      }
+      const request = requestState.currentRequest;
+      const collectionId = useCollectionStore.getState().activeCollectionId;
+      if (!request.url) {
+        showNotification('Please enter a URL', 'error');
+        return;
+      }
+      const executionId = createExecutionId();
+      clearResponse();
+      beginExecution(executionId);
+      try {
+        postMessage({
+          type: 'executeRequest',
+          executionId,
+          request,
+          collectionId: collectionId ?? undefined,
+        });
+      } catch {
+        setExecutionState(executionId, false);
+        showNotification('The request could not be submitted.', 'error');
+      }
+    })().catch(error => showNotification(String(error), 'error'));
+  }, [autosave, showNotification]);
 
   const handleSave = useCallback(() => {
-    const request = useRequestStore.getState().currentRequest;
-    const selCol = useCollectionStore.getState().activeCollectionId;
-    if (selCol) {
-      const operation = postMessage({ type: 'saveRequest', request, collectionId: selCol });
+    void (async () => {
+      await autosave.flush();
+      await useRequestStore.getState().authUpdate;
+      const state = useRequestStore.getState();
+      const collectionId = useCollectionStore.getState().activeCollectionId;
+      if (!collectionId) { showNotification('Select a collection first', 'info'); return; }
+      const request = state.currentRequest;
+      const operation = postMessage({ type: 'saveRequest', request, collectionId });
+      saveSnapshots.current.set(operation.operationId, { request, authRevision: state.authRevision });
       registerAcknowledgement(operation.operationId, 'Request saved');
-    } else {
-      showNotification('Select a collection first', 'info');
-    }
-  }, [registerAcknowledgement]);
+    })().catch(error => showNotification(String(error), 'error'));
+  }, [autosave, registerAcknowledgement, showNotification]);
 
   const handleNewRequest = useCallback(() => {
     confirmDestructiveNavigation({
@@ -470,6 +564,12 @@ export function App() {
     requestAnimationFrame(() => document.getElementById('main-panel-collections')?.focus());
   }, [openSavedRequest, replayHistoryEntry, selectCollection, showNotification]);
 
+  if (!isReady) {
+    return <div role={notification?.type === 'error' ? 'alert' : 'status'} style={{ padding: '16px' }}>
+      {notification?.text ?? 'Loading local data…'}
+    </div>;
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative' }}>
       <style>{`
@@ -505,7 +605,7 @@ export function App() {
       )}
 
       {curlImportPreview && (
-        <CurlImportPreview
+        <DeferredPanel panelKey="curl-import"><CurlImportPreview
           request={curlImportPreview.request}
           warnings={curlImportPreview.warnings}
           onCancel={() => {
@@ -529,7 +629,7 @@ export function App() {
               },
             });
           }}
-        />
+        /></DeferredPanel>
       )}
 
       {pendingConfirmation && (
@@ -609,14 +709,14 @@ export function App() {
             aria-controls={`main-panel-${tab}`}
             id={`main-tab-${tab}`}
             tabIndex={activeTab === tab ? 0 : -1}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => changeTab(tab)}
             onKeyDown={(event) => {
               const nextIndex = nextTabIndex(index, event.key, TABS.length);
               if (nextIndex === null) {
                 return;
               }
               event.preventDefault();
-              setActiveTab(TABS[nextIndex]);
+              changeTab(TABS[nextIndex]);
               tabRefs.current[nextIndex]?.focus();
             }}
             className="tab-btn"
@@ -646,17 +746,19 @@ export function App() {
         tabIndex={0}
         style={{ flex: 1, overflow: 'auto' }}
       >
+        <DeferredPanel panelKey={activeTab}>
         {activeTab === 'editor' && (
           <RequestEditor
             onSend={handleSend}
             onSave={handleSave}
             onNew={handleNewRequest}
-            isDirty={requestsDiffer(currentRequest, baselineRequest)}
+            onPrepare={async () => { await autosave.flush(); await useRequestStore.getState().authUpdate; }}
+            isDirty={authPending || authUpdate !== null || requestsDiffer(currentRequest, baselineRequest)}
             isSaved={collections.some(collection => hasSavedRequest(collection.items, currentRequest.id))}
             onNotification={showNotification}
           />
         )}
-        {activeTab === 'collections' && <CollectionPanel onOpenRequest={openSavedRequest} />}
+        {activeTab === 'collections' && <CollectionPanel onOpenRequest={openSavedRequest} onRemove={removeCollectionItems} />}
         {activeTab === 'history' && (
           <HistoryPanel
             onNotification={showNotification}
@@ -712,14 +814,21 @@ export function App() {
               aria-labelledby={`variables-tab-${varSubTab}`}
               tabIndex={0}
             >
-              {varSubTab === 'vars' ? <VariableEditor /> : <VariableSetPanel />}
+              {varSubTab === 'vars' ? <VariableEditor autosave={autosave} /> : <VariableSetPanel />}
             </div>
           </div>
         )}
-        {activeTab === 'codegen' && <CodeGenPanel code={codeGenCode} />}
+        {activeTab === 'codegen' && <CodeGenPanel
+          code={codeGenCode}
+          prepare={async () => { await autosave.flush(); await useRequestStore.getState().authUpdate; }}
+          onError={message => showNotification(message, 'error')}
+        />}
+        </DeferredPanel>
       </div>
 
-      <ResponseViewer />
+      <DeferredPanel panelKey="response">
+        {hasResponse ? <ResponseViewer /> : <div style={{ borderTop: '1px solid var(--vscode-panel-border)', padding: '16px', textAlign: 'center', color: 'var(--vscode-descriptionForeground)', fontSize: '12px' }}>Execute a request to see the response</div>}
+      </DeferredPanel>
     </div>
   );
 }

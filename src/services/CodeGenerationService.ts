@@ -2,7 +2,7 @@ import { CodeGenerator } from '../commands/CodeGenerator';
 import { AuthService } from '../engine/auth/AuthService';
 import { CodeTargetLanguage } from '../models/MessageProtocol';
 import { JustRequest } from '../models/Request';
-import { ApplicationError } from './ApplicationError';
+import { preflightError } from './ApplicationError';
 import { CollectionService } from './CollectionService';
 import { RequestPreparation } from './RequestPreparationService';
 
@@ -28,7 +28,7 @@ export class CodeGenerationService {
   ): Promise<CodeGenerationResult> {
     const preflight = await this.preparation.resolve(request, collectionId);
     if (!preflight.ok) {
-      throw new ApplicationError('VARIABLE_RESOLUTION_FAILED');
+      throw preflightError(preflight.diagnostics);
     }
     const disclose = includeCredentials
       && await this.confirmDisclosure(`${language} code sample`);

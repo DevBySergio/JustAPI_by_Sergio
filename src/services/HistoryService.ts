@@ -1,3 +1,4 @@
+import { SerialQueue } from '../utils/SerialQueue';
 import { randomUUID } from 'node:crypto';
 import { HistoryEntry } from '../models/HistoryEntry';
 import { JustRequest } from '../models/Request';
@@ -16,8 +17,11 @@ export interface HistoryServiceOptions {
 }
 
 export class HistoryService {
+  private readonly operations = new SerialQueue();
   private readonly now: () => number;
   private readonly createId: () => string;
+
+  async dispose(): Promise<void> { await this.operations.close(); }
 
   constructor(
     private readonly store: DataStore,
@@ -28,18 +32,20 @@ export class HistoryService {
   }
 
   async list(filter?: string, limit?: number): Promise<HistoryEntry[]> {
-    const stored = await this.store.read<HistoryEntry[]>('history');
-    let entries = [...(stored ?? [])];
-    if (filter) {
-      const normalizedFilter = filter.toLowerCase();
-      entries = entries.filter(entry =>
-        entry.url.toLowerCase().includes(normalizedFilter)
-        || entry.method.toLowerCase().includes(normalizedFilter)
-        || entry.statusCode.toString().includes(normalizedFilter)
-      );
-    }
-    entries.sort((left, right) => right.timestamp - left.timestamp);
-    return limit && limit > 0 ? entries.slice(0, limit) : entries;
+    return this.operations.run(async () => {
+      const stored = await this.store.read<HistoryEntry[]>('history');
+      let entries = [...(stored ?? [])];
+      if (filter) {
+        const normalizedFilter = filter.toLowerCase();
+        entries = entries.filter(entry =>
+          entry.url.toLowerCase().includes(normalizedFilter)
+          || entry.method.toLowerCase().includes(normalizedFilter)
+          || entry.statusCode.toString().includes(normalizedFilter)
+        );
+      }
+      entries.sort((left, right) => right.timestamp - left.timestamp);
+      return limit && limit > 0 ? entries.slice(0, limit) : entries;
+    });
   }
 
   async record(
@@ -47,32 +53,37 @@ export class HistoryService {
     response: JustResponse,
     context: HistoryRecordContext
   ): Promise<HistoryEntry> {
-    const entry = createHistorySummary(request, response, {
-      id: this.createId(),
-      timestamp: this.now(),
-      ...(context.hasSavedRequest && context.collectionId
-        ? { requestId: request.id, collectionId: context.collectionId }
-        : {}),
+    return this.operations.run(async () => {
+      const entry = createHistorySummary(request, response, {
+        id: this.createId(),
+        timestamp: this.now(),
+        ...(context.hasSavedRequest && context.collectionId
+          ? { requestId: request.id, collectionId: context.collectionId }
+          : {}),
+      });
+      const entries = await this.store.read<HistoryEntry[]>('history') ?? [];
+      entries.unshift(entry);
+      await this.store.write('history', entries);
+      return entry;
     });
-    const entries = await this.store.read<HistoryEntry[]>('history') ?? [];
-    entries.unshift(entry);
-    await this.store.write('history', entries);
-    return entry;
   }
 
   async clear(): Promise<HistoryEntry[]> {
-    await this.store.write('history', []);
-    return [];
+    return this.operations.run(async () => {
+      await this.store.write('history', []);
+      return [];
+    });
   }
 
   async delete(entryId: string): Promise<HistoryEntry[]> {
-    const entries = await this.store.read<HistoryEntry[]>('history') ?? [];
-    const remaining = entries.filter(entry => entry.id !== entryId);
-    if (remaining.length === entries.length) {
-      throw new Error('History entry not found');
-    }
-    await this.store.write('history', remaining);
-    return remaining;
+    return this.operations.run(async () => {
+      const entries = await this.store.read<HistoryEntry[]>('history') ?? [];
+      const remaining = entries.filter(entry => entry.id !== entryId);
+      if (remaining.length === entries.length) {
+        throw new Error('History entry not found');
+      }
+      await this.store.write('history', remaining);
+      return remaining;
+    });
   }
 }
-

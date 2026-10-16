@@ -17,26 +17,26 @@ const LANGUAGES: { value: TargetLanguage; label: string }[] = [
 
 interface CodeGenPanelProps {
   code: string;
+  prepare: () => Promise<void>;
+  onError: (message: string) => void;
 }
 
-export function CodeGenPanel({ code }: CodeGenPanelProps) {
+export function CodeGenPanel({ code, prepare, onError }: CodeGenPanelProps) {
   const currentRequest = useRequestStore((s) => s.currentRequest);
-  const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
   const [language, setLanguage] = useState<TargetLanguage>('javascript');
   const [includeCredentials, setIncludeCredentials] = useState(false);
 
   const handleGenerate = () => {
-    if (!currentRequest.url) { return; }
-    postMessage({
-      type: 'generateCode',
-      request: currentRequest,
-      language,
-      includeCredentials,
-      collectionId: activeCollectionId ?? undefined,
-    });
-    if (includeCredentials) {
+    void (async () => {
+      await prepare();
+      const request = useRequestStore.getState().currentRequest;
+      if (!request.url) { return; }
+      postMessage({
+        type: 'generateCode', request, language, includeCredentials,
+        collectionId: useCollectionStore.getState().activeCollectionId ?? undefined,
+      });
       setIncludeCredentials(false);
-    }
+    })().catch(error => onError(String(error)));
   };
 
   return (

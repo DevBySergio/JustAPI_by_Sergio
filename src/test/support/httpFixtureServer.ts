@@ -15,9 +15,19 @@ async function readBody(request: http.IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-export async function startHttpFixtureServer(): Promise<HttpFixtureServer> {
+export async function startHttpFixtureServer(host = '127.0.0.1'): Promise<HttpFixtureServer> {
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+
+    if (url.pathname === '/no-content') {
+      response.statusCode = Number(url.searchParams.get('status') ?? 200);
+      response.setHeader('content-encoding', 'gzip');
+      if (request.method === 'HEAD' || response.statusCode === 304) {
+        response.setHeader('content-length', '20971520');
+      }
+      response.end();
+      return;
+    }
 
     if (url.pathname === '/redirect') {
       const status = Math.min(399, Math.max(300, Number(url.searchParams.get('status') ?? 302)));
@@ -211,12 +221,12 @@ export async function startHttpFixtureServer(): Promise<HttpFixtureServer> {
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve());
+    server.listen(0, host, () => resolve());
   });
 
   const address = server.address() as AddressInfo;
   return {
-    baseUrl: `http://127.0.0.1:${address.port}`,
+    baseUrl: `http://${host.includes(':') ? `[${host}]` : host}:${address.port}`,
     close: () => new Promise<void>((resolve, reject) => {
       server.close(error => error ? reject(error) : resolve());
     }),

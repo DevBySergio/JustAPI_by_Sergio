@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { useCollectionStore } from '../stores/useCollectionStore';
 import { useVariableStore } from '../stores/useVariableStore';
-import { postMessage } from '../utils/vscodeApi';
-import { useRequestStore } from '../stores/useRequestStore';
-import { CollectionItemRef } from '../../../src/models/Collection';
+import { postMessage, postMessageWithAck } from '../utils/vscodeApi';
+import { CollectionItemRow, FolderNameForm, requestIdsIn, type RemoveCollectionItems } from './CollectionTree';
 
 interface CollectionPanelProps {
   onOpenRequest: (requestId: string, collectionId: string) => void;
+  onRemove: RemoveCollectionItems;
 }
 
-export function CollectionPanel({ onOpenRequest }: CollectionPanelProps) {
+export function CollectionPanel({ onOpenRequest, onRemove }: CollectionPanelProps) {
   const collections = useCollectionStore((s) => s.collections);
   const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
   const selectCollection = useCollectionStore((s) => s.selectCollection);
+  const [folderCollectionId, setFolderCollectionId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -29,7 +30,8 @@ export function CollectionPanel({ onOpenRequest }: CollectionPanelProps) {
 
   const handleDeleteCollection = (id: string) => {
     if (confirmDeleteId === id) {
-      postMessage({ type: 'deleteCollection', collectionId: id });
+      const collection = collections.find(value => value.id === id);
+      onRemove(requestIdsIn(collection?.items ?? []), () => postMessageWithAck({ type: 'deleteCollection', collectionId: id }));
       setConfirmDeleteId(null);
     } else {
       setConfirmDeleteId(id);
@@ -161,6 +163,8 @@ export function CollectionPanel({ onOpenRequest }: CollectionPanelProps) {
               </button>
             )}
 
+            <button type="button" aria-label={`Rename collection ${col.name}`} onClick={() => startRename(col.id, col.name)}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '10px' }}>Rename</button>
             <button
               onClick={(e) => { e.stopPropagation(); handleDuplicate(col.id); }}
               style={{ background: 'none', border: 'none', color: 'var(--vscode-textLink-foreground)', cursor: 'pointer', fontSize: '10px', padding: '2px' }}
@@ -197,12 +201,22 @@ export function CollectionPanel({ onOpenRequest }: CollectionPanelProps) {
             )}
           </div>
 
+          {activeCollectionId === col.id && <div style={{ padding: '4px 6px' }}>
+            <button type="button" aria-label={`New folder in ${col.name}`} onClick={() => setFolderCollectionId(col.id)}
+              style={{ background: 'none', border: '1px solid var(--vscode-panel-border)', color: 'var(--vscode-textLink-foreground)', cursor: 'pointer', fontSize: '11px' }}>+ New folder</button>
+            {folderCollectionId === col.id && <FolderNameForm label="Folder name" submitLabel="Create folder"
+              onCancel={() => setFolderCollectionId(null)}
+              onSubmit={name => postMessageWithAck({ type: 'createFolder', collectionId: col.id, name })} />}
+          </div>}
           {activeCollectionId === col.id && col.items.length > 0 && (
             <div style={{ marginLeft: '12px', marginTop: '2px' }}>
-              {col.items.map((item) => (
+              {col.items.map((item, index) => (
                 <CollectionItemRow
                   key={item.id}
                   item={item}
+                  siblings={col.items}
+                  index={index}
+                  onRemove={onRemove}
                   collectionId={col.id}
                   onOpenRequest={onOpenRequest}
                 />
@@ -324,135 +338,6 @@ function LinkedSetsSection({ collectionId }: { collectionId: string }) {
             Close
           </button>
         </div>
-      )}
-    </div>
-  );
-}
-
-function CollectionItemRow({
-  item,
-  collectionId,
-  onOpenRequest,
-}: {
-  item: CollectionItemRef;
-  collectionId: string;
-  onOpenRequest: (requestId: string, collectionId: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirmDelete && item.requestId) {
-      postMessage({ type: 'deleteRequest', requestId: item.requestId, collectionId });
-    } else if (item.requestId) {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-    }
-  };
-
-  if (item.type === 'folder') {
-    return (
-      <div style={{ marginBottom: '2px' }}>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded(!expanded)}
-          style={{
-            padding: '3px 6px',
-            fontSize: '11px',
-            fontWeight: 500,
-            color: 'var(--vscode-foreground)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            borderRadius: '2px',
-            border: 'none',
-            background: 'transparent',
-            width: '100%',
-            textAlign: 'left',
-          }}
-        >
-          <span style={{ fontSize: '10px', opacity: 0.6, width: '12px', textAlign: 'center' }}>
-            {expanded ? '▼' : '▶'}
-          </span>
-          <span>📁</span>
-          <span>{item.name}</span>
-        </button>
-        {expanded && item.items && (
-          <div style={{ marginLeft: '12px' }}>
-            {item.items.map((child) => (
-              <CollectionItemRow
-                key={child.id}
-                item={child}
-                collectionId={collectionId}
-                onOpenRequest={onOpenRequest}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        padding: '3px 6px 3px 22px',
-        fontSize: '11px',
-        color: 'var(--vscode-foreground)',
-        display: 'flex',
-        gap: '6px',
-        alignItems: 'center',
-        borderRadius: '2px',
-      }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--vscode-list-hoverBackground)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-    >
-      <button
-        type="button"
-        onClick={() => {
-          if (item.requestId) {
-            onOpenRequest(item.requestId, collectionId);
-          }
-        }}
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          gap: '6px',
-          alignItems: 'center',
-          border: 'none',
-          background: 'transparent',
-          color: 'inherit',
-          cursor: 'pointer',
-          padding: 0,
-          textAlign: 'left',
-        }}
-      >
-        <span style={{ fontSize: '10px', opacity: 0.6 }}>➜</span>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-      </button>
-      {confirmDelete ? (
-          <button
-            onClick={handleDelete}
-            aria-label={`Confirm deleting request ${item.name}`}
-          style={{ padding: '1px 4px', background: 'var(--vscode-errorForeground)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '9px', borderRadius: '2px', flexShrink: 0 }}
-        >
-          Confirm ×
-        </button>
-      ) : (
-          <button
-            onClick={handleDelete}
-            aria-label={`Delete request ${item.name}`}
-          style={{ background: 'none', border: 'none', color: 'var(--vscode-errorForeground)', cursor: 'pointer', fontSize: '11px', padding: '2px', opacity: 0.4, flexShrink: 0 }}
-          onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
-          onMouseLeave={(e) => { (e.target as HTMLElement).style.opacity = '0.4'; }}
-          title="Delete request"
-        >
-          ×
-        </button>
       )}
     </div>
   );

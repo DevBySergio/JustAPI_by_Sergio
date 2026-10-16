@@ -363,6 +363,7 @@ describe('webview protocol validation and correlation', () => {
     }).ok, false);
     assert.equal(validateExtensionMessage({
       type: 'requestAuthUpdated',
+      pending: true,
       operationId,
       requestId: request.id,
       auth: { type: 'bearer', configured: true },

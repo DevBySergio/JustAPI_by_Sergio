@@ -49,6 +49,9 @@ module.exports = (_env, argv) => {
     output: {
       path: path.resolve(__dirname, 'dist', 'webview'),
       filename: 'bundle.js',
+      chunkFilename: '[name].[contenthash:8].js',
+      publicPath: 'auto',
+      clean: true,
     },
     resolve: {
       extensions: ['.ts', '.tsx', '.js', '.jsx'],

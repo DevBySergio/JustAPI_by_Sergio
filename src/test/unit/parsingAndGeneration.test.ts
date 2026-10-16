@@ -61,6 +61,7 @@ describe('cURL parsing and code generation boundaries', () => {
     assert.equal(request.settings.verifySSL, false);
     assert.deepEqual(request.headers.map(({ key, value }) => ({ key, value })), [
       { key: 'X-Quote', value: 'a"b' },
+      { key: 'Content-Type', value: 'application/x-www-form-urlencoded' },
     ]);
     assert.equal(request.body.content, '$(printf ignored)');
     assert.ok(warnings.some(warning => warning.code === 'SHELL_SYNTAX_LITERAL'));

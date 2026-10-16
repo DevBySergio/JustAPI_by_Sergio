@@ -13,6 +13,7 @@ export interface PersistedWebviewState {
   currentRequest: JustRequest;
   baselineRequest: JustRequest;
   redactedValues: boolean;
+  pendingAuth?: boolean;
 }
 
 const WEBVIEW_TABS = new Set<WebviewTab>([
@@ -189,6 +190,7 @@ export function createPersistedWebviewState(input: Omit<
     activeCollectionId: input.activeCollectionId,
     currentRequest: current.request,
     baselineRequest: baseline.request,
+    pendingAuth: input.pendingAuth ?? false,
     redactedValues: current.redacted || baseline.redacted,
   };
 }
@@ -210,6 +212,7 @@ export function restorePersistedWebviewState(value: unknown): PersistedWebviewSt
   }
   const current = sanitizeRequestForWebviewState(candidate.currentRequest);
   const baseline = sanitizeRequestForWebviewState(candidate.baselineRequest);
+  if (candidate.pendingAuth === true) { current.request.auth = baseline.request.auth; }
   return {
     schemaVersion: 1,
     activeTab: candidate.activeTab as WebviewTab,
@@ -217,7 +220,8 @@ export function restorePersistedWebviewState(value: unknown): PersistedWebviewSt
     activeCollectionId: candidate.activeCollectionId,
     currentRequest: current.request,
     baselineRequest: baseline.request,
-    redactedValues: candidate.redactedValues || current.redacted || baseline.redacted,
+    pendingAuth: false,
+    redactedValues: candidate.redactedValues || current.redacted || baseline.redacted || candidate.pendingAuth === true,
   };
 }
 

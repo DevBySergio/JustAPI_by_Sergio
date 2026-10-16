@@ -1,6 +1,10 @@
 import type { JustRequest } from './Request';
 
 export type VariableDiagnosticCode =
+  | 'AUTH_CONFLICT'
+  | 'INVALID_URL'
+  | 'INVALID_HEADER'
+  | 'INVALID_PATH_PARAMETER'
   | 'MISSING_VARIABLE'
   | 'DISABLED_VARIABLE'
   | 'DUPLICATE_VARIABLE'

@@ -58,7 +58,7 @@ export function BodyEditor() {
         />
       )}
 
-      {body.type === 'x-www-form-urlencoded' && (
+      {body.type === 'x-www-form-urlencoded' && body.formData !== undefined && (
         <KeyValueEditor
           pairs={body.formData || []}
           onChange={setFormData}
@@ -67,7 +67,7 @@ export function BodyEditor() {
         />
       )}
 
-      {body.type !== 'none' && body.type !== 'form-data' && body.type !== 'x-www-form-urlencoded' && (
+      {body.type !== 'none' && body.type !== 'form-data' && (body.type !== 'x-www-form-urlencoded' || body.formData === undefined) && (
         <VariableAutocomplete value={body.content} onChange={setBodyContent}>
           {({ onInput, onKeyDown, onBlur }) => (
             <HighlightedInput

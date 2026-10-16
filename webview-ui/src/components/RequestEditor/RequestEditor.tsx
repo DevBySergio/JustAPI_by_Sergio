@@ -1,18 +1,24 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { lazy, useState, useRef } from 'react';
 import { useRequestStore } from '../../stores/useRequestStore';
 import { useCollectionStore } from '../../stores/useCollectionStore';
 import { useVariableStore } from '../../stores/useVariableStore';
 import { UrlBar } from './UrlBar';
 import { KeyValueEditor } from '../Common/KeyValueEditor';
-import { BodyEditor } from './BodyEditor';
-import { ActiveVariablesPanel } from './ActiveVariablesPanel';
+import { PathParameterEditor } from './PathParameterEditor';
+import { DeferredPanel } from '../Common/DeferredPanel';
 import { postMessage } from '../../utils/vscodeApi';
 import { nextTabIndex } from '../../../../src/webview/WebviewState';
+
+const BodyEditor = lazy(() => import(/* webpackChunkName: "request-body" */ './BodyEditor').then(module => ({ default: module.BodyEditor })));
+const ActiveVariablesPanel = lazy(() => import(/* webpackChunkName: "request-variables" */ './ActiveVariablesPanel').then(module => ({ default: module.ActiveVariablesPanel })));
+const AuthEditor = lazy(() => import(/* webpackChunkName: "request-auth" */ './AuthEditor').then(module => ({ default: module.AuthEditor })));
+const SettingsEditor = lazy(() => import(/* webpackChunkName: "request-settings" */ './SettingsEditor').then(module => ({ default: module.SettingsEditor })));
 
 interface RequestEditorProps {
   onSend: () => void;
   onSave: () => void;
   onNew: () => void;
+  onPrepare: () => Promise<void>;
   isDirty: boolean;
   isSaved: boolean;
   onNotification: (text: string, type: 'info' | 'error' | 'success') => void;
@@ -22,7 +28,7 @@ type EditorTab = 'headers' | 'params' | 'body' | 'auth' | 'settings' | 'variable
 
 const EDITOR_TABS: EditorTab[] = ['headers', 'params', 'body', 'auth', 'settings', 'variables'];
 
-export function RequestEditor({ onSend, onSave, onNew, isDirty, isSaved, onNotification }: RequestEditorProps) {
+export function RequestEditor({ onSend, onSave, onNew, onPrepare, isDirty, isSaved, onNotification }: RequestEditorProps) {
   const [activeTab, setActiveTab] = useState<EditorTab>('headers');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const {
@@ -48,7 +54,7 @@ export function RequestEditor({ onSend, onSave, onNew, isDirty, isSaved, onNotif
   const activeColl = selectedCol?.variables.filter(v => v.enabled).length || 0;
   const linkedSets = variableSets.filter(s => activeCollectionId && s.linkedCollectionIds.includes(activeCollectionId));
   const activeSetVars = linkedSets.reduce((sum, s) => sum + s.variables.filter(v => v.enabled).length, 0);
-  const totalActiveVars = activeGlobal + activeColl + activeSetVars;
+  const totalActiveVars = activeGlobal + activeColl + activeSetVars + currentRequest.variables.filter(variable => variable.enabled && variable.key).length;
 
   const handleSendClick = () => {
     if (isExecuting && activeExecutionId) {
@@ -296,6 +302,7 @@ export function RequestEditor({ onSend, onSave, onNew, isDirty, isSaved, onNotif
         tabIndex={0}
         style={{ marginTop: '8px' }}
       >
+        <DeferredPanel panelKey={activeTab}>
         {activeTab === 'headers' && (
           <KeyValueEditor
             pairs={currentRequest.headers}
@@ -307,6 +314,8 @@ export function RequestEditor({ onSend, onSave, onNew, isDirty, isSaved, onNotif
         )}
 
         {activeTab === 'params' && (
+          <>
+          <p style={{ fontSize: '11px' }}>Query parameters</p>
           <KeyValueEditor
             pairs={currentRequest.queryParams}
             onChange={setQueryParams}
@@ -314,282 +323,26 @@ export function RequestEditor({ onSend, onSave, onNew, isDirty, isSaved, onNotif
             valuePlaceholder="Parameter value"
             showVariables
           />
+          <PathParameterEditor />
+          </>
         )}
 
         {activeTab === 'body' && <BodyEditor />}
 
-        {activeTab === 'auth' && <AuthEditor />}
+        {activeTab === 'auth' && <AuthEditor onNotification={onNotification} />}
 
         {activeTab === 'settings' && <SettingsEditor />}
-        {activeTab === 'variables' && <ActiveVariablesPanel />}
+        {activeTab === 'variables' && <>
+          <div role="group" aria-label="Request variables">
+            <p style={{ fontSize: '11px' }}>Request variables override collection, linked set and global variables.
+              They are saved with this request. Disabled variables fall back to lower scopes.</p>
+            <KeyValueEditor pairs={currentRequest.variables} namePlaceholder="Variable name" valuePlaceholder="Variable value" showVariables
+              onChange={variables => useRequestStore.getState().setVariables(variables.map(variable => ({ ...variable, scope: 'request' })))} />
+          </div>
+          <ActiveVariablesPanel prepare={onPrepare} onError={error => onNotification(error, 'error')} />
+        </>}
+        </DeferredPanel>
       </div>
-    </div>
-  );
-}
-
-function AuthEditor() {
-  const { currentRequest } = useRequestStore();
-  const [authType, setAuthType] = useState<'none' | 'bearer' | 'basic' | 'apiKey'>('none');
-  const [bearerToken, setBearerToken] = useState('');
-  const [basicUser, setBasicUser] = useState('');
-  const [basicPass, setBasicPass] = useState('');
-  const [apiKeyName, setApiKeyName] = useState('');
-  const [apiKeyValue, setApiKeyValue] = useState('');
-  const [apiKeyIn, setApiKeyIn] = useState<'header' | 'query'>('header');
-
-  useEffect(() => {
-    setAuthType(currentRequest.auth.type);
-    setBearerToken('');
-    setBasicUser('');
-    setBasicPass('');
-    setApiKeyValue('');
-    if (currentRequest.auth.type === 'apiKey') {
-      setApiKeyName(currentRequest.auth.name);
-      setApiKeyIn(currentRequest.auth.in);
-    } else {
-      setApiKeyName('');
-      setApiKeyIn('header');
-    }
-  }, [currentRequest.id, currentRequest.auth]);
-
-  const applyAuth = () => {
-    if (authType === 'none') {
-      postMessage({ type: 'configureAuth', requestId: currentRequest.id, auth: { type: 'none' } });
-    } else if (authType === 'bearer' && bearerToken) {
-      postMessage({
-        type: 'configureAuth',
-        requestId: currentRequest.id,
-        auth: { type: 'bearer', token: bearerToken },
-      });
-      setBearerToken('');
-    } else if (authType === 'basic' && basicUser) {
-      postMessage({
-        type: 'configureAuth',
-        requestId: currentRequest.id,
-        auth: { type: 'basic', username: basicUser, password: basicPass },
-      });
-      setBasicUser('');
-      setBasicPass('');
-    } else if (authType === 'apiKey' && apiKeyName && apiKeyValue) {
-      postMessage({
-        type: 'configureAuth',
-        requestId: currentRequest.id,
-        auth: { type: 'apiKey', name: apiKeyName, in: apiKeyIn, value: apiKeyValue },
-      });
-      setApiKeyValue('');
-    }
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-      <div role="radiogroup" aria-label="Authentication type" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-        {(['none', 'bearer', 'basic', 'apiKey'] as const).map((t) => (
-          <button
-            key={t}
-            role="radio"
-            aria-checked={authType === t}
-            onClick={() => { setAuthType(t); }}
-            style={{
-              padding: '3px 8px',
-              border: '1px solid var(--vscode-panel-border)',
-              background: authType === t ? 'var(--vscode-button-background)' : 'transparent',
-              color: authType === t ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)',
-              cursor: 'pointer',
-              fontSize: '11px',
-              borderRadius: '2px',
-              textTransform: 'capitalize',
-            }}
-          >
-            {t === 'apiKey' ? 'API Key' : t}
-          </button>
-        ))}
-      </div>
-
-      {authType === 'bearer' && (
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <span style={{ minWidth: '50px' }}>Token:</span>
-          <input
-            aria-label="Bearer token"
-            type="password"
-            value={bearerToken}
-            onChange={(e) => { setBearerToken(e.target.value); }}
-            placeholder="Bearer token..."
-            style={{
-              flex: 1,
-              padding: '3px 6px',
-              background: 'var(--vscode-input-background)',
-              color: 'var(--vscode-input-foreground)',
-              border: '1px solid var(--vscode-input-border)',
-            }}
-          />
-          <button onClick={applyAuth} style={{ padding: '3px 8px', background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)', border: 'none', cursor: 'pointer', fontSize: '10px' }}>Apply</button>
-        </div>
-      )}
-
-      {authType === 'basic' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <span style={{ minWidth: '50px' }}>Username:</span>
-            <input
-              aria-label="Basic authentication username"
-              type="text"
-              value={basicUser}
-              onChange={(e) => setBasicUser(e.target.value)}
-              placeholder="Username"
-              style={{ flex: 1, padding: '3px 6px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)' }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <span style={{ minWidth: '50px' }}>Password:</span>
-            <input
-              aria-label="Basic authentication password"
-              type="password"
-              value={basicPass}
-              onChange={(e) => setBasicPass(e.target.value)}
-              placeholder="Password"
-              style={{ flex: 1, padding: '3px 6px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)' }}
-            />
-          </div>
-          <button onClick={applyAuth} style={{ padding: '3px 8px', background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)', border: 'none', cursor: 'pointer', fontSize: '10px', alignSelf: 'flex-end' }}>Apply</button>
-        </div>
-      )}
-
-      {authType === 'apiKey' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <span style={{ minWidth: '50px' }}>Key:</span>
-            <input
-              aria-label="API key name"
-              type="text"
-              value={apiKeyName}
-              onChange={(e) => setApiKeyName(e.target.value)}
-              placeholder="X-API-Key"
-              style={{ flex: 1, padding: '3px 6px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)' }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <span style={{ minWidth: '50px' }}>Value:</span>
-            <input
-              aria-label="API key value"
-              type="password"
-              value={apiKeyValue}
-              onChange={(e) => setApiKeyValue(e.target.value)}
-              placeholder="API key value"
-              style={{ flex: 1, padding: '3px 6px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)' }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <input type="radio" checked={apiKeyIn === 'header'} onChange={() => setApiKeyIn('header')} /> Header
-            </label>
-            <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <input type="radio" checked={apiKeyIn === 'query'} onChange={() => setApiKeyIn('query')} /> Query param
-            </label>
-          </div>
-          <button onClick={applyAuth} style={{ padding: '3px 8px', background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)', border: 'none', cursor: 'pointer', fontSize: '10px', alignSelf: 'flex-end' }}>Apply</button>
-        </div>
-      )}
-
-      {authType === 'none' && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '11px' }}>
-            No authentication configured.
-          </span>
-          <button onClick={applyAuth} style={{ padding: '3px 8px', background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)', border: 'none', cursor: 'pointer', fontSize: '10px' }}>Apply</button>
-        </div>
-      )}
-
-      {currentRequest.auth.type !== 'none' && (
-        <div style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '10px' }}>
-          A credential is stored securely. Enter a new value only to replace it.
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SettingsEditor() {
-  const { currentRequest, setRequest } = useRequestStore();
-  const mebibyte = 1024 * 1024;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ minWidth: '120px' }}>Timeout (ms):</span>
-        <input
-          type="number"
-          value={currentRequest.settings.timeout}
-          onChange={(e) =>
-            setRequest({
-              ...currentRequest,
-              settings: { ...currentRequest.settings, timeout: parseInt(e.target.value) || 30000 },
-            })
-          }
-          style={{
-            flex: 1,
-            padding: '3px 6px',
-            background: 'var(--vscode-input-background)',
-            color: 'var(--vscode-input-foreground)',
-            border: '1px solid var(--vscode-input-border)',
-          }}
-        />
-      </label>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ minWidth: '120px' }}>Response limit (MiB):</span>
-        <input
-          type="number"
-          min={1 / 1024}
-          max={100}
-          step={1 / 1024}
-          value={currentRequest.settings.maxResponseBytes / mebibyte}
-          onChange={(e) => {
-            const requested = Math.round(Number(e.target.value) * mebibyte);
-            const maxResponseBytes = Number.isFinite(requested)
-              ? Math.min(100 * mebibyte, Math.max(1024, requested))
-              : 10 * mebibyte;
-            setRequest({
-              ...currentRequest,
-              settings: { ...currentRequest.settings, maxResponseBytes },
-            });
-          }}
-          style={{
-            flex: 1,
-            padding: '3px 6px',
-            background: 'var(--vscode-input-background)',
-            color: 'var(--vscode-input-foreground)',
-            border: '1px solid var(--vscode-input-border)',
-          }}
-        />
-      </label>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ minWidth: '120px' }}>Follow redirects:</span>
-        <input
-          type="checkbox"
-          checked={currentRequest.settings.followRedirects}
-          onChange={(e) =>
-            setRequest({
-              ...currentRequest,
-              settings: { ...currentRequest.settings, followRedirects: e.target.checked },
-            })
-          }
-        />
-      </label>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ minWidth: '120px' }}>Verify SSL:</span>
-        <input
-          type="checkbox"
-          checked={currentRequest.settings.verifySSL}
-          onChange={(e) =>
-            setRequest({
-              ...currentRequest,
-              settings: { ...currentRequest.settings, verifySSL: e.target.checked },
-            })
-          }
-        />
-      </label>
     </div>
   );
 }

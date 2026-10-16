@@ -33,7 +33,7 @@ export const curlImportFixtures: readonly CurlImportFixture[] = [
         { key: 'accept', value: 'application/json' },
         { key: 'content-type', value: 'application/json' },
       ],
-      followRedirects: true,
+      followRedirects: false,
     },
   },
   {
@@ -49,7 +49,7 @@ export const curlImportFixtures: readonly CurlImportFixture[] = [
       url: 'https://fixture.test/postman/items/42',
       bodyType: 'json',
       bodyContent: '{"enabled":true}',
-      headers: [{ key: 'X-Client', value: 'Postman' }],
+      headers: [{ key: 'X-Client', value: 'Postman' }, { key: 'Content-Type', value: 'application/x-www-form-urlencoded' }],
       followRedirects: true,
     },
   },

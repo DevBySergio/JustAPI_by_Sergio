@@ -24,11 +24,11 @@ export class WebviewProtocol {
     private readonly createOperationId: () => string = () => `operation-${randomUUID()}`
   ) {}
 
-  post(message: ExtensionMessage): void {
+  post(message: ExtensionMessage): boolean {
     const validation = validateExtensionMessage(message);
     if (validation.ok) {
       this.sendMessage(validation.value);
-      return;
+      return true;
     }
 
     const failure = protocolFailure('OUTBOUND_MESSAGE_INVALID');
@@ -45,6 +45,7 @@ export class WebviewProtocol {
       code: failure.code,
       message: failure.message,
     });
+    return false;
   }
 
   error(

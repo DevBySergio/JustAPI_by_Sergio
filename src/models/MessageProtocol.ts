@@ -45,6 +45,7 @@ export type ProtocolErrorCode =
   | 'CURL_PARSE_ERROR'
   | 'AUTH_CONFLICT'
   | 'AUTH_SECRET_NOT_FOUND'
+  | 'REQUEST_VALIDATION_FAILED'
   | 'VARIABLE_RESOLUTION_FAILED'
   | 'OPERATION_FAILED'
   | 'OUTBOUND_MESSAGE_INVALID';
@@ -63,6 +64,8 @@ export type WebviewMessage =
   | ({ type: 'cancelRequest' } & ExecutionMessage)
   | ({ type: 'saveRequest'; request: JustRequest; collectionId: string; parentId?: string } & OperationMessage)
   | ({ type: 'deleteRequest'; requestId: string; collectionId: string } & OperationMessage)
+  | ({ type: 'discardRequestChanges'; requestId: string } & OperationMessage)
+  | ({ type: 'setCollectionVariables'; collectionId: string; variables: Variable[] } & OperationMessage)
   | ({ type: 'configureAuth'; requestId: string; auth: AuthInput } & OperationMessage)
   | ({ type: 'getCollections' } & OperationMessage)
   | ({ type: 'getRequest'; requestId: string } & OperationMessage)
@@ -71,6 +74,9 @@ export type WebviewMessage =
   | ({ type: 'deleteCollection'; collectionId: string } & OperationMessage)
   | ({ type: 'duplicateCollection'; collectionId: string } & OperationMessage)
   | ({ type: 'renameCollection'; collectionId: string; name: string } & OperationMessage)
+  | ({ type: 'createFolder'; collectionId: string; name: string; parentId?: string } & OperationMessage)
+  | ({ type: 'renameFolder'; collectionId: string; folderId: string; name: string } & OperationMessage)
+  | ({ type: 'deleteFolder'; collectionId: string; folderId: string } & OperationMessage)
   | ({
       type: 'moveItem';
       itemId: string;
@@ -114,7 +120,9 @@ export type WebviewMessageType = WebviewMessage['type'];
 export type ExtensionMessage =
   | ({ type: 'collections'; collections: Collection[] } & OperationMessage)
   | ({ type: 'requestLoaded'; request: JustRequest } & OperationMessage)
-  | ({ type: 'requestAuthUpdated'; requestId: string; auth: AuthConfig } & OperationMessage)
+  | ({ type: 'requestSaved'; request: JustRequest } & OperationMessage)
+  | ({ type: 'initializationComplete' } & OperationMessage)
+  | ({ type: 'requestAuthUpdated'; requestId: string; auth: AuthConfig; pending: boolean } & OperationMessage)
   | ({ type: 'history'; entries: HistoryEntry[] } & OperationMessage)
   | ({ type: 'historyEntry'; entry: HistoryEntry } & ExecutionMessage)
   | ({ type: 'response'; response: JustResponse } & ExecutionMessage)

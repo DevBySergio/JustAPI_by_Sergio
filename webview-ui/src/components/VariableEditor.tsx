@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useVariableStore } from '../stores/useVariableStore';
 import { useCollectionStore } from '../stores/useCollectionStore';
-import { postMessage } from '../utils/vscodeApi';
+import { VariableAutosave } from '../utils/VariableAutosave';
 import { ToggleSwitch } from './Common/ToggleSwitch';
 import { Variable } from '../../../src/models/Variable';
 
@@ -122,12 +122,14 @@ function VariableRow({ v, scope, onUpdate, onToggle, onRemove }: VariableRowProp
   );
 }
 
-export function VariableEditor() {
+export function VariableEditor({ autosave }: { autosave: VariableAutosave }) {
   const [filterText, setFilterText] = useState('');
 
   const globalVariables = useVariableStore((s) => s.globalVariables);
-  const setGlobalVariables = useVariableStore((s) => s.setGlobalVariables);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setGlobalVariables = (variables: Variable[]) => {
+    autosave.scheduleGlobal(variables);
+    useVariableStore.getState().setGlobalVariables(variables);
+  };
 
   const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
   const collections = useCollectionStore((s) => s.collections);
@@ -143,25 +145,10 @@ export function VariableEditor() {
     ? collectionVars.filter(v => v.key.toLowerCase().includes(lowerFilter) || v.value.toLowerCase().includes(lowerFilter))
     : collectionVars;
 
-  // Auto-save global variables
-  useEffect(() => {
-    if (saveTimer.current) { clearTimeout(saveTimer.current); }
-    saveTimer.current = setTimeout(() => {
-      postMessage({ type: 'setGlobalVariables', variables: globalVariables });
-    }, 500);
-    return () => { if (saveTimer.current) { clearTimeout(saveTimer.current); } };
-  }, [globalVariables]);
-
-  // Auto-save collection variables
-  const collSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!selectedCollection) { return; }
-    if (collSaveTimer.current) { clearTimeout(collSaveTimer.current); }
-    collSaveTimer.current = setTimeout(() => {
-      postMessage({ type: 'updateCollection', collection: selectedCollection });
-    }, 500);
-    return () => { if (collSaveTimer.current) { clearTimeout(collSaveTimer.current); } };
-  }, [collectionVars]);
+  const updateCollectionVariables = (collectionId: string, variables: Variable[]) => {
+    autosave.scheduleCollection(collectionId, variables);
+    useCollectionStore.getState().updateCollectionVariables(collectionId, variables);
+  };
 
   const handleGlobalAdd = () => {
     setGlobalVariables([
@@ -188,24 +175,24 @@ export function VariableEditor() {
       ...collectionVars,
       { id: crypto.randomUUID(), key: '', value: '', enabled: true, scope: 'collection' as const },
     ];
-    useCollectionStore.getState().updateCollectionVariables(selectedCollection.id, newVars);
+    updateCollectionVariables(selectedCollection.id, newVars);
   };
 
   const handleCollUpdate = (id: string, field: 'key' | 'value', val: string) => {
     if (!selectedCollection) { return; }
     const updated = collectionVars.map(v => v.id === id ? { ...v, [field]: val } : v);
-    useCollectionStore.getState().updateCollectionVariables(selectedCollection.id, updated);
+    updateCollectionVariables(selectedCollection.id, updated);
   };
 
   const handleCollToggle = (id: string) => {
     if (!selectedCollection) { return; }
     const updated = collectionVars.map(v => v.id === id ? { ...v, enabled: !v.enabled } : v);
-    useCollectionStore.getState().updateCollectionVariables(selectedCollection.id, updated);
+    updateCollectionVariables(selectedCollection.id, updated);
   };
 
   const handleCollRemove = (id: string) => {
     if (!selectedCollection) { return; }
-    useCollectionStore.getState().updateCollectionVariables(
+    updateCollectionVariables(
       selectedCollection.id,
       collectionVars.filter(v => v.id !== id)
     );

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const testRoot = fileURLToPath(new URL('../src/test/', import.meta.url));
+const testRoots = ['../src/test/', '../webview-ui/test/'].map(root => fileURLToPath(new URL(root, import.meta.url)));
 const forbidden = [
   { label: 'focused or skipped test', pattern: /\b(?:suite|describe|context|test|it)\.(?:only|skip)\b/ },
   { label: 'disabled lint rule', pattern: /eslint-disable/ },
@@ -15,14 +15,14 @@ function collectTypeScriptFiles(directory) {
     const absolute = join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...collectTypeScriptFiles(absolute));
-    } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+    } else if (entry.isFile() && /\.tsx?$/.test(entry.name)) {
       files.push(absolute);
     }
   }
   return files;
 }
 
-const files = collectTypeScriptFiles(testRoot);
+const files = testRoots.flatMap(collectTypeScriptFiles);
 const violations = [];
 
 for (const file of files) {

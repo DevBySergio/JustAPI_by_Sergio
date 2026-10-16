@@ -38,6 +38,9 @@ jobs:
       - name: Validate package contents
         run: npm run package:list
 
+      - name: Test packaged extension on minimum and stable VS Code
+        run: xvfb-run -a npm run test:packaged
+
       - name: Upload VSIX
         uses: actions/upload-artifact@v7
         with:

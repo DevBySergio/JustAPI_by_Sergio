@@ -1,4 +1,5 @@
 import type { JustRequest } from '../models/Request';
+import { redactRecognizedCredentials } from '../engine/auth/CredentialRedaction';
 import {
   CredentialRepresentation,
   EffectiveRequest,
@@ -47,15 +48,7 @@ export class CodeGenerator {
   }
 
   private withCredentialPlaceholders(request: JustRequest): JustRequest {
-    const copy: JustRequest = {
-      ...request,
-      headers: request.headers.map(header => ({ ...header })),
-      queryParams: request.queryParams.map(parameter => ({ ...parameter })),
-      body: {
-        ...request.body,
-        formData: request.body.formData?.map(field => ({ ...field })),
-      },
-    };
+    const copy = redactRecognizedCredentials(request);
 
     for (const header of copy.headers) {
       if (header.enabled

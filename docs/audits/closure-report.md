@@ -1,5 +1,7 @@
 # JustAPI stabilization closure report
 
+> Historical stabilization record. See the [2026-10-16 corrective audit](./2026-10-16-corrections.md) for the 1.1.1 follow-up and current validation evidence.
+
 Closure date: 2026-07-20<br>
 Audited baseline: `b21b04f1`<br>
 Validated source revision: `53717e9558b8a41259c4d191c88408f882b328f0` plus the `1.1.0` release metadata<br>

@@ -148,6 +148,8 @@ describe('AuthService', () => {
     assert.equal(transport.queryParams.at(-1)?.value, unicodeSecret);
 
     request.queryParams.push({ id: 'query-conflict', key: 'API_KEY', value: 'ordinary', enabled: true });
+    assert.equal((await service.resolveForTransport(request)).queryParams.length, 2);
+    request.queryParams[0].key = 'api_key';
     await assert.rejects(
       service.resolveForTransport(request),
       error => isAuthError(error, 'AUTH_CONFLICT')

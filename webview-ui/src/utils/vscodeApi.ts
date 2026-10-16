@@ -23,6 +23,7 @@ export type WebviewMessageInput = WithoutOperationId<WebviewMessage>;
 
 let vscodeApi: VSCodeAPI | null = null;
 const correlationTracker = new OperationCorrelationTracker();
+const acknowledgements = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
 
 export function getVscodeApi(): VSCodeAPI {
   if (!vscodeApi) {
@@ -39,7 +40,7 @@ export function createExecutionId(): string {
   return createIdentifier('execution');
 }
 
-export function postMessage(message: WebviewMessageInput): WebviewMessage {
+function prepareMessage(message: WebviewMessageInput): WebviewMessage {
   const candidate = {
     ...message,
     operationId: createIdentifier('operation'),
@@ -50,8 +51,33 @@ export function postMessage(message: WebviewMessageInput): WebviewMessage {
   }
 
   correlationTracker.record(validation.value.type, validation.value.operationId);
-  getVscodeApi().postMessage(validation.value);
   return validation.value;
+}
+
+export function postMessage(message: WebviewMessageInput): WebviewMessage {
+  const prepared = prepareMessage(message);
+  getVscodeApi().postMessage(prepared);
+  return prepared;
+}
+
+export function postMessageWithAck(message: WebviewMessageInput): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const prepared = prepareMessage(message);
+    const timeout = setTimeout(() => {
+      acknowledgements.delete(prepared.operationId);
+      reject(new Error('The operation was not confirmed. Your pending changes have been retained.'));
+    }, 30_000);
+    acknowledgements.set(prepared.operationId, {
+      resolve: () => { clearTimeout(timeout); resolve(); },
+      reject: error => { clearTimeout(timeout); reject(error); },
+    });
+    try { getVscodeApi().postMessage(prepared); }
+    catch (error) {
+      acknowledgements.delete(prepared.operationId);
+      clearTimeout(timeout);
+      reject(error);
+    }
+  });
 }
 
 export function completeStartupAction(
@@ -74,6 +100,12 @@ export function isCurrentOperation(operationId: string): boolean {
   return correlationTracker.isCurrent(operationId);
 }
 
+export function invalidateEditorResults(): void {
+  for (const type of ['getRequest', 'generateCode', 'previewResolution'] as const) {
+    correlationTracker.record(type, createIdentifier('operation'));
+  }
+}
+
 type MessageHandler = (message: ExtensionMessage) => void;
 
 const handlers = new Set<MessageHandler>();
@@ -81,6 +113,12 @@ const handlers = new Set<MessageHandler>();
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
   const validation = validateExtensionMessage(event.data);
   if (validation.ok) {
+    const acknowledgement = acknowledgements.get(validation.value.operationId);
+    if (acknowledgement && (validation.value.type === 'acknowledgement' || validation.value.type === 'error')) {
+      acknowledgements.delete(validation.value.operationId);
+      if (validation.value.type === 'error') { acknowledgement.reject(new Error(validation.value.message)); }
+      else { acknowledgement.resolve(); }
+    }
     if (!correlationTracker.isCurrent(validation.value.operationId)) {
       return;
     }
