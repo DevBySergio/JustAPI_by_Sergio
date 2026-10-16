@@ -2,7 +2,7 @@
   "name": "justapi",
   "displayName": "JustAPI",
   "description": "A local-first API client for VS Code",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "DevBySergio",
   "author": {
     "name": "DevBySergio",
@@ -148,7 +148,8 @@
     "validate:static": "npm run test:policy && npm run lint && npm run typecheck:extension && npm run typecheck:webview && npm run test:unit && npm run test:integration && npm run test:webview && npm run build && npm run audit:runtime && npm run audit:full",
     "validate": "npm run validate:static && npm run test:extension && npm run vsix && npm run package:list && npm run test:packaged",
     "test:webview": "tsc -p webview-ui/tsconfig.test.json && node --test out-webview/webview-ui/test/*.test.js",
-    "test:packaged": "node scripts/test-packaged.mjs"
+    "test:packaged": "node scripts/test-packaged.mjs",
+    "validate:source": "npm run validate:static && npm run test:extension && npm run package && npm run package:list"
   },
   "dependencies": {
     "react": "^19.0.0",

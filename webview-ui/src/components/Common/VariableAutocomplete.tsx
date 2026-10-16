@@ -39,7 +39,7 @@ export function VariableAutocomplete({ value, onChange, children, onKeyDown: ext
   const measureRef = useRef<HTMLDivElement>(null);
   const activeInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
-  const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
+  const activeCollectionId = useRequestStore((s) => s.collectionId);
   const collections = useCollectionStore((s) => s.collections);
   const variableSets = useVariableStore((s) => s.variableSets);
   const globalVariables = useVariableStore((s) => s.globalVariables);

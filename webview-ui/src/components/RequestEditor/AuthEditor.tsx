@@ -3,7 +3,7 @@ import { useRequestStore } from '../../stores/useRequestStore';
 import { postMessageWithAck } from '../../utils/vscodeApi';
 
 export function AuthEditor({ onNotification }: { onNotification: (text: string, type: 'info' | 'error' | 'success') => void }) {
-  const { currentRequest } = useRequestStore();
+  const { currentRequest, tabId } = useRequestStore();
   const [authType, setAuthType] = useState<'none' | 'bearer' | 'basic' | 'apiKey'>('none');
   const [bearerToken, setBearerToken] = useState('');
   const [basicUser, setBasicUser] = useState('');
@@ -35,7 +35,7 @@ export function AuthEditor({ onNotification }: { onNotification: (text: string, 
       : undefined;
     if (!auth) { return; }
     const update = postMessageWithAck({ type: 'configureAuth', requestId: currentRequest.id, auth });
-    useRequestStore.getState().setAuthUpdate(update);
+    useRequestStore.getState().setAuthUpdate(update, tabId);
     void update.then(() => {
       setBearerToken(''); setBasicUser(''); setBasicPass(''); setApiKeyValue('');
     }).catch(error => onNotification(String(error), 'error'));

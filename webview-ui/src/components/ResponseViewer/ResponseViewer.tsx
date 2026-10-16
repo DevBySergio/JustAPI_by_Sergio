@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useResponseStore } from '../../stores/useResponseStore';
+import { useRequestStore } from '../../stores/useRequestStore';
 import { BodyType, ResponseCookie } from '../../../../src/models/Response';
 import { JsonTreeViewer } from './JsonTreeViewer';
 import {
@@ -24,7 +24,7 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)} s`;
 }
 
-function formatTimingBreakdown(response: NonNullable<ReturnType<typeof useResponseStore.getState>['response']>): string {
+function formatTimingBreakdown(response: NonNullable<ReturnType<typeof useRequestStore.getState>['response']>): string {
   const phases = [
     ['DNS', response.timings.dns],
     ['Connect', response.timings.connect],
@@ -214,8 +214,8 @@ export function ResponseViewer() {
   const [treeExpanded, setTreeExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  const response = useResponseStore((s) => s.response);
-  const hasResponse = useResponseStore((s) => s.hasResponse);
+  const response = useRequestStore((s) => s.response);
+  const hasResponse = response !== null;
 
   const isJson = response?.bodyType === 'json';
 

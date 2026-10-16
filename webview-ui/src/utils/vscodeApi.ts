@@ -50,17 +50,21 @@ function prepareMessage(message: WebviewMessageInput): WebviewMessage {
     throw new Error('The webview attempted to send an invalid protocol message.');
   }
 
-  correlationTracker.record(validation.value.type, validation.value.operationId);
+  const validated = validation.value;
+  const scope = validated.type === 'getRequest' ? validated.requestId
+    : validated.type === 'generateCode' || validated.type === 'previewResolution' ? validated.request?.id : undefined;
+  correlationTracker.record(validated.type, validated.operationId, scope);
   return validation.value;
 }
 
-export function postMessage(message: WebviewMessageInput): WebviewMessage {
+export function postMessage(message: WebviewMessageInput, onPrepared?: (message: WebviewMessage) => void): WebviewMessage {
   const prepared = prepareMessage(message);
+  onPrepared?.(prepared);
   getVscodeApi().postMessage(prepared);
   return prepared;
 }
 
-export function postMessageWithAck(message: WebviewMessageInput): Promise<void> {
+export function postMessageWithAck(message: WebviewMessageInput, onPrepared?: (message: WebviewMessage) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const prepared = prepareMessage(message);
     const timeout = setTimeout(() => {
@@ -71,7 +75,7 @@ export function postMessageWithAck(message: WebviewMessageInput): Promise<void> 
       resolve: () => { clearTimeout(timeout); resolve(); },
       reject: error => { clearTimeout(timeout); reject(error); },
     });
-    try { getVscodeApi().postMessage(prepared); }
+    try { onPrepared?.(prepared); getVscodeApi().postMessage(prepared); }
     catch (error) {
       acknowledgements.delete(prepared.operationId);
       clearTimeout(timeout);
@@ -98,12 +102,6 @@ export function completeStartupAction(
 
 export function isCurrentOperation(operationId: string): boolean {
   return correlationTracker.isCurrent(operationId);
-}
-
-export function invalidateEditorResults(): void {
-  for (const type of ['getRequest', 'generateCode', 'previewResolution'] as const) {
-    correlationTracker.record(type, createIdentifier('operation'));
-  }
 }
 
 type MessageHandler = (message: ExtensionMessage) => void;

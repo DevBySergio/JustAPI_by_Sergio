@@ -43,7 +43,7 @@ export function RequestEditor({ onSend, onSave, onNew, onPrepare, isDirty, isSav
   } = useRequestStore();
 
   const collections = useCollectionStore((s) => s.collections);
-  const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
+  const activeCollectionId = useRequestStore((s) => s.collectionId);
   const selectCollection = useCollectionStore((s) => s.selectCollection);
 
   // Count active variables
@@ -109,6 +109,7 @@ export function RequestEditor({ onSend, onSave, onNew, onPrepare, isDirty, isSav
           value={activeCollectionId || ''}
           onChange={(e) => {
             const id = e.target.value;
+            useRequestStore.getState().setCollectionId(id || null);
             selectCollection(id || null);
           }}
           style={{
@@ -228,6 +229,7 @@ export function RequestEditor({ onSend, onSave, onNew, onPrepare, isDirty, isSav
         </button>
 
         <button
+          disabled={useRequestStore.getState().saving}
           onClick={() => {
             if (activeCollectionId) {
               onSave();

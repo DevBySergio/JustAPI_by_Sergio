@@ -1,6 +1,7 @@
 import type { KeyValuePair } from '../models/KeyValuePair';
 import type { JustRequest } from '../models/Request';
 import { validateWebviewMessage } from '../protocol/MessageValidator';
+import { redactUrlQueryValues, redactUrlUserInfo } from '../engine/auth/UrlRedaction';
 
 export type WebviewTab = 'editor' | 'collections' | 'history' | 'variables' | 'codegen';
 export type VariableSubTab = 'vars' | 'sets';
@@ -14,6 +15,26 @@ export interface PersistedWebviewState {
   baselineRequest: JustRequest;
   redactedValues: boolean;
   pendingAuth?: boolean;
+}
+
+export const REQUEST_WORKSPACE_LIMITS = { maximumTabs: 20, maximumBytes: 4 * 1024 * 1024 } as const;
+
+export interface PersistedRequestTab {
+  tabId: string;
+  currentRequest: JustRequest;
+  baselineRequest: JustRequest;
+  collectionId: string | null;
+  baselineCollectionId: string | null;
+  pendingAuth: boolean;
+}
+
+export interface PersistedRequestWorkspace {
+  schemaVersion: 2;
+  activeTab: WebviewTab;
+  variableSubTab: VariableSubTab;
+  activeRequestTabId: string;
+  tabs: PersistedRequestTab[];
+  redactedValues: boolean;
 }
 
 const WEBVIEW_TABS = new Set<WebviewTab>([
@@ -74,24 +95,10 @@ function sanitizePairs(
 }
 
 function sanitizeUrl(value: string, request: JustRequest): { value: string; redacted: boolean } {
-  try {
-    const url = new URL(value);
-    let redacted = false;
-    if (url.username || url.password) {
-      url.username = '';
-      url.password = '';
-      redacted = true;
-    }
-    for (const key of Array.from(url.searchParams.keys())) {
-      if (isSensitiveName(key, request) && url.searchParams.get(key)) {
-        url.searchParams.set(key, '');
-        redacted = true;
-      }
-    }
-    return { value: url.toString(), redacted };
-  } catch {
-    return { value, redacted: false };
-  }
+  const userInfo = redactUrlUserInfo(value);
+  const query = redactUrlQueryValues(userInfo.value, name => isSensitiveName(name, request), '');
+  return query.value.length > 16 * 1024 ? { value: '', redacted: true }
+    : { value: query.value, redacted: userInfo.redacted || query.redacted };
 }
 
 function sanitizeBody(request: JustRequest): { body: JustRequest['body']; redacted: boolean } {
@@ -138,7 +145,7 @@ function sanitizeBody(request: JustRequest): { body: JustRequest['body']; redact
     };
     const sanitized = visit(parsed);
     return {
-      body: { ...request.body, content: JSON.stringify(sanitized, null, 2) },
+      body: { ...request.body, content: redacted ? JSON.stringify(sanitized, null, 2) : request.body.content },
       redacted,
     };
   } catch {
@@ -223,6 +230,65 @@ export function restorePersistedWebviewState(value: unknown): PersistedWebviewSt
     pendingAuth: false,
     redactedValues: candidate.redactedValues || current.redacted || baseline.redacted || candidate.pendingAuth === true,
   };
+}
+
+export function createPersistedRequestWorkspace(input: Omit<PersistedRequestWorkspace, 'schemaVersion' | 'redactedValues'>): PersistedRequestWorkspace {
+  let redactedValues = false;
+  const tabs = input.tabs.slice(0, REQUEST_WORKSPACE_LIMITS.maximumTabs).map(tab => {
+    const current = sanitizeRequestForWebviewState(tab.currentRequest);
+    const baseline = sanitizeRequestForWebviewState(tab.baselineRequest);
+    redactedValues ||= current.redacted || baseline.redacted;
+    return { tabId: tab.tabId, currentRequest: current.request, baselineRequest: baseline.request,
+      collectionId: tab.collectionId, baselineCollectionId: tab.baselineCollectionId, pendingAuth: tab.pendingAuth };
+  });
+  const result: PersistedRequestWorkspace = { schemaVersion: 2, activeTab: input.activeTab, variableSubTab: input.variableSubTab,
+    activeRequestTabId: input.activeRequestTabId, tabs, redactedValues };
+  // Keep tab identity and navigation even when a large draft cannot be restored safely.
+  const bytes = () => new TextEncoder().encode(JSON.stringify(result)).length;
+  for (const tab of [...tabs].sort((left, right) => Number(left.tabId === input.activeRequestTabId) - Number(right.tabId === input.activeRequestTabId))) {
+    if (bytes() <= REQUEST_WORKSPACE_LIMITS.maximumBytes) { break; }
+    for (const request of [tab.currentRequest, tab.baselineRequest]) {
+      request.body = { type: request.body.type, content: '' };
+      request.headers = []; request.queryParams = []; request.pathParams = []; request.variables = [];
+    }
+    result.redactedValues = true;
+  }
+  return result;
+}
+
+export function restoreRequestWorkspace(value: unknown): PersistedRequestWorkspace | null {
+  const legacy = restorePersistedWebviewState(value);
+  if (legacy) {
+    return { schemaVersion: 2, activeTab: legacy.activeTab, variableSubTab: legacy.variableSubTab,
+      activeRequestTabId: `tab-${legacy.currentRequest.id}`, redactedValues: legacy.redactedValues,
+      tabs: [{ tabId: `tab-${legacy.currentRequest.id}`, currentRequest: legacy.currentRequest,
+        baselineRequest: legacy.baselineRequest, collectionId: legacy.activeCollectionId, baselineCollectionId: legacy.activeCollectionId, pendingAuth: false }] };
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) { return null; }
+  const candidate = value as Partial<PersistedRequestWorkspace>;
+  if (candidate.schemaVersion !== 2 || !WEBVIEW_TABS.has(candidate.activeTab as WebviewTab)
+    || (candidate.variableSubTab !== 'vars' && candidate.variableSubTab !== 'sets')
+    || typeof candidate.activeRequestTabId !== 'string' || typeof candidate.redactedValues !== 'boolean'
+    || !Array.isArray(candidate.tabs) || candidate.tabs.length < 1 || candidate.tabs.length > REQUEST_WORKSPACE_LIMITS.maximumTabs) { return null; }
+  const ids = new Set<string>();
+  const requestIds = new Set<string>();
+  for (const tab of candidate.tabs) {
+    if (!tab || typeof tab !== 'object' || typeof tab.tabId !== 'string' || !/^[\x21-\x7e]{1,128}$/.test(tab.tabId)
+      || ids.has(tab.tabId) || !isValidRequest(tab.currentRequest) || !isValidRequest(tab.baselineRequest)
+      || tab.currentRequest.id !== tab.baselineRequest.id || requestIds.has(tab.currentRequest.id)
+      || (tab.collectionId !== null && (typeof tab.collectionId !== 'string' || !/^[\x21-\x7e]{1,64}$/.test(tab.collectionId)))
+      || (tab.baselineCollectionId !== null && (typeof tab.baselineCollectionId !== 'string' || !/^[\x21-\x7e]{1,64}$/.test(tab.baselineCollectionId)))
+      || typeof tab.pendingAuth !== 'boolean') { return null; }
+    ids.add(tab.tabId); requestIds.add(tab.currentRequest.id);
+  }
+  if (!ids.has(candidate.activeRequestTabId)) { return null; }
+  const result = createPersistedRequestWorkspace(candidate as PersistedRequestWorkspace);
+  result.redactedValues ||= candidate.redactedValues;
+  for (const tab of result.tabs) {
+    if (tab.pendingAuth) { tab.currentRequest.auth = { ...tab.baselineRequest.auth }; result.redactedValues = true; }
+    tab.pendingAuth = false;
+  }
+  return result;
 }
 
 function requestComparableValue(request: JustRequest): Omit<JustRequest, 'updated'> {

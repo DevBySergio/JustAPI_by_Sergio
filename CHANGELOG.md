@@ -2,6 +2,30 @@
 
 All notable changes to JustAPI are documented in this file.
 
+## [Unreleased]
+
+## [1.3.0] - 2026-10-16
+
+Prepared release; the installable VSIX and its isolated installation checks are pending final packaging authorization.
+
+### Added
+
+- Independent request tabs with separate drafts, collection scopes, pending authentication, responses, generated code and execution/error state. New requests/imports/history skeletons open new tabs; reopening a saved request selects its existing draft.
+- Keyboard tab navigation and close protection with Keep editing, Discard and close, and Save and close. Failed saves retain the tab; closing/deleting cancels only affected executions and discards their pending credentials.
+- Restore up to 20 sanitized request drafts through a bounded 4 MiB webview-state cache, migrating the previous single-editor cache. Responses, connections and pending authentication secrets are never restored.
+- A source-only validation gate (`validate:source`) that builds and tests without creating a VSIX.
+
+### Fixed
+
+- Correlate loads/previews/code generation per request so another tab cannot supersede them; route delayed replies and save acknowledgements to their originating tab.
+- Protect dirty inactive tabs during collection/folder deletion and follow request moves in every open tab.
+- Cancel old executions before recreating the webview, and preserve ordinary URL spelling and JSON whitespace when restoring drafts.
+- Redact URL user information and recognized query credentials even in incomplete or variable-protocol URLs, including default exports, cached drafts and history summaries.
+
+### Changed
+
+- Load the request editor only when its section is used, retaining the existing local chunk loader and failure recovery.
+
 ## [1.2.0] - 2026-10-16
 
 ### Added

@@ -1,11 +1,17 @@
 import { useEffect, useRef } from 'react';
 
+const secondaryButtonStyle = {
+  padding: '4px 10px', border: '1px solid var(--vscode-panel-border)',
+  background: 'var(--vscode-button-secondaryBackground)', color: 'var(--vscode-button-secondaryForeground)',
+};
+
 interface ConfirmDialogProps {
   title: string;
   message: string;
   confirmLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
+  onSave?: () => void;
 }
 
 export function ConfirmDialog({
@@ -14,6 +20,7 @@ export function ConfirmDialog({
   confirmLabel,
   onConfirm,
   onCancel,
+  onSave,
 }: ConfirmDialogProps) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -90,8 +97,9 @@ export function ConfirmDialog({
         <p id="discard-dialog-description" style={{ margin: '8px 0 16px', fontSize: '12px', lineHeight: 1.5 }}>
           {message}
         </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-          <button ref={cancelButtonRef} type="button" onClick={onCancel}>Keep editing</button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '8px' }}>
+          <button ref={cancelButtonRef} type="button" onClick={onCancel} style={secondaryButtonStyle}>Keep editing</button>
+          {onSave && <button type="button" onClick={onSave} style={secondaryButtonStyle}>Save and close</button>}
           <button
             type="button"
             onClick={onConfirm}

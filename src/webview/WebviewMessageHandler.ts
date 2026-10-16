@@ -35,6 +35,7 @@ export class WebviewMessageHandler {
   constructor(private readonly options: WebviewMessageHandlerOptions) {}
 
   async resetForNewView(): Promise<void> {
+    this.options.requests.dispose();
     await this.options.collections.discardAllPendingAuth();
   }
 

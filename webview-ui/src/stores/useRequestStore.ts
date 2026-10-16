@@ -3,14 +3,50 @@ import { JustRequest, HttpMethod, BodyType, createDefaultRequest } from '../../.
 import { KeyValuePair, PathParam } from '../../../src/models/KeyValuePair';
 import { Variable } from '../../../src/models/Variable';
 import { AuthConfig } from '../../../src/models/Auth';
+import type { JustResponse } from '../../../src/models/Response';
+import { requestsDiffer, REQUEST_WORKSPACE_LIMITS } from '../../../src/webview/WebviewState';
 
-interface RequestState {
+export const MAX_REQUEST_TABS = REQUEST_WORKSPACE_LIMITS.maximumTabs;
+
+export interface RequestTab {
+  tabId: string;
   currentRequest: JustRequest;
+  baselineRequest: JustRequest;
+  collectionId: string | null;
+  baselineCollectionId: string | null;
   authPending: boolean;
   authRevision: number;
   authUpdate: Promise<void> | null;
   isExecuting: boolean;
   activeExecutionId: string | null;
+  response: JustResponse | null;
+  code: string;
+  error: string | null;
+  loading: boolean;
+  loadFailed: boolean;
+  closing: boolean;
+  saving: boolean;
+}
+
+export function createRequestTab(request = createDefaultRequest(), collectionId: string | null = null): RequestTab {
+  return { tabId: `tab-${crypto.randomUUID()}`, currentRequest: request, baselineRequest: request, collectionId, baselineCollectionId: collectionId,
+    authPending: false, authRevision: 0, authUpdate: null, isExecuting: false, activeExecutionId: null,
+    response: null, code: '', error: null, loading: false, loadFailed: false, closing: false, saving: false };
+}
+
+export function isRequestTabDirty(tab: RequestTab): boolean {
+  return tab.authPending || tab.authUpdate !== null || tab.collectionId !== tab.baselineCollectionId || requestsDiffer(tab.currentRequest, tab.baselineRequest);
+}
+
+interface RequestState extends RequestTab {
+  tabs: RequestTab[];
+  initializeTabs: (tabs: RequestTab[], activeTabId: string) => void;
+  openTab: (request: JustRequest, collectionId: string | null, loading?: boolean) => string;
+  activateTab: (tabId: string) => void;
+  closeTab: (tabId: string) => void;
+  patchTab: (tabId: string, patch: Partial<Omit<RequestTab, 'tabId'>>) => void;
+  getTab: (tabId: string) => RequestTab | undefined;
+  setCollectionId: (collectionId: string | null) => void;
   setMethod: (method: HttpMethod) => void;
   setUrl: (url: string) => void;
   setName: (name: string) => void;
@@ -18,129 +54,102 @@ interface RequestState {
   setQueryParams: (params: KeyValuePair[]) => void;
   setPathParams: (params: PathParam[]) => void;
   setVariables: (variables: Variable[]) => void;
-  setAuth: (auth: AuthConfig, pending?: boolean) => void;
-  markAuthClean: () => void;
-  setAuthUpdate: (update: Promise<void>) => void;
-  acceptSavedRequest: (saved: JustRequest, submitted: JustRequest, authRevision: number) => void;
+  setAuth: (auth: AuthConfig, pending?: boolean, tabId?: string) => void;
+  setAuthUpdate: (update: Promise<void>, tabId?: string) => void;
+  acceptSavedRequest: (tabId: string, saved: JustRequest, submitted: JustRequest, authRevision: number, collectionId: string) => void;
   setBodyType: (type: BodyType) => void;
   setBodyContent: (content: string) => void;
   setFormData: (formData: KeyValuePair[]) => void;
   setRequest: (request: JustRequest) => void;
-  resetRequest: () => void;
-  beginExecution: (executionId: string) => void;
+  beginExecution: (executionId: string, tabId?: string) => void;
   setExecutionState: (executionId: string, executing: boolean) => void;
+  setResponse: (executionId: string, response: JustResponse) => void;
 }
 
-export const useRequestStore = create<RequestState>((set) => ({
-  currentRequest: createDefaultRequest(),
-  authPending: false,
-  authRevision: 0,
-  authUpdate: null,
-  isExecuting: false,
-  activeExecutionId: null,
+const initialTab = createRequestTab();
 
-  setMethod: (method) =>
-    set((state) => ({
-      currentRequest: { ...state.currentRequest, method, updated: Date.now() },
-    })),
-
-  setUrl: (url) =>
-    set((state) => ({
-      currentRequest: { ...state.currentRequest, url, updated: Date.now() },
-    })),
-
-  setName: (name) =>
-    set((state) => ({
-      currentRequest: { ...state.currentRequest, name, updated: Date.now() },
-    })),
-
-  setHeaders: (headers) =>
-    set((state) => ({
-      currentRequest: { ...state.currentRequest, headers, updated: Date.now() },
-    })),
-
-  setQueryParams: (queryParams) =>
-    set((state) => ({
-      currentRequest: { ...state.currentRequest, queryParams, updated: Date.now() },
-    })),
-
-  setAuth: (auth, pending = true) =>
-    set((state) => ({
-      currentRequest: { ...state.currentRequest, auth, updated: Date.now() },
-      authPending: pending,
-      authRevision: state.authRevision + 1,
-    })),
-
-  setPathParams: (pathParams) => set(state => ({ currentRequest: { ...state.currentRequest, pathParams, updated: Date.now() } })),
-  setVariables: (variables) => set(state => ({ currentRequest: { ...state.currentRequest, variables, updated: Date.now() } })),
-
-  markAuthClean: () => set(state => ({ authPending: false, authRevision: state.authRevision + 1 })),
-
-  setAuthUpdate: (update) => {
-    set({ authUpdate: update });
-    void update.finally(() => set(state => state.authUpdate === update ? { authUpdate: null } : {})).catch(() => undefined);
-  },
-
-  acceptSavedRequest: (saved, submitted, revision) => set(state => {
-    if (state.currentRequest.id !== submitted.id) { return state; }
-    const current = { ...state.currentRequest };
-    for (const key of Object.keys(saved) as Array<keyof JustRequest>) {
-      if (JSON.stringify(current[key]) === JSON.stringify(submitted[key])) {
-        Object.assign(current, { [key]: saved[key] });
-      }
-    }
-    return { currentRequest: current, authPending: state.authRevision === revision ? false : state.authPending };
-  }),
-
-  setBodyType: (type) =>
-    set((state) => ({
-      currentRequest: {
-        ...state.currentRequest,
-        body: {
-          ...state.currentRequest.body, type,
-          ...(type === 'x-www-form-urlencoded' && state.currentRequest.body.type !== type
-            ? { formData: state.currentRequest.body.formData ?? [] } : {}),
-        },
-        updated: Date.now(),
-      },
-    })),
-
-  setBodyContent: (content) =>
-    set((state) => ({
-      currentRequest: {
-        ...state.currentRequest,
-        body: { ...state.currentRequest.body, content },
-        updated: Date.now(),
-      },
-    })),
-
-  setFormData: (formData) =>
-    set((state) => ({
-      currentRequest: {
-        ...state.currentRequest,
-        body: { ...state.currentRequest.body, formData },
-        updated: Date.now(),
-      },
-    })),
-
-  setRequest: (request) =>
-    set({ currentRequest: request }),
-
-  resetRequest: () =>
-    set({ currentRequest: createDefaultRequest() }),
-
-  beginExecution: (executionId) =>
-    set({ activeExecutionId: executionId, isExecuting: true }),
-
-  setExecutionState: (executionId, executing) =>
-    set((state) => {
-      if (state.activeExecutionId !== executionId) {
-        return state;
-      }
-      return {
-        ...state,
-        isExecuting: executing,
-        activeExecutionId: executing ? executionId : null,
-      };
+export const useRequestStore = create<RequestState>((set, get) => {
+  // Tabs are authoritative. The active projection keeps existing editor selectors stable;
+  // every transition publishes both atomically through this function.
+  const updateTab = (tabId: string, change: (tab: RequestTab) => RequestTab) => set(state => {
+    const tab = state.tabs.find(candidate => candidate.tabId === tabId);
+    if (!tab) { return state; }
+    const next = change(tab);
+    return { tabs: state.tabs.map(candidate => candidate.tabId === tabId ? next : candidate),
+      ...(state.tabId === tabId ? next : {}) };
+  });
+  const editRequest = (change: (request: JustRequest) => JustRequest) => updateTab(get().tabId, tab => ({
+    ...tab, currentRequest: { ...change(tab.currentRequest), updated: Date.now() }, error: null,
+  }));
+  return {
+    ...initialTab, tabs: [initialTab],
+    getTab: tabId => get().tabs.find(tab => tab.tabId === tabId),
+    initializeTabs: (tabs, activeTabId) => {
+      if (!tabs.length || tabs.length > MAX_REQUEST_TABS) { throw new Error('Invalid request tab count.'); }
+      const active = tabs.find(tab => tab.tabId === activeTabId) ?? tabs[0];
+      set({ tabs, ...active });
+    },
+    openTab: (request, collectionId, loading = false) => {
+      const existing = get().tabs.find(tab => tab.currentRequest.id === request.id);
+      if (existing) { get().activateTab(existing.tabId); return existing.tabId; }
+      if (get().tabs.length >= MAX_REQUEST_TABS) { throw new Error(`Close a request tab before opening another (maximum ${MAX_REQUEST_TABS}).`); }
+      const tab = { ...createRequestTab(request, collectionId), loading };
+      set(state => ({ tabs: [...state.tabs, tab], ...tab }));
+      return tab.tabId;
+    },
+    activateTab: tabId => {
+      const tab = get().getTab(tabId);
+      if (tab) { set({ ...tab }); }
+    },
+    closeTab: tabId => set(state => {
+      const index = state.tabs.findIndex(tab => tab.tabId === tabId);
+      if (index < 0) { return state; }
+      let tabs = state.tabs.filter(tab => tab.tabId !== tabId);
+      if (!tabs.length) { tabs = [createRequestTab(undefined, state.collectionId)]; }
+      const active = state.tabId === tabId ? tabs[Math.max(0, index - 1)] : tabs.find(tab => tab.tabId === state.tabId)!;
+      return { tabs, ...active };
     }),
-}));
+    patchTab: (tabId, patch) => updateTab(tabId, tab => ({ ...tab, ...patch })),
+    setCollectionId: collectionId => updateTab(get().tabId, tab => ({ ...tab, collectionId, code: '' })),
+    setMethod: method => editRequest(request => ({ ...request, method })),
+    setUrl: url => editRequest(request => ({ ...request, url })),
+    setName: name => editRequest(request => ({ ...request, name })),
+    setHeaders: headers => editRequest(request => ({ ...request, headers })),
+    setQueryParams: queryParams => editRequest(request => ({ ...request, queryParams })),
+    setPathParams: pathParams => editRequest(request => ({ ...request, pathParams })),
+    setVariables: variables => editRequest(request => ({ ...request, variables })),
+    setAuth: (auth, pending = true, tabId = get().tabId) => updateTab(tabId, tab => ({
+      ...tab, currentRequest: { ...tab.currentRequest, auth, updated: Date.now() },
+      authPending: pending, authRevision: tab.authRevision + 1,
+    })),
+    setAuthUpdate: (update, tabId = get().tabId) => {
+      updateTab(tabId, tab => ({ ...tab, authUpdate: update }));
+      void update.finally(() => updateTab(tabId, tab => tab.authUpdate === update ? { ...tab, authUpdate: null } : tab)).catch(() => undefined);
+    },
+    acceptSavedRequest: (tabId, saved, submitted, revision, collectionId) => updateTab(tabId, tab => {
+      if (tab.currentRequest.id !== submitted.id) { return tab; }
+      const current = { ...tab.currentRequest };
+      for (const key of Object.keys(saved) as Array<keyof JustRequest>) {
+        if (JSON.stringify(current[key]) === JSON.stringify(submitted[key])) { Object.assign(current, { [key]: saved[key] }); }
+      }
+      return { ...tab, currentRequest: current, baselineRequest: saved, baselineCollectionId: collectionId,
+        authPending: tab.authRevision === revision ? false : tab.authPending, error: null };
+    }),
+    setBodyType: type => editRequest(request => ({ ...request, body: { ...request.body, type,
+      ...(type === 'x-www-form-urlencoded' && request.body.type !== type ? { formData: request.body.formData ?? [] } : {}) } })),
+    setBodyContent: content => editRequest(request => ({ ...request, body: { ...request.body, content } })),
+    setFormData: formData => editRequest(request => ({ ...request, body: { ...request.body, formData } })),
+    setRequest: request => editRequest(() => request),
+    beginExecution: (executionId, tabId = get().tabId) => updateTab(tabId, tab => ({
+      ...tab, activeExecutionId: executionId, isExecuting: true, response: null, error: null,
+    })),
+    setExecutionState: (executionId, executing) => {
+      const tab = get().tabs.find(candidate => candidate.activeExecutionId === executionId);
+      if (tab) { updateTab(tab.tabId, current => ({ ...current, isExecuting: executing, activeExecutionId: executing ? executionId : null })); }
+    },
+    setResponse: (executionId, response) => {
+      const tab = get().tabs.find(candidate => candidate.activeExecutionId === executionId);
+      if (tab) { updateTab(tab.tabId, current => ({ ...current, response })); }
+    },
+  };
+});

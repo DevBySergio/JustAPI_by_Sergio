@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { HistoryEntry } from '../models/HistoryEntry';
 import type { HttpMethod, JustRequest } from '../models/Request';
 import type { JustResponse, RequestError } from '../models/Response';
+import { redactUrlUserInfo } from '../engine/auth/UrlRedaction';
 
 export const HISTORY_LIMITS = {
   maximumEntries: 200,
@@ -73,12 +74,13 @@ export function redactHistoryUrl(value: string): string {
     }
     return parsed.toString().slice(0, HISTORY_LIMITS.maximumUrlLength);
   } catch {
-    const queryIndex = bounded.indexOf('?');
-    const hashIndex = bounded.indexOf('#');
+    const safe = redactUrlUserInfo(bounded).value;
+    const queryIndex = safe.indexOf('?');
+    const hashIndex = safe.indexOf('#');
     const cutAt = [queryIndex, hashIndex]
       .filter(index => index >= 0)
-      .reduce((minimum, index) => Math.min(minimum, index), bounded.length);
-    const base = bounded.slice(0, cutAt);
+      .reduce((minimum, index) => Math.min(minimum, index), safe.length);
+    const base = safe.slice(0, cutAt);
     return queryIndex >= 0 ? `${base}?{{redacted}}` : base;
   }
 }

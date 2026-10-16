@@ -22,8 +22,9 @@ export class OperationCorrelationTracker {
 
   constructor(private readonly recentLimit = 1_000) {}
 
-  record(action: WebviewMessageType, operationId: string): void {
-    const readGroup = READ_GROUPS[action];
+  record(action: WebviewMessageType, operationId: string, requestScope?: string): void {
+    const baseGroup = READ_GROUPS[action];
+    const readGroup = baseGroup && requestScope ? `${baseGroup}:${requestScope}` : baseGroup;
     const invalidatedGroup = MUTATION_GROUPS[action];
     if (invalidatedGroup) { this.latestOperationByGroup.set(invalidatedGroup, operationId); }
     // A mutation always owns its acknowledgement and errors. Only queries supersede queries.

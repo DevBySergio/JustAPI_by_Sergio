@@ -82,3 +82,13 @@ Folder mutations traverse the same queued service/manager transaction as request
 Path substitution occurs in `normalizeEffectiveRequest`, after hierarchical variable resolution. Only complete `/:name` path segments are substituted and values are encoded once. Preview, transport and code generation share this operation and the `INVALID_PATH_PARAMETER` preflight diagnostic.
 
 Secondary panels use React lazy imports with loading/error boundaries. Webpack derives chunk URLs from the local entry script and applies its nonce to every injected script. The CSP remains nonce-only; no remote script source is enabled. Build cleanup removes obsolete chunks. Package validation and installed-artifact checks cover all generated JavaScript and license files. A panel load error leaves the request editor and its stored draft available.
+
+## Independent request tabs (1.3.0 candidate)
+
+`useRequestStore` owns request-tab sessions. Each session has a unique tab ID separate from its request ID, its draft/baseline and selected/baseline collection, pending auth metadata, execution ID, response, code and transient status. A cached active projection is updated atomically with the tab array so existing editor selectors remain stable. Responses no longer have a separate singleton store.
+
+App captures the originating tab before asynchronous preparation, tracks load/save/code operations by tab, and routes replies without switching the active tab. Read supersession is scoped by request ID; execution IDs remain independent. Closing awaits pending auth/save work, rolls back staged credentials and removes only that session. Save-and-close retains newer unsaved changes or errors instead of removing a failed draft. Collection mutations reconcile every tab and guard inactive descendants.
+
+Webview cache version 2 stores a bounded list of sanitized drafts/baselines and collection scopes, migrates version 1 and clears pending-auth markers on restoration. It never serializes response/code/execution/promise state. This cache version is separate from persisted collection/storage schema v2, which is unchanged. Recreating the view cancels old host executions before clearing staged authentication.
+
+The primary editor also uses the local deferred-panel boundary. URL user information is redacted through a shared helper across derivatives, cached drafts and history, including incomplete authorities and variable protocols. Recognized query credentials are removed without requiring an executable URL; path/fragment at signs and ordinary URL spelling remain intact.

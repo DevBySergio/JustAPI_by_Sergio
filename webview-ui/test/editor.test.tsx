@@ -6,9 +6,8 @@ import { App } from '../src/App';
 import { VariableEditor } from '../src/components/VariableEditor';
 import { VariableAutosave } from '../src/utils/VariableAutosave';
 import { useCollectionStore } from '../src/stores/useCollectionStore';
-import { useRequestStore } from '../src/stores/useRequestStore';
+import { useRequestStore, createRequestTab } from '../src/stores/useRequestStore';
 import { useVariableStore } from '../src/stores/useVariableStore';
-import { useResponseStore } from '../src/stores/useResponseStore';
 import { useHistoryStore } from '../src/stores/useHistoryStore';
 import { createDefaultRequest } from '../../src/models/Request';
 import { createPersistedWebviewState } from '../../src/webview/WebviewState';
@@ -21,10 +20,10 @@ const collection = { id: 'collection-ui', name: 'UI collection', variables: [], 
 beforeEach(() => {
   host.state = null;
   host.messages = [];
-  useRequestStore.setState({ currentRequest: { ...createDefaultRequest(), url: 'https://example.test', name: 'Original' }, authPending: false, authRevision: 0, authUpdate: null, isExecuting: false, activeExecutionId: null });
+  const tab = createRequestTab({ ...createDefaultRequest(), url: 'https://example.test', name: 'Original' }, collection.id);
+  useRequestStore.getState().initializeTabs([tab], tab.tabId);
   useCollectionStore.setState({ collections: [collection], activeCollectionId: collection.id });
   useVariableStore.setState({ globalVariables: [], variableSets: [] });
-  useResponseStore.getState().clearResponse();
   useHistoryStore.setState({ entries: [] });
   host.receive = message => {
     if (message.type === 'webviewReady') { send({ type: 'initializationComplete', operationId: message.operationId }); }
@@ -233,9 +232,10 @@ describe('editor component regressions', () => {
     assert.ok(screen.getByText('Unsaved changes'));
   });
 
-  test('marks token replacement dirty, protects navigation, and discards before replacing a request', async () => {
+  test('marks token replacement dirty, protects closing, and discards before closing a request', async () => {
     const current = useRequestStore.getState().currentRequest;
-    useRequestStore.setState({ currentRequest: { ...current, auth: { type: 'bearer', configured: true } } });
+    const tab = createRequestTab({ ...current, auth: { type: 'bearer', configured: true } }, collection.id);
+    useRequestStore.getState().initializeTabs([tab], tab.tabId);
     await openApp();
     fireEvent.click(screen.getByRole('tab', { name: /^auth$/i }));
     await waitFor(() => assert.ok(screen.getByLabelText('Bearer token')));
@@ -243,24 +243,24 @@ describe('editor component regressions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
     await waitFor(() => assert.equal(useRequestStore.getState().authPending, true));
     assert.ok(screen.getByText('Unsaved changes'));
-    fireEvent.click(screen.getByTitle('New request'));
+    fireEvent.click(screen.getByLabelText('Close request Original'));
     assert.ok(screen.getByRole('alertdialog'));
-    fireEvent.click(screen.getByRole('button', { name: 'Discard and create' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard and close' }));
     await waitFor(() => assert.notEqual(useRequestStore.getState().currentRequest.id, current.id));
     assert.ok(host.messages.some(message => message.type === 'discardRequestChanges' && message.requestId === current.id));
     assert.equal(useRequestStore.getState().authPending, false);
   });
 
-  test('clears and cancels an old execution when opening a new request and ignores its late response', async () => {
+  test('cancels only the closed request execution and ignores its late response', async () => {
     await openApp();
     await act(async () => { useRequestStore.getState().beginExecution('execution-old'); });
-    fireEvent.click(screen.getByTitle('New request'));
+    fireEvent.click(screen.getByLabelText('Close request Original'));
     await waitFor(() => assert.equal(useRequestStore.getState().activeExecutionId, null));
     assert.ok(host.messages.some(message => message.type === 'cancelRequest' && message.executionId === 'execution-old'));
     await act(async () => {
       send({ type: 'response', operationId: 'old-operation', executionId: 'execution-old', response: { statusCode: 200, statusText: 'OK', httpVersion: 'HTTP/1.1', headers: {}, body: 'old', bodyType: 'text', size: 3, duration: 1, timings: { total: 1 }, cookies: [], redirected: false } });
     });
-    assert.equal(useResponseStore.getState().response, null);
+    assert.equal(useRequestStore.getState().response, null);
   });
 
   test('flushes variable edits before leaving the panel and sending a request', async () => {

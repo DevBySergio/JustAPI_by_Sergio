@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useRequestStore } from '../stores/useRequestStore';
-import { useCollectionStore } from '../stores/useCollectionStore';
 import { postMessage } from '../utils/vscodeApi';
 
 type TargetLanguage = 'javascript' | 'typescript' | 'python' | 'curl' | 'csharp' | 'java' | 'go';
@@ -19,22 +18,26 @@ interface CodeGenPanelProps {
   code: string;
   prepare: () => Promise<void>;
   onError: (message: string) => void;
+  onOperation: (operationId: string, tabId: string) => void;
 }
 
-export function CodeGenPanel({ code, prepare, onError }: CodeGenPanelProps) {
+export function CodeGenPanel({ code, prepare, onError, onOperation }: CodeGenPanelProps) {
   const currentRequest = useRequestStore((s) => s.currentRequest);
   const [language, setLanguage] = useState<TargetLanguage>('javascript');
   const [includeCredentials, setIncludeCredentials] = useState(false);
 
   const handleGenerate = () => {
+    const tabId = useRequestStore.getState().tabId;
     void (async () => {
       await prepare();
-      const request = useRequestStore.getState().currentRequest;
+      const tab = useRequestStore.getState().getTab(tabId);
+      if (!tab || tab.closing || tab.loading) { return; }
+      const request = tab.currentRequest;
       if (!request.url) { return; }
       postMessage({
         type: 'generateCode', request, language, includeCredentials,
-        collectionId: useCollectionStore.getState().activeCollectionId ?? undefined,
-      });
+        collectionId: tab.collectionId ?? undefined,
+      }, operation => onOperation(operation.operationId, tabId));
       setIncludeCredentials(false);
     })().catch(error => onError(String(error)));
   };

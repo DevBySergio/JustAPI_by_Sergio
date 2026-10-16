@@ -27,7 +27,7 @@ interface PreviewResult {
 export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Promise<void>; onError: (message: string) => void }) {
   const globalVars = useVariableStore((s) => s.globalVariables);
   const variableSets = useVariableStore((s) => s.variableSets);
-  const activeCollectionId = useCollectionStore((s) => s.activeCollectionId);
+  const activeCollectionId = useRequestStore((s) => s.collectionId);
   const collections = useCollectionStore((s) => s.collections);
   const selectedCol = collections.find(c => c.id === activeCollectionId);
   const currentRequest = useRequestStore((s) => s.currentRequest);
@@ -35,6 +35,7 @@ export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Prom
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const pendingPreview = useRef<string | null>(null);
+  const mounted = useRef(true);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
@@ -44,7 +45,10 @@ export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Prom
     clearTimeout(previewTimer.current);
   }, [currentRequest, activeCollectionId, collections, globalVars, variableSets]);
 
-  useEffect(() => () => { clearTimeout(previewTimer.current); }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; clearTimeout(previewTimer.current); };
+  }, []);
 
   useEffect(() => {
     return on('resolutionPreview', (msg: unknown) => {
@@ -120,12 +124,14 @@ export function ActiveVariablesPanel({ prepare, onError }: { prepare: () => Prom
   const requestCount = currentRequest?.variables?.filter(v => v.enabled && v.key).length || 0;
 
   const handlePreview = () => {
+    const tabId = useRequestStore.getState().tabId;
     void prepare().then(() => {
+      if (!mounted.current || useRequestStore.getState().tabId !== tabId) { return; }
       setPreviewLoading(true);
       setPreviewResult(null);
       pendingPreview.current = postMessage({
         type: 'previewResolution', request: useRequestStore.getState().currentRequest,
-        collectionId: useCollectionStore.getState().activeCollectionId ?? undefined,
+        collectionId: useRequestStore.getState().collectionId ?? undefined,
       }).operationId;
       clearTimeout(previewTimer.current);
       previewTimer.current = setTimeout(() => {

@@ -17,11 +17,21 @@ IPv4 and IPv6 literal destinations are supported. HEAD and bodyless status respo
 
 The response limit defaults to 10 MiB and accepts values from 1 KiB through 100 MiB. Timeouts accept 1 through 600,000 milliseconds. Request URLs are limited to 16 KiB. See the [HTTP implementation](src/engine/http/HttpClient.ts) and [localhost integration matrix](src/test/integration/httpClient.integration.test.ts).
 
+### Request tabs
+
+Use **+** beside the request tabs or **+ New** to open another draft. Opening a saved request selects its existing tab and preserves unsaved edits. cURL imports and unsaved history replays open new tabs. Each tab owns its collection selection, draft, pending Auth Builder state, response, generated code, execution and errors. Browsing another collection does not change a request's execution scope. Requests in different tabs can run concurrently.
+
+Tabs marked **●** have unsaved changes. Closing offers **Keep editing**, **Discard and close**, and, when a collection is selected, **Save and close**. A rejected save keeps the tab open. Closing a tab stops its execution and clears its pending credentials; other tabs continue. Deleting a folder/collection also protects dirty inactive descendants. Use arrow keys/Home/End in the request tab strip and Delete to close the focused tab.
+
+The local webview cache restores at most 20 request drafts and their collection scopes, with a 4 MiB total budget. It migrates the previous single-editor cache. Sensitive/oversized values may be omitted with a notice; large inactive draft fields are omitted first. Response bodies, generated code, running connections and pending authentication credentials are session-only. Apply authentication before leaving its editor; unapplied credential fields are cleared when the request editor unmounts. Collection JSON and SecretStorage remain the durable saved source. Closing the last tab opens an empty draft.
+
+Version 1.3.0 is prepared in the working tree; its VSIX and installed-package checks await final packaging. See [request-tab implementation evidence](docs/audits/2026-10-16-request-tabs.md).
+
 ### Collections and import/export
 
 The collection panel can create, rename, duplicate, and delete collections; save and delete requests; and open nested requests. Schema-v2 JSON import/export validates the entire tree, preserves nested folders, rejects ID collisions and orphaned requests, and exports credentials as placeholders by default. Each import contains one collection and is limited to 10 MiB, 10,000 requests/items, and 50 folder levels. See the [collection service](src/services/CollectionService.ts) and [collection tests](src/test/unit/storageAndCollections.test.ts).
 
-Saving an existing request preserves its folder and position. Concurrent collection/history mutations serialize their complete read-modify-commit transactions. Use **+ New folder** at collection level or **Organize (⋯)** beside a folder/request to create subfolders, rename folders, move items, choose their destination position, reorder siblings, or confirm deletion. All controls support keyboard and pointer input. Deleting a folder removes its entire subtree and its credentials after persistence succeeds; unsaved edits in the current descendant request require a separate discard confirmation. Moving the current request between collections updates its active variable scope.
+Saving an existing request preserves its folder and position. Concurrent collection/history mutations serialize their complete read-modify-commit transactions. Use **+ New folder** at collection level or **Organize (⋯)** beside a folder/request to create subfolders, rename folders, move items, choose their destination position, reorder siblings, or confirm deletion. All controls support keyboard and pointer input. Deleting a folder removes its entire subtree and its credentials after persistence succeeds; unsaved edits in any open descendant request require a separate discard confirmation. Moving a request between collections updates the execution scope of its open tab.
 
 ### cURL import
 
@@ -43,7 +53,7 @@ The request **Params** tab also edits path parameters. A URL such as `https://ex
 
 The Auth Builder supports Bearer, Basic, and API-key credentials in headers or query parameters. **Apply** stages credentials for trying the current draft; **Save** commits them with the request. Replacing a token marks the request dirty even if its public metadata is unchanged. Discard restores saved authentication; recreating the webview drops pending credentials and warns before they must be re-entered. Saved collection exports always use saved credentials, including while another credential is staged for that request. Recognized Auth Builder secrets are stored in VS Code `SecretStorage`; ordinary JSON stores retain only public auth metadata and an opaque secret reference. Existing recognized literal credentials migrate conservatively on load.
 
-History stores redacted summaries, not request/response bodies, headers, cookies, or credential values. Collection exports and generated code use placeholders by default, including recognized credentials embedded in URL user information. Explicit credential-bearing native exports import into the destination SecretStorage; redacted placeholders are not imported as real credentials. Including credentials is a one-time operation behind an explicit modal confirmation and is not persisted by that operation. Manually entered secrets outside the Auth Builder—for example in ordinary variables, URL values, or body text—remain ordinary user data and should not be treated as SecretStorage-backed. See the [authentication service](src/engine/auth/AuthService.ts), [history summary](src/storage/HistorySummary.ts), and [security tests](src/test/unit/auth.test.ts).
+History stores redacted summaries, not request/response bodies, headers, cookies, or credential values. Collection exports and generated code use placeholders by default, including recognized credentials embedded in URL user information. Redaction also covers incomplete and variable-protocol URLs. Explicit credential-bearing native exports import into the destination SecretStorage; redacted placeholders are not imported as real credentials. Including credentials is a one-time operation behind an explicit modal confirmation and is not persisted by that operation. Manually entered secrets outside the Auth Builder—for example in ordinary variables, URL values, or body text—remain ordinary user data and should not be treated as SecretStorage-backed. See the [authentication service](src/engine/auth/AuthService.ts), [history summary](src/storage/HistorySummary.ts), and [security tests](src/test/unit/auth.test.ts).
 
 ### History, search, and responses
 
@@ -108,18 +118,20 @@ The current release does not provide:
 - shell-compatible cURL execution or automatic `@file` expansion;
 - pre-request scripts, post-response tests, runners, scheduling, or collaboration.
 
-These are explicit product gaps, not implicit promises. The ordered proposal for adding them is in [the local-client roadmap](docs/roadmap.md). Folder organization and request variables/path parameters now ship in 1.2.0; the remaining rows are proposed. The complete stabilization rationale is in the [audit remediation ledger](docs/audits/remediation-plan.md).
+These are explicit product gaps, not implicit promises. The ordered proposal for adding them is in [the local-client roadmap](docs/roadmap.md). Folder organization and request variables/path parameters ship in 1.2.0; request tabs are prepared for 1.3.0. The remaining rows are proposed. The complete stabilization rationale is in the [audit remediation ledger](docs/audits/remediation-plan.md).
 
 ## Development and verification
 
-Install the lockfile exactly and run the release gate:
+Install the lockfile exactly and run the source gate:
 
 ```sh
 npm ci
-npm run validate
+npm run validate:source
 ```
 
-The gate runs policy checks, zero-warning lint, both strict type checks, unit and localhost integration suites, a real VS Code 1.80 extension-host suite, dependency audits, production builds, VSIX creation, and package allowlist validation. See [validation and testing](docs/testing.md) and [architecture](docs/architecture.md).
+`validate:source` performs source, runtime, production-build and package-inventory checks without creating a VSIX. Use `npm run validate` only when preparing an authorized installable release; that gate also creates and tests the VSIX.
+
+The source gate runs policy checks, zero-warning lint, both strict type checks, unit, webview and localhost integration suites, a real VS Code 1.80 extension-host suite, dependency audits, production builds and package inventory validation. See [validation and testing](docs/testing.md) and [architecture](docs/architecture.md).
 
 ## License
 
@@ -132,3 +144,5 @@ Version 1.1.1 closes cancellation-during-preparation, concurrent mutation loss, 
 Control protocol messages remain limited to 1 MiB. Request-bearing messages and individual data domains have a 16 MiB data budget plus a 64 KiB envelope allowance; each stored JSON document still has its 16 MiB limit and native import files retain their 10 MiB limit. Per-field and structural limits also apply. Invalid inputs produce diagnostics before preview, execution, and generation; a failed save never declares the current draft clean.
 
 Version 1.2.0 completes folder organization and request variables/path parameters, and loads secondary panels on demand. See the [daily-workflow validation report](docs/audits/2026-10-16-daily-workflows.md). No account, backend, telemetry or cloud service was added.
+
+Version 1.3.0 adds independent request tabs and loads the request editor on demand. Its source validation is recorded in the [request-tab report](docs/audits/2026-10-16-request-tabs.md); installable packaging remains deferred.
